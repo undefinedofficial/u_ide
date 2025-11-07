@@ -1,40 +1,33 @@
-# Welcome to Void.
+# Welcome to A-Coder.
 
 <div align="center">
 	<img
 		src="./src/vs/workbench/browser/parts/editor/media/slice_of_void.png"
-	 	alt="Void Welcome"
+	 	alt="A-Coder Welcome"
 		width="300"
 	 	height="300"
 	/>
 </div>
 
-Void is the open-source Cursor alternative.
+A-Coder is an open-source AI-powered code editor, forked from Void.
 
-Use AI agents on your codebase, checkpoint and visualize changes, and bring any model or host locally. Void sends messages directly to providers without retaining your data.
+Use AI agents on your codebase, checkpoint and visualize changes, and bring any model or host locally. A-Coder sends messages directly to providers without retaining your data.
 
-This repo contains the full sourcecode for Void. If you're new, welcome!
+This repo contains the full sourcecode for A-Coder. If you're new, welcome!
 
-- 🧭 [Website](https://voideditor.com)
+- 🧭 Original Void: [voideditor.com](https://voideditor.com)
 
-- 👋 [Discord](https://discord.gg/RSNjgaugJs)
-
-- 🚙 [Project Board](https://github.com/orgs/voideditor/projects/2)
+- 📖 [Development Guide](./DEVELOPMENT_GUIDE.md)
 
 
-## Contributing
+## Development
 
-1. To get started working on Void, check out our Project Board! You can also see [HOW_TO_CONTRIBUTE](https://github.com/voideditor/void/blob/main/HOW_TO_CONTRIBUTE.md).
-
-2. Feel free to attend a casual weekly meeting in our Discord channel!
+To get started developing A-Coder, see [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md) for complete instructions on:
+- Running in development mode
+- Building for production
+- Creating DMG installers
 
 
 ## Reference
 
-Void is a fork of the [vscode](https://github.com/microsoft/vscode) repository. For a guide to the codebase, see [VOID_CODEBASE_GUIDE](https://github.com/voideditor/void/blob/main/VOID_CODEBASE_GUIDE.md).
-
-## Note
-Work is temporarily paused on the Void IDE (this repo) while we experiment with a few novel AI coding ideas for Void. Stay alerted with new releases in our Discord channel.
-
-## Support
-You can always reach us in our Discord server or contact us via email: hello@voideditor.com.
+A-Coder is a fork of [Void](https://github.com/voideditor/void), which itself is a fork of [VS Code](https://github.com/microsoft/vscode). For a guide to the codebase, see [VOID_CODEBASE_GUIDE.md](./VOID_CODEBASE_GUIDE.md).
