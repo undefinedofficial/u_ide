@@ -2,8 +2,8 @@
 
 <div align="center">
 	<img
-		src="./src/vs/workbench/browser/parts/editor/media/slice_of_void.png"
-	 	alt="A-Coder Welcome"
+		src="./a-coder-transparent-512.png"
+	 	alt="A-Coder Logo"
 		width="300"
 	 	height="300"
 	/>
