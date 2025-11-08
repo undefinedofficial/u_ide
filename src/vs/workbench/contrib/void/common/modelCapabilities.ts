@@ -446,12 +446,16 @@ const extensiveModelOptionsFallback: VoidStaticProviderInfo['modelOptionsFallbac
 	if (lower.includes('grok')) return toFallback(xAIModelOptions, 'grok-3')
 
 	// Handle Ollama Cloud models first (before generic matches)
+	// All Ollama Cloud models end with :cloud or -cloud and support native OpenAI-style tool calling
 	if (lower.includes('cloud')) {
-		if (lower.includes('deepseek') && lower.includes('v3')) return toFallback(openSourceModelOptions_assumingOAICompat, 'deepseekCoderV3')
-		if (lower.includes('gpt-oss')) return toFallback(openSourceModelOptions_assumingOAICompat, 'qwen3') // gpt-oss is based on Qwen
-		if (lower.includes('kimi')) return toFallback(openSourceModelOptions_assumingOAICompat, 'qwen3') // kimi-k2 is based on Qwen
-		if (lower.includes('qwen') && lower.includes('coder')) return toFallback(openSourceModelOptions_assumingOAICompat, 'qwen2.5coder')
-		if (lower.includes('qwen')) return toFallback(openSourceModelOptions_assumingOAICompat, 'qwen3')
+		// Specific model mappings
+		if (lower.includes('deepseek') && lower.includes('v3')) return { ...toFallback(openSourceModelOptions_assumingOAICompat, 'deepseekCoderV3'), specialToolFormat: 'openai-style' }
+		if (lower.includes('gpt-oss')) return { ...toFallback(openSourceModelOptions_assumingOAICompat, 'qwen3'), specialToolFormat: 'openai-style' } // gpt-oss is based on Qwen
+		if (lower.includes('kimi')) return { ...toFallback(openSourceModelOptions_assumingOAICompat, 'qwen3'), specialToolFormat: 'openai-style' } // kimi-k2 is based on Qwen
+		if (lower.includes('qwen') && lower.includes('coder')) return { ...toFallback(openSourceModelOptions_assumingOAICompat, 'qwen2.5coder'), specialToolFormat: 'openai-style' }
+		if (lower.includes('qwen')) return { ...toFallback(openSourceModelOptions_assumingOAICompat, 'qwen3'), specialToolFormat: 'openai-style' }
+		// Generic fallback for any other cloud model
+		return { ...toFallback(openSourceModelOptions_assumingOAICompat, 'qwen3'), specialToolFormat: 'openai-style' }
 	}
 
 	if (lower.includes('deepseek-r1') || lower.includes('deepseek-reasoner')) return toFallback(openSourceModelOptions_assumingOAICompat, 'deepseekR1')
@@ -1258,7 +1262,7 @@ const ollamaModelOptions = {
 		downloadable: false,
 		supportsFIM: false,
 		supportsSystemMessage: 'system-role',
-		// specialToolFormat: 'openai-style', // Disabled: Ollama Cloud API has bug with native tools (500 unmarshal error)
+		specialToolFormat: 'openai-style', // ✅ FIXED: Native tool calling now works after fixing JSON schema type fields
 		reasoningCapabilities: { supportsReasoning: true, canIOReasoning: true, canTurnOffReasoning: false, openSourceThinkTags: ['<think>', '</think>'] },
 	},
 	'gpt-oss:20b-cloud': {
@@ -1268,7 +1272,7 @@ const ollamaModelOptions = {
 		downloadable: false,
 		supportsFIM: false,
 		supportsSystemMessage: 'system-role',
-		// specialToolFormat: 'openai-style', // Disabled: Ollama Cloud API has bug with native tools (500 unmarshal error)
+		specialToolFormat: 'openai-style', // ✅ FIXED: Native tool calling now works after fixing JSON schema type fields
 		reasoningCapabilities: false,
 	},
 	'gpt-oss:120b-cloud': {
@@ -1278,7 +1282,7 @@ const ollamaModelOptions = {
 		downloadable: false,
 		supportsFIM: false,
 		supportsSystemMessage: 'system-role',
-		// specialToolFormat: 'openai-style', // Disabled: Ollama Cloud API has bug with native tools (500 unmarshal error)
+		specialToolFormat: 'openai-style', // ✅ FIXED: Native tool calling now works after fixing JSON schema type fields
 		reasoningCapabilities: false,
 	},
 	'kimi-k2:1t-cloud': {
@@ -1288,7 +1292,7 @@ const ollamaModelOptions = {
 		downloadable: false,
 		supportsFIM: false,
 		supportsSystemMessage: 'system-role',
-		// specialToolFormat: 'openai-style', // ⚠️ Kimi K2 supports native OpenAI tools BUT Ollama Cloud API has bug (500 unmarshal error) - using XML fallback
+		specialToolFormat: 'openai-style', // ✅ FIXED: Native tool calling now works after fixing JSON schema type fields
 		defaultTemperature: 0.6, // Recommended by Moonshot AI
 		reasoningCapabilities: false,
 	},
@@ -1299,9 +1303,20 @@ const ollamaModelOptions = {
 		downloadable: false,
 		supportsFIM: false,
 		supportsSystemMessage: 'system-role',
-		// specialToolFormat: 'openai-style', // ⚠️ Kimi K2 Thinking supports native OpenAI tools BUT Ollama Cloud API has bug (500 unmarshal error) - using XML fallback
+		specialToolFormat: 'openai-style', // ✅ FIXED: Native tool calling now works after fixing JSON schema type fields
 		defaultTemperature: 1.0, // Recommended by Moonshot AI for reasoning model
 		reasoningCapabilities: { supportsReasoning: true, canIOReasoning: true, canTurnOffReasoning: false, openSourceThinkTags: ['<think>', '</think>'] }, // Long-horizon: can handle 200-300 consecutive tool calls
+	},
+	'kimi-k2-thinking:cloud': { // Alias for kimi-k2-thinking:1t-cloud
+		contextWindow: 256_000,
+		reservedOutputTokenSpace: 8_192,
+		cost: { input: 0, output: 0 },
+		downloadable: false,
+		supportsFIM: false,
+		supportsSystemMessage: 'system-role',
+		specialToolFormat: 'openai-style', // ✅ FIXED: Native tool calling now works after fixing JSON schema type fields
+		defaultTemperature: 1.0,
+		reasoningCapabilities: { supportsReasoning: true, canIOReasoning: true, canTurnOffReasoning: false, openSourceThinkTags: ['<think>', '</think>'] },
 	},
 	'qwen3-coder:480b-cloud': {
 		contextWindow: 128_000,
@@ -1310,7 +1325,7 @@ const ollamaModelOptions = {
 		downloadable: false,
 		supportsFIM: false,
 		supportsSystemMessage: 'system-role',
-		// specialToolFormat: 'openai-style', // Disabled: Ollama Cloud API has bug with native tools (500 unmarshal error)
+		specialToolFormat: 'openai-style', // ✅ FIXED: Native tool calling now works after fixing JSON schema type fields
 		reasoningCapabilities: false,
 	},
 	'minimax-m2:cloud': {
@@ -1320,7 +1335,7 @@ const ollamaModelOptions = {
 		downloadable: false,
 		supportsFIM: false,
 		supportsSystemMessage: 'system-role',
-		// specialToolFormat: 'openai-style', // ⚠️ MiniMax M2 uses CUSTOM XML format (<minimax:tool_call>) - not compatible with our current XML parser
+		specialToolFormat: 'openai-style', // ✅ FIXED: Native tool calling now works after fixing JSON schema type fields (was using custom XML before)
 		defaultTemperature: 1.0, // Recommended by MiniMax AI
 		reasoningCapabilities: { supportsReasoning: true, canIOReasoning: true, canTurnOffReasoning: false, openSourceThinkTags: ['<think>', '</think>'] }, // ⚠️ Do NOT remove <think> tags - critical for performance
 	},

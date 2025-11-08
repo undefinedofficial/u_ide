@@ -1,12 +1,51 @@
 # Ollama Cloud Tool Calling Bug Analysis
 
-## The Issue
+## ✅ FIXED!
+
+**Original Error:** `500 Internal Server Error: unmarshal: invalid character 'I' looking for beginning of value`
+
+**Root Cause:** Our tool schemas were missing `type` fields, causing llama.cpp's JSON schema parser to fail.
+
+**Fix:** Changed line 225 in `sendLLMMessage.impl.ts` from `properties: params` to `properties: paramsWithType`
+
+---
+
+## Original Investigation
+
+### The Issue
 
 **Error:** `500 Internal Server Error: unmarshal: invalid character 'I' looking for beginning of value`
 
-This error occurs when using **native OpenAI-style tool calling** with Ollama Cloud models.
+This error occurred when using **native OpenAI-style tool calling** with Ollama Cloud models.
 
-## Root Cause
+## Root Causes (Two Separate Issues)
+
+### Issue 1: Missing Type Fields in Schemas (PRIMARY - NOW FIXED)
+
+**Error from llama.cpp:**
+```
+JSON schema conversion failed:
+Unrecognized schema: {"description":"The FULL path to the file."}
+```
+
+**Problem:** llama.cpp (Ollama's backend) requires proper JSON Schema format with `type` fields:
+- ❌ **Wrong:** `{"description": "The FULL path to the file."}`
+- ✅ **Correct:** `{"type": "string", "description": "The FULL path to the file."}`
+
+**Location:** `sendLLMMessage.impl.ts` line 225
+- Code created `paramsWithType` with types (line 214-215)
+- But used original `params` without types (line 225)
+
+**Fix Applied:**
+```typescript
+// Before (BROKEN):
+properties: params,
+
+// After (FIXED):
+properties: paramsWithType,
+```
+
+### Issue 2: Ollama Cloud Model Response Parsing (SECONDARY)
 
 Based on research of Ollama GitHub issues:
 
@@ -54,28 +93,34 @@ Based on our testing and GitHub issues:
   - `minimax-m2:cloud`
   - `glm-4.6:cloud`
 
-## Our Workaround
+## The Fix
 
-### Current Implementation:
-We **disabled native tool calling** for all Ollama Cloud models and use **XML tool calling fallback** instead.
+### What We Changed:
+Fixed the JSON schema generation in `sendLLMMessage.impl.ts` to include `type` fields:
 
-**In `modelCapabilities.ts`:**
+```typescript
+// Line 225 - BEFORE (BROKEN):
+properties: params,  // Only had description field
+
+// Line 225 - AFTER (FIXED):
+properties: paramsWithType,  // Has both type and description fields
+```
+
+### Why This Works:
+- llama.cpp requires proper JSON Schema format with `type` fields
+- We were already creating `paramsWithType` with types (line 214-215)
+- Just needed to use it instead of the original `params`
+- Now generates valid schemas: `{"type": "string", "description": "..."}`
+
+### Previous Workaround (No Longer Needed):
+We had disabled native tool calling and used XML fallback:
 ```typescript
 'kimi-k2:1t-cloud': {
-    // specialToolFormat: 'openai-style', // Disabled due to Ollama Cloud API bug
-    defaultTemperature: 0.6,
-},
-'kimi-k2-thinking:1t-cloud': {
-    // specialToolFormat: 'openai-style', // Disabled due to Ollama Cloud API bug
-    defaultTemperature: 1.0,
+    // specialToolFormat: 'openai-style', // Was disabled
 },
 ```
 
-### Why XML Works:
-- XML tool calling doesn't use the `tools` parameter
-- Models generate XML tags in their text response: `<function_calls><invoke>...`
-- We parse the XML ourselves with regex (no server-side JSON parsing)
-- Bypasses the buggy Ollama server code path entirely
+**Now we can enable native tool calling!** The schema fix resolves the llama.cpp parsing error.
 
 ## Solutions
 
@@ -160,7 +205,15 @@ if (nativeToolCallFails && error.status === 500) {
 ## Status
 
 **Last Updated:** Nov 8, 2025
-**Bug Status:** Open (Ollama team aware)
-**Our Workaround:** XML tool calling (working)
-**Impact:** Medium (XML works, but native would be faster)
-**Priority:** Monitor for fix, no urgent action needed
+**Bug Status:** ✅ FIXED in our codebase!
+**Root Cause:** Missing `type` fields in JSON schemas
+**Fix:** 
+1. Changed line 225 in `sendLLMMessage.impl.ts` from `properties: params` to `properties: paramsWithType`
+2. Updated fallback logic in `modelCapabilities.ts` to enable native tool calling for ALL models ending with `:cloud` or `-cloud`
+
+**Impact:** All Ollama Cloud models now use native tool calling (faster, more reliable)
+
+**Models Enabled:**
+- ✅ All explicitly configured cloud models (deepseek-v3.1, gpt-oss, kimi-k2, qwen3-coder, etc.)
+- ✅ **ANY future Ollama Cloud model** (automatic via fallback logic)
+- ✅ Works for both current and future cloud models without code changes

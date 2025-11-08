@@ -3134,7 +3134,7 @@ const EditToolSoFar = ({ toolCallSoFar, }: { toolCallSoFar: RawToolCallObj }) =>
 	// Calculate diff stats from search_replace_blocks (for edit_file)
 	let addedLines = 0;
 	let removedLines = 0;
-	const content = toolCallSoFar.rawParams.search_replace_blocks ?? toolCallSoFar.rawParams.new_content ?? '';
+	const content = toolCallSoFar.rawParams.search_replace_blocks ?? toolCallSoFar.rawParams.new_content ?? toolCallSoFar.rawParams.newContent ?? '';
 	if (toolCallSoFar.rawParams.search_replace_blocks) {
 		const blocks = toolCallSoFar.rawParams.search_replace_blocks.split('<<<<<<< ORIGINAL').slice(1);
 		blocks.forEach((block: string) => {
@@ -3180,8 +3180,8 @@ const EditToolSoFar = ({ toolCallSoFar, }: { toolCallSoFar: RawToolCallObj }) =>
 	// Determine edit tool type based on tool name
 	const editToolType = toolCallSoFar.name === 'edit_file' ? 'diff' : 'rewrite';
 
-	// Only show the diff editor for edit_file and rewrite_file (tools with actual content)
-	const shouldShowEditor = (toolCallSoFar.name === 'edit_file' || toolCallSoFar.name === 'rewrite_file') && content;
+	// Show the diff editor for edit_file and rewrite_file (even if content is still streaming)
+	const shouldShowEditor = (toolCallSoFar.name === 'edit_file' || toolCallSoFar.name === 'rewrite_file');
 
 	// Add "Generating..." indicator to match the visual layout
 	const desc2 = (
