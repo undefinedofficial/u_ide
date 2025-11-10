@@ -1436,12 +1436,11 @@ const UserMessageComponent = ({ chatMessage, messageIdx, isCheckpointGhost, curr
 	return <div
 		// align chatbubble accoridng to role
 		className={`
-        relative ml-auto
-        ${mode === 'edit' ? 'w-full max-w-full'
+			${mode === 'edit' ? 'w-full max-w-full'
 				: mode === 'display' ? `self-end w-fit max-w-full whitespace-pre-wrap` : '' // user words should be pre
 			}
 
-        ${isCheckpointGhost && !isMsgAfterCheckpoint ? 'opacity-50 pointer-events-none' : ''}
+        ${isCheckpointGhost && !isMsgAfterCheckpoint ? 'opacity-50' : ''}
     `}
 		onMouseEnter={() => setIsHovered(true)}
 		onMouseLeave={() => setIsHovered(false)}
