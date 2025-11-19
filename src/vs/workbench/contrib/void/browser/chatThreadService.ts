@@ -1100,6 +1100,11 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 						const trimmed = text.trim();
 						if (!trimmed.endsWith(':')) return false;
 
+						// Only trigger if the response is relatively short (not a long paragraph)
+						// Split by sentences and check if there are too many
+						const sentences = trimmed.split(/[.!?]+/).filter(s => s.trim().length > 0);
+						if (sentences.length > 3) return false; // More than 3 sentences = long paragraph
+
 						const lastPart = trimmed.split(/[.!]/).pop()?.toLowerCase() || '';
 
 						// Detect action announcements with various phrase patterns

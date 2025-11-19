@@ -1412,7 +1412,7 @@ const UserMessageComponent = ({ chatMessage, messageIdx, isCheckpointGhost, curr
 		// align chatbubble accoridng to role
 	className={`
 		${mode === 'edit' ? 'w-full max-w-full'
-			: mode === 'display' ? 'self-end w-fit max-w-full whitespace-pre-wrap' : '' // user words should be pre
+			: mode === 'display' ? 'w-fit max-w-full whitespace-pre-wrap' : '' // user words should be pre
 		}
 
         ${isCheckpointGhost && !isMsgAfterCheckpoint ? 'opacity-50' : ''}
@@ -3487,7 +3487,7 @@ export const SidebarChat = () => {
 				return true;
 			})
 			.map((message, i) => {
-				return <div key={i} className="mb-4">
+				return <div key={i} className={`mb-4 flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
 					<ChatBubble
 						currCheckpointIdx={currCheckpointIdx}
 						chatMessage={message}
@@ -3787,8 +3787,21 @@ export const SidebarChat = () => {
 				<div className="flex items-center gap-2 text-void-fg-3 text-sm">
 					<span className="font-medium">{queuedCount} message{queuedCount > 1 ? 's' : ''} queued</span>
 				</div>
-				<div className="text-xs text-void-fg-4">
-					Enter to send queued message (⏎)
+				<div className="flex items-center gap-2">
+					<span className="text-xs text-void-fg-4">
+						Enter to send queued message (⏎)
+					</span>
+					<button
+						onClick={() => {
+							chatThreadsService.clearMessageQueue(threadId);
+						}}
+						className="px-2 py-1 text-xs text-void-fg-3 hover:text-void-fg-1 bg-void-bg-3 hover:bg-void-bg-4 border border-void-border-2 rounded transition-colors"
+						data-tooltip-id='void-tooltip'
+						data-tooltip-content='Cancel all queued messages'
+						data-tooltip-place='top'
+					>
+						Cancel
+					</button>
 				</div>
 			</div>
 		)}
