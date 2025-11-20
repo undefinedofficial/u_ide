@@ -22,7 +22,7 @@ import { ChatMode, displayInfoOfProviderName, FeatureName, isFeatureNameDisabled
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { WarningBox } from '../void-settings-tsx/WarningBox.js';
 import { getModelCapabilities, getIsReasoningEnabledState } from '../../../../common/modelCapabilities.js';
-import { AlertTriangle, File, Ban, Check, ChevronRight, Dot, FileIcon, Pencil, Undo, Undo2, X, Flag, Copy as CopyIcon, Info, CirclePlus, Ellipsis, CircleEllipsis, Folder, ALargeSmall, TypeOutline, Text, Play, Settings, ArrowUp } from 'lucide-react';
+import { AlertTriangle, File, Ban, Check, ChevronRight, ChevronDown, Dot, FileIcon, Pencil, Undo, Undo2, X, Flag, Copy as CopyIcon, Info, CirclePlus, Ellipsis, CircleEllipsis, Folder, ALargeSmall, TypeOutline, Text, Play, Settings, ArrowUp, Trash2, Send } from 'lucide-react';
 import { ChatMessage, CheckpointEntry, StagingSelectionItem, ToolMessage, ImageAttachment } from '../../../../common/chatThreadServiceTypes.js';
 import { approvalTypeOfBuiltinToolName, BuiltinToolCallParams, BuiltinToolName, ToolName, LintErrorItem, ToolApprovalType, toolApprovalTypes } from '../../../../common/toolsServiceTypes.js';
 import { CopyButton, EditToolAcceptRejectButtonsHTML, IconShell1, JumpToFileButton, JumpToTerminalButton, StatusIndicator, StatusIndicatorForApplyButton, useApplyStreamState, useEditToolStreamState } from '../markdown/ApplyBlockHoverButtons.js';
@@ -36,6 +36,7 @@ import { ToolApprovalTypeSwitch } from '../void-settings-tsx/Settings.js';
 import { persistentTerminalNameOfId } from '../../../terminalToolService.js';
 import { removeMCPToolNamePrefix } from '../../../../common/mcpServiceTypes.js';
 import { FadeIn, SlideInRight, TypingIndicator, ToolLoadingIndicator } from './ChatAnimations.js';
+import { MCPServerModal } from './MCPServerModal.js';
 
 // Image Preview Component
 const ImagePreview = ({ images, onRemove }: { images: ImageAttachment[], onRemove: (index: number) => void }) => {
@@ -1411,6 +1412,7 @@ const UserMessageComponent = ({ chatMessage, messageIdx, isCheckpointGhost, curr
 	return <div
 		// align chatbubble accoridng to role
 	className={`
+		relative
 		${mode === 'edit' ? 'w-full max-w-full'
 			: mode === 'display' ? 'self-end w-fit max-w-full whitespace-pre-wrap' : '' // user words should be pre
 		}
@@ -2987,8 +2989,52 @@ const CommandBarInChat = () => {
 	// orange = Requires action
 	// dark = Done
 
+	// Detect if we're generating a tool call (native or XML)
+	const { toolCallSoFar: streamingToolCall, _rawTextBeforeStripping } = chatThreadsStreamState?.llmInfo ?? {}
+	const isGeneratingToolCall = !!(streamingToolCall && !streamingToolCall.isDone)
+	const isGeneratingXMLTool = !!(_rawTextBeforeStripping && _rawTextBeforeStripping.includes('<function_calls>') && !_rawTextBeforeStripping.includes('</function_calls>'))
+	const isAnyToolGenerating = isGeneratingToolCall || isGeneratingXMLTool
+
+	// Get tool-specific status title
+	const getToolStatusTitle = (): string => {
+		// Check if a tool is currently executing
+		const executingToolName = chatThreadsStreamState?.toolInfo?.toolName
+		if (executingToolName) {
+			const isMCPTool = chatThreadsStreamState?.toolInfo?.mcpServerName
+			if (isMCPTool && chatThreadsStreamState.toolInfo) {
+				return `Calling ${chatThreadsStreamState.toolInfo.mcpServerName}...`
+			}
+			// Use the "running" title from titleOfBuiltinToolName if it's a builtin tool
+			if (isABuiltinToolName(executingToolName)) {
+				const runningTitle = titleOfBuiltinToolName[executingToolName].running
+				// Extract text from the loading wrapper if it exists
+				if (typeof runningTitle === 'object' && runningTitle && 'props' in runningTitle) {
+					const props = runningTitle.props as any
+					return props.children?.[0] || 'Running tool...'
+				}
+				return String(runningTitle)
+			}
+		}
+
+		// Check if a tool is being generated in the LLM response
+		const generatingToolName = streamingToolCall?.name
+		if (generatingToolName && isABuiltinToolName(generatingToolName)) {
+			const runningTitle = titleOfBuiltinToolName[generatingToolName].running
+			if (typeof runningTitle === 'object' && runningTitle && 'props' in runningTitle) {
+				const props = runningTitle.props as any
+				return props.children?.[0] || 'Generating tool...'
+			}
+			return String(runningTitle)
+		}
+
+		// Default for XML or unknown tools
+		return 'Editing...'
+	}
+
 	const threadStatus = (
 		chatThreadsStreamState?.isRunning === 'awaiting_user' ? { title: 'Needs Approval', color: 'yellow', } as const
+			: chatThreadsStreamState?.isRunning === 'tool' ? { title: getToolStatusTitle(), color: 'orange', } as const
+			: isAnyToolGenerating ? { title: getToolStatusTitle(), color: 'orange', } as const
 			: chatThreadsStreamState?.isRunning ? { title: 'Running', color: 'orange', } as const
 				: { title: 'Done', color: 'dark', } as const
 	)
@@ -3181,7 +3227,7 @@ const CommandBarInChat = () => {
 					text-void-fg-3 text-xs text-nowrap
 					border-t border-l border-r border-zinc-300/10
 
-					px-2 py-1
+					px-3 py-2
 					justify-between
 				`}
 			>
@@ -3354,6 +3400,9 @@ export const SidebarChat = () => {
 	const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([])
 	const [isDraggingOver, setIsDraggingOver] = useState(false)
 
+	// MCP Server Modal state
+	const [isMCPModalOpen, setIsMCPModalOpen] = useState(false)
+
 	// Image upload helpers
 	const MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 20MB
 	const MAX_IMAGES = 10;
@@ -3402,6 +3451,15 @@ export const SidebarChat = () => {
 			console.error('Failed to process images:', error);
 		}
 	};
+
+	// Listen for MCP modal open requests
+	useEffect(() => {
+		const mcpModalService = accessor.get('IMCPModalService');
+		const disposable = mcpModalService.onDidRequestOpen(() => {
+			setIsMCPModalOpen(true);
+		});
+		return () => disposable.dispose();
+	}, [accessor]);
 
 	const isDisabled = instructionsAreEmpty || !!isFeatureNameDisabled('Chat', settingsState)
 
@@ -3487,7 +3545,7 @@ export const SidebarChat = () => {
 				return true;
 			})
 			.map((message, i) => {
-				return <div key={i} className="mb-4">
+				return <div key={i} className="mb-4 flex flex-col">
 					<ChatBubble
 						currCheckpointIdx={currCheckpointIdx}
 						chatMessage={message}
@@ -3774,6 +3832,12 @@ export const SidebarChat = () => {
 		return chatThreadsService.getQueuedMessagesCount(threadId);
 	}, [chatThreadsService, threadId, chatThreadsState]); // Re-calculate when thread state changes
 
+	const queuedMessages = useMemo(() => {
+		return chatThreadsService.getQueuedMessages(threadId);
+	}, [chatThreadsService, threadId, chatThreadsState]);
+
+	const [isQueueExpanded, setIsQueueExpanded] = useState(false);
+
 	const inputChatArea = 	<div
 		onDragOver={handleDragOver}
 		onDragLeave={handleDragLeave}
@@ -3783,26 +3847,87 @@ export const SidebarChat = () => {
 	>
 		{/* Queue indicator */}
 		{queuedCount > 0 && (
-			<div className="mb-2 px-3 py-2 bg-void-bg-2 border border-void-border-2 rounded-md flex items-center justify-between">
-				<div className="flex items-center gap-2 text-void-fg-3 text-sm">
-					<span className="font-medium">{queuedCount} message{queuedCount > 1 ? 's' : ''} queued</span>
+			<div className="mb-2 bg-void-bg-2 border border-void-border-2 rounded-md overflow-hidden">
+				{/* Header - always visible */}
+				<div
+					className="px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-void-bg-3 transition-colors"
+					onClick={() => setIsQueueExpanded(!isQueueExpanded)}
+				>
+					<div className="flex items-center gap-2 text-void-fg-3 text-sm">
+						{isQueueExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+						<span className="font-medium">{queuedCount} message{queuedCount > 1 ? 's' : ''} queued</span>
+					</div>
+					<div className="flex items-center gap-2">
+						<span className="text-xs text-void-fg-4">
+							Enter to send (⏎)
+						</span>
+						<button
+							onClick={(e) => {
+								e.stopPropagation();
+								chatThreadsService.clearMessageQueue(threadId);
+							}}
+							className="px-2 py-1 text-xs text-void-fg-3 hover:text-void-fg-1 bg-void-bg-3 hover:bg-void-bg-4 border border-void-border-2 rounded transition-colors"
+							data-tooltip-id='void-tooltip'
+							data-tooltip-content='Cancel all queued messages'
+							data-tooltip-place='top'
+						>
+							Clear All
+						</button>
+					</div>
 				</div>
-				<div className="flex items-center gap-2">
-					<span className="text-xs text-void-fg-4">
-						Enter to send queued message (⏎)
-					</span>
-					<button
-						onClick={() => {
-							chatThreadsService.clearMessageQueue(threadId);
-						}}
-						className="px-2 py-1 text-xs text-void-fg-3 hover:text-void-fg-1 bg-void-bg-3 hover:bg-void-bg-4 border border-void-border-2 rounded transition-colors"
-						data-tooltip-id='void-tooltip'
-						data-tooltip-content='Cancel all queued messages'
-						data-tooltip-place='top'
-					>
-						Cancel
-					</button>
-				</div>
+
+				{/* Expanded queue list */}
+				{isQueueExpanded && (
+					<div className="border-t border-void-border-2 max-h-64 overflow-y-auto">
+						{queuedMessages.map((msg, index) => (
+							<div
+								key={index}
+								className="group relative px-3 py-2 border-b border-void-border-1 last:border-b-0 hover:bg-void-bg-3 transition-colors cursor-pointer"
+								onClick={() => {
+									// Load message into input box for editing
+									if (textAreaFnsRef.current) {
+										textAreaFnsRef.current.setValue(msg.userMessage);
+									}
+									// Remove from queue
+									chatThreadsService.removeQueuedMessage(threadId, index);
+									// Focus the input
+									textAreaRef.current?.focus();
+								}}
+							>
+								<div className="pr-16 text-sm text-void-fg-2 line-clamp-2">
+									{msg.userMessage}
+								</div>
+								{/* Quick actions - show on hover */}
+								<div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+									<button
+										onClick={(e) => {
+											e.stopPropagation();
+											chatThreadsService.forceSendQueuedMessage(threadId, index);
+										}}
+										className="p-1.5 text-void-fg-3 hover:text-void-accent bg-void-bg-1 hover:bg-void-bg-4 border border-void-border-2 rounded transition-colors"
+										data-tooltip-id='void-tooltip'
+										data-tooltip-content='Force send (stops AI and sends this message)'
+										data-tooltip-place='left'
+									>
+										<Send size={14} />
+									</button>
+									<button
+										onClick={(e) => {
+											e.stopPropagation();
+											chatThreadsService.removeQueuedMessage(threadId, index);
+										}}
+										className="p-1.5 text-void-fg-3 hover:text-red-400 bg-void-bg-1 hover:bg-void-bg-4 border border-void-border-2 rounded transition-colors"
+										data-tooltip-id='void-tooltip'
+										data-tooltip-content='Remove from queue'
+										data-tooltip-place='left'
+									>
+										<Trash2 size={14} />
+									</button>
+								</div>
+							</div>
+						))}
+					</div>
+				)}
 			</div>
 		)}
 
@@ -3954,6 +4079,12 @@ export const SidebarChat = () => {
 			{isLandingPage ?
 				landingPageContent
 				: threadPageContent}
+
+			{/* MCP Server Modal */}
+			<MCPServerModal
+				isOpen={isMCPModalOpen}
+				onClose={() => setIsMCPModalOpen(false)}
+			/>
 		</Fragment>
 	)
 }

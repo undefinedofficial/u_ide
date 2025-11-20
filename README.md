@@ -2,7 +2,7 @@
 
 <div align="center">
 	<img
-		src="./a-coder-transparent-512.png"
+		src="./resources/a-coder-transparent-512.png"
 	 	alt="A-Coder Logo"
 		width="300"
 	 	height="300"
@@ -23,6 +23,74 @@ This repo contains the full sourcecode for A-Coder. If you're new, welcome!
 
 
 ## Recent Features & Fixes
+
+### 🎯 MCP Server Modal (NEW!)
+**Feature:** Custom React modal for managing MCP (Model Context Protocol) servers, replacing the native VS Code QuickPick.
+
+**UI Improvements:**
+- Modern popout modal positioned at top-right corner (near server icon)
+- Lists all connected MCP servers with status indicators
+- Shows tool count for each server
+- "MCP Marketplace" footer button for easy settings access
+- Click outside or press Escape to close
+
+**User Experience:**
+- Click the server icon in sidebar toolbar to open modal
+- Visual status indicators (green = connected)
+- Quick access to MCP server management
+- Seamless integration with existing settings
+
+**Implementation:** Modal uses service-based communication between VS Code actions and React components for clean separation of concerns.
+
+---
+
+### 🚀 Morph Fast Apply Integration (NEW!)
+**Feature:** Intelligent code application using Morph's Fast Apply API to enhance the Apply functionality.
+
+**What is Morph Fast Apply?**
+- Uses Morph's AI to intelligently apply code changes
+- Better at handling ambiguous or incomplete code snippets
+- Preserves existing code style and formatting
+- Graceful fallback to standard apply if Morph fails
+
+**How It Works:**
+1. LLM suggests code changes in chat
+2. Click the play button (▶) to apply
+3. If Morph is enabled, changes are processed through Morph API
+4. Code is intelligently applied to your file
+5. Visual diff shows changes with accept/reject options
+
+**Setup:**
+1. Go to Settings → Feature Options → Morph Fast Apply
+2. Toggle "Enable Morph Fast Apply"
+3. Enter your API key from [morphllm.com/dashboard](https://morphllm.com/dashboard)
+4. Choose model: `morph-v3-fast`, `morph-v3-large`, or `auto`
+
+**Integration Points:**
+- Works with code blocks in chat (play button)
+- Works with Apply tool calls from LLM
+- Uses official `@morphllm/morphsdk` package
+- IPC channel to electron-main for SDK execution
+
+**Details:** See [MORPH_FAST_APPLY_INTEGRATION.md](./docs/MORPH_FAST_APPLY_INTEGRATION.md)
+
+---
+
+### 🤖 Enhanced Agent Auto-Continue (IMPROVED!)
+**Feature:** Smarter detection of when LLM has finished vs. when it's waiting for user input.
+
+**Improvements:**
+- **Analysis Completion Detection**: Stops auto-continue when LLM presents findings (e.g., "Based on my analysis...", "Here's what I found...")
+- **Completion Question Detection**: Stops when LLM asks follow-up questions (e.g., "Would you like me to explain any specific part?")
+- **Multi-Indicator Logic**: Uses multiple patterns to detect completion states
+
+**Problem Solved:**
+- Before: Agent would continue after complete analysis, causing empty response errors
+- After: Agent correctly stops when LLM finishes explaining or asks questions
+
+**Result:** More reliable agent execution with fewer unnecessary continuations and no more empty response errors.
+
+---
 
 ### 🗜️ TOON Tool Result Compression (NEW!)
 **Feature:** Reduce LLM token usage by 30-70% with TOON (Token-Oriented Object Notation) compression for tool outputs.

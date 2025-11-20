@@ -46,8 +46,7 @@ import { RawMCPToolCall } from '../common/mcpServiceTypes.js';
 const CHAT_RETRIES = 5 // Increased from 3 to handle Ollama errors better
 const RETRY_DELAY = 3000 // Increased from 2500ms to give Ollama more time to recover
 export const AUTO_CONTINUE_CHAR_THRESHOLD = 200; // Still used by UI auto-continue
-
-type AutoContinueReason = 'queued_message'
+const MAX_AGENT_ITERATIONS = 50 // Maximum number of iterations in agent mode to prevent infinite loops
 
 const splitThinkTags = (input: string): { displayText: string; reasoningText: string } => {
 	if (!input) {
@@ -77,6 +76,63 @@ const mergeReasoningContent = (existing?: string | null, fromTags?: string | nul
 	if (primary.includes(secondary)) return primary
 	if (secondary.includes(primary)) return secondary
 	return `${primary}\n\n${secondary}`.trim()
+}
+
+// Helper to detect if LLM is asking for user input (greeting, question, waiting for instructions)
+const isAskingForUserInput = (text: string): boolean => {
+	const lowerText = text.toLowerCase().trim()
+
+	// Check for common greeting patterns
+	const greetingPatterns = [
+		/^(hi|hello|hey|greetings)[!,.]?\s*(how can|what can|how may)/i,
+		/how can i (help|assist) you/i,
+		/what (can|would|should) i (help|do|assist)/i,
+		/what would you like me to/i,
+		/is there anything (else )?i can/i,
+		/^(hi|hello|hey)[!,.]?\s*$/i, // Just "Hi!" or "Hello!"
+	]
+
+	// Check if text matches any greeting pattern
+	if (greetingPatterns.some(pattern => pattern.test(lowerText))) {
+		return true
+	}
+
+	// Check if it's a very short response (likely waiting for input)
+	if (text.length < 100 && lowerText.includes('?')) {
+		return true
+	}
+
+	// Check if the response ends with a question asking if user wants more details/help
+	// This indicates the LLM has completed its task and is waiting for further instructions
+	const completionQuestionPatterns = [
+		/would you like me to.*\?$/i,
+		/do you (want|need) me to.*\?$/i,
+		/should i.*\?$/i,
+		/would you like.*more (detail|information|help).*\?$/i,
+		/is there anything else.*\?$/i,
+		/let me know if.*\?$/i,
+	]
+
+	const lastSentence = text.split(/[.!]\s+/).pop() || ''
+	if (completionQuestionPatterns.some(pattern => pattern.test(lastSentence.trim()))) {
+		return true
+	}
+
+	// Check if response is a comprehensive analysis/summary (common completion pattern)
+	// These indicate the LLM has finished analyzing and is presenting findings
+	const analysisCompletionIndicators = [
+		/^(here's what i found|based on my analysis|here's a breakdown|here's the overview)/i,
+		/## (overview|summary|key (components|features|findings)|conclusion)/i,
+		/(appears to be|seems to be|looks like).*(complete|production-ready|finished|ready)/i,
+	]
+
+	// Check if the response contains multiple analysis indicators (strong signal of completion)
+	const indicatorCount = analysisCompletionIndicators.filter(pattern => pattern.test(lowerText)).length
+	if (indicatorCount >= 2) {
+		return true
+	}
+
+	return false
 }
 
 const partitionReasoningContent = (fullText: string, existingReasoning?: string | null): { displayText: string, reasoningText: string } => {
@@ -343,7 +399,10 @@ export interface IChatThreadService {
 
 	// message queue
 	getQueuedMessagesCount(threadId: string): number;
+	getQueuedMessages(threadId: string): Array<{ userMessage: string, selections?: StagingSelectionItem[], images?: ImageAttachment[] }>;
+	removeQueuedMessage(threadId: string, index: number): void;
 	clearMessageQueue(threadId: string): void;
+	forceSendQueuedMessage(threadId: string, index: number): Promise<void>;
 
 	focusCurrentChat: () => Promise<void>
 	blurCurrentChat: () => Promise<void>
@@ -862,6 +921,19 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			isRunningWhenEnd = undefined
 			nMessagesSent += 1
 
+			// Safety check: prevent infinite loops in agent mode
+			if (chatMode === 'agent' && nMessagesSent > MAX_AGENT_ITERATIONS) {
+				console.warn(`[chatThreadService] Agent mode exceeded maximum iterations (${MAX_AGENT_ITERATIONS}), stopping loop`)
+				this._setStreamState(threadId, {
+					isRunning: undefined,
+					error: {
+						message: `Agent exceeded maximum iterations (${MAX_AGENT_ITERATIONS}). The task may be too complex or the AI may be stuck in a loop.`,
+						fullError: null
+					}
+				})
+				break
+			}
+
 			this._setStreamState(threadId, { isRunning: 'idle', interrupt: idleInterruptor })
 
 			const chatMessages = this.state.allThreads[threadId]?.messages ?? []
@@ -1061,11 +1133,16 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 					this._setStreamState(threadId, { isRunning: 'idle', interrupt: 'not_needed' }) // just decorative, for clarity
 				}
-
-				// Check if there are queued messages to process
-				if (this._hasQueuedMessagesAvailable(threadId) && this._shouldAutoContinue(threadId, 'queued_message')) {
-					console.log(`[chatThreadService] Found queued messages, will process next`)
-					shouldSendAnotherMessage = true
+				// In agent mode, if LLM responds with text but no tool call, continue the loop to prompt it to take action
+				// UNLESS the LLM is asking for user input (greeting, question, etc.)
+				else if (chatMode === 'agent' && info.fullText.trim().length > 0) {
+					if (isAskingForUserInput(info.fullText)) {
+						console.log(`[chatThreadService] Agent mode: LLM is asking for user input, stopping loop`)
+						// Don't continue - let user respond
+					} else {
+						console.log(`[chatThreadService] Agent mode: LLM responded with text but no tool call, continuing loop to prompt action`)
+						shouldSendAnotherMessage = true
+					}
 				}
 
 			} // end while (attempts)
@@ -1542,10 +1619,6 @@ We only need to do it for files that were edited since `from`, ie files between 
 		return !!(this.messageQueue[threadId] && this.messageQueue[threadId].length > 0);
 	}
 
-	private _hasQueuedMessagesAvailable(threadId: string): boolean {
-		return this._hasQueuedMessages(threadId)
-	}
-
 	private async _processNextQueuedMessage(threadId: string) {
 		if (!this._hasQueuedMessages(threadId)) {
 			// ensure UI updates if queue emptied
@@ -1579,12 +1652,54 @@ We only need to do it for files that were edited since `from`, ie files between 
 		return this.messageQueue[threadId]?.length || 0;
 	}
 
+	getQueuedMessages(threadId: string): Array<{ userMessage: string, selections?: StagingSelectionItem[], images?: ImageAttachment[] }> {
+		return this.messageQueue[threadId] || [];
+	}
+
+	removeQueuedMessage(threadId: string, index: number): void {
+		if (this.messageQueue[threadId] && this.messageQueue[threadId][index]) {
+			this.messageQueue[threadId].splice(index, 1);
+			console.log(`[chatThreadService] Removed queued message at index ${index}. Remaining: ${this.messageQueue[threadId].length}`);
+			this._onDidChangeCurrentThread.fire();
+		}
+	}
+
 	clearMessageQueue(threadId: string) {
 		if (this.messageQueue[threadId]) {
 			this.messageQueue[threadId] = [];
 			console.log(`[chatThreadService] Cleared message queue for thread ${threadId}`);
 			this._onDidChangeCurrentThread.fire();
 		}
+	}
+
+	async forceSendQueuedMessage(threadId: string, index: number): Promise<void> {
+		const message = this.messageQueue[threadId]?.[index];
+		if (!message) return;
+
+		// Remove from queue
+		this.messageQueue[threadId].splice(index, 1);
+		console.log(`[chatThreadService] Force sending queued message at index ${index}`);
+		this._onDidChangeCurrentThread.fire();
+
+		// Abort current LLM if running
+		const streamState = this.streamState[threadId];
+		if (streamState?.isRunning && streamState.interrupt !== 'not_needed') {
+			const interruptFn = await streamState.interrupt;
+			if (typeof interruptFn === 'function') {
+				interruptFn();
+			}
+		}
+
+		// Wait a bit for abort to complete
+		await new Promise(resolve => setTimeout(resolve, 100));
+
+		// Send the message
+		await this._addUserMessageAndStreamResponse({
+			userMessage: message.userMessage,
+			_chatSelections: message.selections,
+			images: message.images,
+			threadId
+		});
 	}
 
 	// ---------- the rest ----------
@@ -2196,13 +2311,6 @@ We only need to do it for files that were edited since `from`, ie files between 
 
 	setAutoContinuePreference(threadId: string, enabled: boolean): void {
 		this._updateThreadStateAndStore(threadId, { autoContinueEnabled: enabled })
-	}
-
-	private _shouldAutoContinue(threadId: string, reason: AutoContinueReason): boolean {
-		if (reason === 'queued_message') {
-			return true
-		}
-		return this.getAutoContinuePreference(threadId)
 	}
 
 	// gets `staging` and `setStaging` of the currently focused element, given the index of the currently selected message (or undefined if no message is selected)

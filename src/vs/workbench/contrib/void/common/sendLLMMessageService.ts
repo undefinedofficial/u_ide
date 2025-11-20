@@ -166,7 +166,7 @@ export class LLMMessageService extends Disposable implements ILLMMessageService 
 
 
 	openAICompatibleList = (params: ServiceModelListParams<OpenaiCompatibleModelResponse>) => {
-		const { onSuccess, onError, ...proxyParams } = params
+		const { onSuccess, onError, providerName, ...proxyParams } = params
 
 		const { settingsOfProvider } = this.voidSettingsService.state
 
@@ -178,6 +178,7 @@ export class LLMMessageService extends Disposable implements ILLMMessageService 
 		this.channel.call('openAICompatibleList', {
 			...proxyParams,
 			settingsOfProvider,
+			providerName, // Pass providerName so backend knows which endpoint to use
 			requestId: requestId_,
 		} satisfies MainModelListParams<OpenaiCompatibleModelResponse>)
 	}

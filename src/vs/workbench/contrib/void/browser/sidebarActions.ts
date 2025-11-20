@@ -22,8 +22,7 @@ import { VOID_CTRL_L_ACTION_ID } from './actionIDs.js';
 import { localize2 } from '../../../../nls.js';
 import { IChatThreadService } from './chatThreadService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IMCPService } from '../common/mcpService.js';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { IMCPModalService } from './mcpModalService.js';
 
 // ---------- Register commands and keybindings ----------
 
@@ -248,49 +247,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const quickInputService = accessor.get(IQuickInputService);
-		const mcpService = accessor.get(IMCPService);
-		const commandService = accessor.get(ICommandService);
+		const mcpModalService = accessor.get(IMCPModalService);
 
-		// Get MCP tools
-		const mcpTools = mcpService.getMCPTools();
-
-		if (!mcpTools || mcpTools.length === 0) {
-			// No tools available, open settings
-			commandService.executeCommand(VOID_TOGGLE_SETTINGS_ACTION_ID);
-			return;
-		}
-
-		// Create quick pick items for tools
-		const items: Array<IQuickPickItem | IQuickPickSeparator> = mcpTools.map(tool => {
-			return {
-				label: tool.name,
-				description: tool.mcpServerName || 'MCP',
-				detail: tool.description,
-			};
-		});
-
-		// Add separator and settings option at the bottom
-		items.push({
-			type: 'separator'
-		});
-		
-		items.push({
-			label: '$(gear) MCP Settings',
-			description: 'Configure MCP servers',
-		});
-
-		// Show quick pick
-		const picked = await quickInputService.pick(items, {
-			placeHolder: 'MCP Tools',
-			canPickMany: false,
-		});
-
-		if (picked && picked.label === '$(gear) MCP Settings') {
-			// Open settings
-			commandService.executeCommand(VOID_TOGGLE_SETTINGS_ACTION_ID);
-			return;
-		}
+		// Open the React modal
+		mcpModalService.openModal();
 	}
 })
 

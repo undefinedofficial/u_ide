@@ -248,7 +248,7 @@ By specifying start_line and end_line parameters, you can efficiently read speci
 Line 45: export class UserService
 Line 120: class DatabaseConnection
 
-## Functions (3)  
+## Functions (3)
 Line 200: export async function processData(input: string): Promise<Result>
 ...
 
@@ -558,14 +558,14 @@ export const availableTools = (chatMode: ChatMode | null, mcpTools: InternalTool
  */
 export function generateXMLToolDescriptions(tools: InternalToolInfo[]): string {
 	const toolDescriptions = tools.map(tool => {
-		const params = Object.entries(tool.params || {}).map(([name, info]) => 
+		const params = Object.entries(tool.params || {}).map(([name, info]) =>
 			`<parameter>
 <name>${name}</name>
 <type>string</type>
 <description>${info.description || ''}</description>
 </parameter>`
 		).join('\n');
-		
+
 		return `<tool_description>
 <tool_name>${tool.name}</tool_name>
 <description>${tool.description}</description>
@@ -574,7 +574,7 @@ ${params}
 </parameters>
 </tool_description>`;
 	}).join('\n');
-	
+
 	return `<tools>
 ${toolDescriptions}
 </tools>`;
@@ -632,7 +632,7 @@ function newFunction() {
 
 
 export const chat_systemMessage = ({ workspaceFolders, openedURIs, activeURI, persistentTerminalIDs, directoryStr, chatMode: mode, mcpTools, specialToolFormat }: { workspaceFolders: string[], directoryStr: string, openedURIs: string[], activeURI: string | undefined, persistentTerminalIDs: string[], chatMode: ChatMode, mcpTools: InternalToolInfo[] | undefined, specialToolFormat: 'openai-style' | 'anthropic-style' | 'gemini-style' | undefined }) => {
-	
+
 	// ============ IDENTITY ============
 	const identity = `<identity>
 You are an expert coding ${mode === 'agent' ? 'agent' : 'assistant'} designed to ${mode === 'agent' ? 'help users develop, run, and make changes to their codebase' : mode === 'gather' ? 'search, understand, and reference files in the user\'s codebase' : 'assist users with their coding tasks'}.
@@ -688,7 +688,7 @@ ${persistentTerminalIDs.join(', ')}` : ''}
 	// ============ TOOL CALLING ============
 	const allTools = availableTools(mode, mcpTools)
 	let toolCalling = ''
-	
+
 	if (allTools && allTools.length > 0 && (mode === 'agent' || mode === 'gather')) {
 		if (!specialToolFormat) {
 			// XML tool calling for models without native support
@@ -758,6 +758,8 @@ When making code changes, NEVER output code to the USER, unless requested. Inste
 
 ALWAYS use tools (edit, terminal, etc) to take actions and implement changes. For example, if you would like to edit a file, you MUST use a tool.
 
+CRITICAL: DO NOT just describe what you will do - TAKE ACTION IMMEDIATELY by calling tools. If you respond with text explaining your plan without calling a tool, you will be prompted to actually execute the plan.
+
 Prioritize taking as many steps as you need to complete your request over stopping early.
 
 Code-First Approach:
@@ -804,7 +806,7 @@ ${directoryStr}
 
 	// ============ ASSEMBLE SYSTEM MESSAGE ============
 	const sections: string[] = []
-	
+
 	sections.push(identity)
 	sections.push(sysInfo)
 	sections.push(communication)
