@@ -80,6 +80,7 @@ The Mobile API consists of several key components:
 │  │  - VoidSettingsService                                 │ │
 │  │  - FileService                                         │ │
 │  │  - WorkspaceContextService                             │ │
+│  │  - MCPService (MCP server management)                  │ │
 │  └────────────────────────────────────────────────────────┘ │
 └───────────────────────────────────────────────────────────────┘
 ```
@@ -616,6 +617,66 @@ Get file outline/structure.
 - Display with appropriate icons
 - Support nested structures
 
+#### GET `/api/v1/workspace/files/:path(*)/raw`
+Read file as raw binary with streaming support. **Ideal for audio/video playback.**
+
+**Parameters:**
+- `path` (path): File path (URL encoded)
+
+**Headers Supported:**
+- `Range: bytes=start-end` - For partial content requests (seeking in audio/video)
+
+**Response:**
+- Returns raw binary data with appropriate `Content-Type` header
+- Supports HTTP 206 Partial Content for range requests
+
+**Supported Content Types:**
+| Extension | Content-Type |
+|-----------|--------------|
+| mp3 | audio/mpeg |
+| wav | audio/wav |
+| ogg | audio/ogg |
+| flac | audio/flac |
+| m4a | audio/mp4 |
+| aac | audio/aac |
+| webm | audio/webm |
+| mp4 | video/mp4 |
+| mkv | video/x-matroska |
+| avi | video/x-msvideo |
+| mov | video/quicktime |
+| png | image/png |
+| jpg, jpeg | image/jpeg |
+| gif | image/gif |
+| webp | image/webp |
+| svg | image/svg+xml |
+| pdf | application/pdf |
+| zip | application/zip |
+
+**Example - Audio Streaming:**
+```typescript
+// React Native audio player
+const audioUrl = `http://localhost:3737/api/v1/workspace/files/${encodeURIComponent(filePath)}/raw`;
+
+// For fetch-based requests
+const response = await fetch(audioUrl, {
+  headers: { 'Authorization': `Bearer ${token}` }
+});
+
+// For range requests (seeking)
+const response = await fetch(audioUrl, {
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Range': 'bytes=0-1048576' // First 1MB
+  }
+});
+```
+
+**Frontend Handling:**
+- Use for audio/video player components
+- Implement seeking via Range headers
+- Handle 206 Partial Content responses
+- Cache binary data for offline playback
+
 #### POST `/api/v1/workspace/search`
 Search workspace files.
 
@@ -943,6 +1004,123 @@ Set chat mode.
 - Update UI immediately on selection
 - Show confirmation for mode changes during active tasks
 - Sync with desktop app via WebSocket
+
+---
+
+### MCP (Model Context Protocol)
+
+#### GET `/api/v1/mcp/servers`
+List all configured MCP servers and their status.
+
+**Response:**
+```json
+{
+  "servers": [
+    {
+      "name": "filesystem",
+      "status": "connected",
+      "toolCount": 5,
+      "tools": [
+        {
+          "name": "read_file",
+          "description": "Read contents of a file"
+        },
+        {
+          "name": "write_file",
+          "description": "Write contents to a file"
+        }
+      ]
+    },
+    {
+      "name": "github",
+      "status": "loading",
+      "toolCount": 0,
+      "tools": []
+    }
+  ],
+  "error": null
+}
+```
+
+**Status Values:**
+- `connected` - Server is connected and tools are available
+- `loading` - Server is starting up
+- `error` - Server failed to connect
+- `disabled` - Server is configured but turned off
+
+**Frontend Handling:**
+- Display server list with status indicators
+- Show tool count badges
+- Allow expanding to see tool details
+- Show error messages if present
+
+#### GET `/api/v1/mcp/tools`
+List all available MCP tools from all connected servers.
+
+**Response:**
+```json
+{
+  "tools": [
+    {
+      "name": "read_file",
+      "description": "Read contents of a file",
+      "serverName": "filesystem",
+      "params": {
+        "path": {
+          "description": "Path to the file to read"
+        }
+      }
+    },
+    {
+      "name": "create_issue",
+      "description": "Create a GitHub issue",
+      "serverName": "github",
+      "params": {
+        "title": {
+          "description": "Issue title"
+        },
+        "body": {
+          "description": "Issue body"
+        }
+      }
+    }
+  ]
+}
+```
+
+**Frontend Handling:**
+- Display available tools grouped by server
+- Show tool descriptions and parameters
+- Use for tool discovery UI
+- Filter/search tools by name or server
+
+#### PUT `/api/v1/mcp/servers/:name/toggle`
+Enable or disable an MCP server.
+
+**Parameters:**
+- `name` (path): Server name
+
+**Request Body:**
+```json
+{
+  "isOn": true
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "serverName": "filesystem",
+  "isOn": true
+}
+```
+
+**Frontend Handling:**
+- Show toggle switch for each server
+- Update UI immediately (optimistic)
+- Show loading state while server connects/disconnects
+- Handle errors gracefully
 
 ---
 
@@ -1661,6 +1839,40 @@ curl -X POST \
   http://localhost:3737/api/v1/threads/THREAD_ID/messages
 ```
 
+#### Stream Binary File (Audio/Video)
+```bash
+# Full file
+curl -H "Authorization: Bearer acoder_YOUR_TOKEN" \
+  http://localhost:3737/api/v1/workspace/files/path%2Fto%2Faudio.mp3/raw \
+  --output audio.mp3
+
+# Range request (first 1MB)
+curl -H "Authorization: Bearer acoder_YOUR_TOKEN" \
+  -H "Range: bytes=0-1048576" \
+  http://localhost:3737/api/v1/workspace/files/path%2Fto%2Faudio.mp3/raw
+```
+
+#### List MCP Servers
+```bash
+curl -H "Authorization: Bearer acoder_YOUR_TOKEN" \
+  http://localhost:3737/api/v1/mcp/servers
+```
+
+#### List MCP Tools
+```bash
+curl -H "Authorization: Bearer acoder_YOUR_TOKEN" \
+  http://localhost:3737/api/v1/mcp/tools
+```
+
+#### Toggle MCP Server
+```bash
+curl -X PUT \
+  -H "Authorization: Bearer acoder_YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"isOn": false}' \
+  http://localhost:3737/api/v1/mcp/servers/filesystem/toggle
+```
+
 ### JavaScript/TypeScript Example
 
 ```typescript
@@ -1765,8 +1977,9 @@ The API integrates with existing A-Coder services:
 - **IChatThreadService**: Thread and message management
 - **IToolsService**: Planning service access
 - **IVoidSettingsService**: Settings access
-- **IFileService**: File operations
+- **IFileService**: File operations (including binary streaming)
 - **IWorkspaceContextService**: Workspace information
+- **IMCPService**: MCP server management and tool discovery
 
 ### IPC Communication
 

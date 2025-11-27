@@ -152,4 +152,52 @@ export class ApiRouter {
 			...(details ? { details } : {})
 		});
 	}
+
+	/**
+	 * Send binary file response with streaming support
+	 */
+	sendBinary(res: http.ServerResponse, statusCode: number, data: Buffer, contentType: string, filename?: string): void {
+		const headers: Record<string, string> = {
+			'Content-Type': contentType,
+			'Content-Length': data.length.toString(),
+			'Accept-Ranges': 'bytes',
+		};
+		if (filename) {
+			headers['Content-Disposition'] = `inline; filename="${filename}"`;
+		}
+		res.writeHead(statusCode, headers);
+		res.end(data);
+	}
+
+	/**
+	 * Send binary file response with range support for streaming (audio/video)
+	 */
+	sendBinaryWithRange(req: http.IncomingMessage, res: http.ServerResponse, data: Buffer, contentType: string, filename?: string): void {
+		const range = req.headers.range;
+		const total = data.length;
+
+		if (range) {
+			// Parse range header: "bytes=start-end"
+			const parts = range.replace(/bytes=/, '').split('-');
+			const start = parseInt(parts[0], 10);
+			const end = parts[1] ? parseInt(parts[1], 10) : total - 1;
+			const chunkSize = (end - start) + 1;
+
+			const headers: Record<string, string> = {
+				'Content-Range': `bytes ${start}-${end}/${total}`,
+				'Accept-Ranges': 'bytes',
+				'Content-Length': chunkSize.toString(),
+				'Content-Type': contentType,
+			};
+			if (filename) {
+				headers['Content-Disposition'] = `inline; filename="${filename}"`;
+			}
+
+			res.writeHead(206, headers);
+			res.end(data.slice(start, end + 1));
+		} else {
+			// No range requested, send full file
+			this.sendBinary(res, 200, data, contentType, filename);
+		}
+	}
 }

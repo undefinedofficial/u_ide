@@ -15,6 +15,7 @@ import { registerSingleton, InstantiationType } from '../../../../platform/insta
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IMCPService } from '../common/mcpService.js';
 
 // console.log('[Void] Loading apiServiceBridge.ts');
 
@@ -41,6 +42,7 @@ export class ApiServiceBridge extends Disposable implements IApiServiceBridge {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IMainProcessService private readonly mainProcessService: IMainProcessService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IMCPService private readonly mcpService: IMCPService,
 	) {
 		super();
 		this.initializeApiServer();
@@ -95,6 +97,9 @@ export class ApiServiceBridge extends Disposable implements IApiServiceBridge {
 			case 'readFile':
 				return this.readFile(params.path);
 
+			case 'readFileBinary':
+				return this.readFileBinary(params.path);
+
 			case 'getFileOutline':
 				return this.getFileOutline(params.path);
 
@@ -132,6 +137,16 @@ export class ApiServiceBridge extends Disposable implements IApiServiceBridge {
 
 			case 'setChatMode':
 				return this.setChatMode(params.mode);
+
+			// ===== MCP Methods =====
+			case 'getMCPServers':
+				return this.getMCPServers();
+
+			case 'getMCPTools':
+				return this.getMCPToolsList();
+
+			case 'toggleMCPServer':
+				return this.toggleMCPServer(params.serverName, params.isOn);
 
 			default:
 				throw new Error(`Unknown API method: ${method}`);
@@ -654,6 +669,59 @@ export class ApiServiceBridge extends Disposable implements IApiServiceBridge {
 		}
 	}
 
+	private async readFileBinary(path: string) {
+		try {
+			const uri = URI.parse(path);
+			const content = await this.fileService.readFile(uri);
+
+			// Get filename from path
+			const filename = path.split('/').pop() || 'file';
+
+			// Determine content type from extension
+			const ext = filename.split('.').pop()?.toLowerCase() || '';
+			const contentTypeMap: Record<string, string> = {
+				// Audio
+				'mp3': 'audio/mpeg',
+				'wav': 'audio/wav',
+				'ogg': 'audio/ogg',
+				'flac': 'audio/flac',
+				'm4a': 'audio/mp4',
+				'aac': 'audio/aac',
+				'webm': 'audio/webm',
+				// Video
+				'mp4': 'video/mp4',
+				// 'webm' already defined above as audio/webm (can be both)
+				'mkv': 'video/x-matroska',
+				'avi': 'video/x-msvideo',
+				'mov': 'video/quicktime',
+				// Images
+				'png': 'image/png',
+				'jpg': 'image/jpeg',
+				'jpeg': 'image/jpeg',
+				'gif': 'image/gif',
+				'webp': 'image/webp',
+				'svg': 'image/svg+xml',
+				// Documents
+				'pdf': 'application/pdf',
+				'zip': 'application/zip',
+			};
+			const contentType = contentTypeMap[ext] || 'application/octet-stream';
+
+			// Convert to base64 for IPC transfer (binary data can't be sent directly)
+			const base64Data = Buffer.from(content.value.buffer).toString('base64');
+
+			return {
+				path,
+				filename,
+				contentType,
+				data: base64Data,
+				size: content.value.byteLength,
+			};
+		} catch (err) {
+			throw new Error(`Failed to read binary file: ${err}`);
+		}
+	}
+
 	private async getFileOutline(path: string) {
 		// This would require integration with the outline service
 		// For now, return a placeholder
@@ -785,6 +853,47 @@ export class ApiServiceBridge extends Disposable implements IApiServiceBridge {
 			...modeInfo[mode],
 			success: true,
 		};
+	}
+
+	// ===== MCP Implementations =====
+
+	private async getMCPServers() {
+		const mcpState = this.mcpService.state;
+		const servers = Object.entries(mcpState.mcpServerOfName).map(([name, server]) => ({
+			name,
+			status: server.status,
+			toolCount: server.tools?.length || 0,
+			tools: server.tools?.map(tool => ({
+				name: tool.name,
+				description: tool.description || '',
+			})) || [],
+		}));
+
+		return {
+			servers,
+			error: mcpState.error || null,
+		};
+	}
+
+	private async getMCPToolsList() {
+		const tools = this.mcpService.getMCPTools();
+		if (!tools) {
+			return { tools: [] };
+		}
+
+		return {
+			tools: tools.map(tool => ({
+				name: tool.name,
+				description: tool.description,
+				serverName: tool.mcpServerName,
+				params: tool.params,
+			})),
+		};
+	}
+
+	private async toggleMCPServer(serverName: string, isOn: boolean) {
+		await this.mcpService.toggleServerIsOn(serverName, isOn);
+		return { success: true, serverName, isOn };
 	}
 }
 

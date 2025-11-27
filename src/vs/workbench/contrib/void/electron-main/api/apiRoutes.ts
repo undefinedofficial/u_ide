@@ -181,6 +181,26 @@ export class ApiRoutes {
 			}
 		});
 
+		// GET /api/v1/workspace/files/:path/raw - Read file as raw binary (for audio/video streaming)
+		this.router.register('GET', '/api/v1/workspace/files/:path/raw', async (req, res, params) => {
+			try {
+				const result = await this.callRenderer('readFileBinary', { path: params.path });
+				if (!result || !result.data) {
+					this.router.sendError(res, 404, 'File not found');
+					return;
+				}
+				// Convert base64 back to Buffer
+				const buffer = Buffer.from(result.data, 'base64');
+				const contentType = result.contentType || 'application/octet-stream';
+				const filename = result.filename || params.path.split('/').pop();
+
+				// Use range-aware streaming for audio/video
+				this.router.sendBinaryWithRange(req, res, buffer, contentType, filename);
+			} catch (err) {
+				this.router.sendError(res, 500, 'Failed to read file', err instanceof Error ? err.message : String(err));
+			}
+		});
+
 		// GET /api/v1/workspace/files/:path/outline - Get file outline
 		this.router.register('GET', '/api/v1/workspace/files/:path/outline', async (req, res, params) => {
 			try {
@@ -331,6 +351,46 @@ export class ApiRoutes {
 				this.router.sendJson(res, 200, { success: true, mode: result });
 			} catch (err) {
 				this.router.sendError(res, 500, 'Failed to set chat mode', err instanceof Error ? err.message : String(err));
+			}
+		});
+
+		// ===== MCP Endpoints =====
+
+		// GET /api/v1/mcp/servers - List MCP servers and their status
+		this.router.register('GET', '/api/v1/mcp/servers', async (req, res, params) => {
+			try {
+				const result = await this.callRenderer('getMCPServers', {});
+				this.router.sendJson(res, 200, result);
+			} catch (err) {
+				this.router.sendError(res, 500, 'Failed to get MCP servers', err instanceof Error ? err.message : String(err));
+			}
+		});
+
+		// GET /api/v1/mcp/tools - List all available MCP tools
+		this.router.register('GET', '/api/v1/mcp/tools', async (req, res, params) => {
+			try {
+				const result = await this.callRenderer('getMCPTools', {});
+				this.router.sendJson(res, 200, result);
+			} catch (err) {
+				this.router.sendError(res, 500, 'Failed to get MCP tools', err instanceof Error ? err.message : String(err));
+			}
+		});
+
+		// PUT /api/v1/mcp/servers/:name/toggle - Toggle MCP server on/off
+		this.router.register('PUT', '/api/v1/mcp/servers/:name/toggle', async (req, res, params) => {
+			try {
+				const { isOn } = params.body || {};
+				if (typeof isOn !== 'boolean') {
+					this.router.sendError(res, 400, 'isOn (boolean) is required');
+					return;
+				}
+				const result = await this.callRenderer('toggleMCPServer', {
+					serverName: params.name,
+					isOn
+				});
+				this.router.sendJson(res, 200, result);
+			} catch (err) {
+				this.router.sendError(res, 500, 'Failed to toggle MCP server', err instanceof Error ? err.message : String(err));
 			}
 		});
 
