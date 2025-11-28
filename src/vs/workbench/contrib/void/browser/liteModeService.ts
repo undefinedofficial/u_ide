@@ -14,6 +14,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IChatThreadService } from './chatThreadService.js';
+import { IVoidSettingsService } from '../common/voidSettingsService.js';
 
 export class LiteModeService extends Disposable implements ILiteModeService {
     private _webviewPanel: any = null;
@@ -269,6 +270,7 @@ export class LiteModeService extends Disposable implements ILiteModeService {
                             break;
                         case 'approveContent':
                             this._metricsService.capture('Content Preview', { action: 'approved', title });
+                            this._sendApprovalToChat(title, content);
                             break;
                         case 'requestContentChanges':
                             this._sendContentChangesToChat(title, content, message.requestedChanges);
@@ -747,6 +749,78 @@ export class LiteModeService extends Disposable implements ILiteModeService {
     </script>
 </body>
 </html>`;
+    }
+
+    private _sendApprovalToChat(title: string, content: string): void {
+        try {
+            // Get services lazily to avoid circular dependency
+            const chatService = this._instantiationService.invokeFunction((accessor) => {
+                return accessor.get(IChatThreadService);
+            });
+            const settingsService = this._instantiationService.invokeFunction((accessor) => {
+                return accessor.get(IVoidSettingsService);
+            });
+
+            if (!chatService) {
+                console.error('Chat service not available');
+                return;
+            }
+
+            // Switch from gather (plan) mode to agent (code) mode for execution
+            if (settingsService) {
+                settingsService.setGlobalSetting('chatMode', 'agent');
+                console.log('Switched chat mode to agent for plan execution');
+            }
+
+            // Get the current thread
+            const currentThreadId = chatService.state.currentThreadId;
+            const currentThread = chatService.state.allThreads[currentThreadId];
+
+            if (!currentThread) {
+                console.error('No current chat thread found');
+                return;
+            }
+
+            // Create approval message
+            const approvalMessage = `The implementation plan "${title}" has been approved for execution.
+
+**Instructions:**
+1. First, use the \`create_plan\` tool to create a task plan based on the approved implementation plan steps
+2. Then execute each task in order, using \`update_task_status\` to track progress
+3. For each step: read relevant files, make the necessary changes, and verify they work
+4. Mark each task complete as you finish it
+
+Please begin execution now.`;
+
+            // Add the user message to the current thread and stream response
+            chatService.addUserMessageAndStreamResponse({
+                userMessage: approvalMessage,
+                threadId: currentThreadId
+            });
+
+            console.log('Implementation plan approval sent to chat:', { title });
+
+            // Close the preview panel
+            if (this._webviewPanel) {
+                this._webviewPanel.dispose();
+                this._webviewPanel = null;
+            }
+            this._isOpen = false;
+
+            // Track the interaction
+            this._metricsService.capture('Implementation Plan', {
+                action: 'approved',
+                title
+            });
+
+        } catch (error) {
+            console.error('Failed to send approval to chat:', error);
+            this._metricsService.capture('Implementation Plan', {
+                action: 'approval_failed',
+                title,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
     }
 
     private _sendContentChangesToChat(title: string, content: string, requestedChanges?: string): void {

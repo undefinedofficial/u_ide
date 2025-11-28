@@ -3,7 +3,7 @@
  *  Licensed under the Apache License, Version 2.0 See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------------*/
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useAccessor } from '../util/services.js'
 import { ToolName } from '../../../../common/toolsServiceTypes.js'
 
@@ -118,32 +118,47 @@ const PlanningResultWrapper: React.FC<PlanningResultWrapperProps> = ({
 	threadId
 }) => {
 	const accessor = useAccessor()
-	const chatThreadsService = accessor.get('IChatThreadService') as any
 	const liteModeService = accessor.get('ILiteModeService') as any
 
-	const [latestPlanning, setLatestPlanning] = useState(toolMessage)
 	const [isExpanded, setIsExpanded] = useState(false) // Start collapsed like Cascade
 
-	// Check for newer planning updates in this thread (only on mount or when messages change)
-	useEffect(() => {
-		if (!chatThreadsService) return
-		const thread = chatThreadsService.state.allThreads[threadId]
-		if (!thread) return
+	// Use the toolMessage result directly - no need to track updates
+	// Each planning tool call renders its own wrapper with its own result
+	const result = toolMessage.result
+	const toolName = toolMessage.name
 
-		const messages = thread.messages || []
-		const planningMessages = messages.filter((m: any) =>
-			m.name === 'create_plan' || m.name === 'update_task_status' || m.name === 'add_tasks_to_plan' || m.name === 'get_plan_status'
-		)
-		const latest = planningMessages[planningMessages.length - 1]
-
-		if (latest && latest.id !== toolMessage.id) {
-			setLatestPlanning(latest)
+	// Get action text based on tool name
+	const getActionText = (isLoading: boolean) => {
+		switch (toolName) {
+			case 'create_plan':
+				return isLoading ? 'Creating plan...' : 'Created Todo List'
+			case 'update_task_status':
+				return isLoading ? 'Updating task...' : 'Updated Task'
+			case 'add_tasks_to_plan':
+				return isLoading ? 'Adding tasks...' : 'Added Tasks'
+			case 'get_plan_status':
+				return isLoading ? 'Getting status...' : 'Plan Status'
+			default:
+				return isLoading ? 'Processing...' : 'Plan Updated'
 		}
-	}, [threadId, toolMessage.id, chatThreadsService, chatThreadsService?.state?.allThreads?.[threadId]?.messages?.length])
+	}
 
-	const result = latestPlanning.result
+	// During streaming, result may not be available yet - show a simple loading state
 	if (!result) {
-		return <div className="p-3 text-void-fg-3">Planning tool result not available</div>
+		return (
+			<div className="void-planning-result w-full rounded-xl overflow-hidden border border-void-border-2 bg-void-bg-2 shadow-sm">
+				<div className="flex items-center gap-2 px-3 py-2">
+					<div
+						className="w-3 h-3 border-2 rounded-full border-void-accent"
+						style={{
+							borderTopColor: 'transparent',
+							animation: 'spin 0.8s linear infinite'
+						}}
+					/>
+					<span className="text-void-fg-3 text-sm">{getActionText(true)}</span>
+				</div>
+			</div>
+		)
 	}
 
 	// Parse the markdown summary into tasks
@@ -151,7 +166,19 @@ const PlanningResultWrapper: React.FC<PlanningResultWrapperProps> = ({
 	const { tasks, goal } = parseMarkdownTasks(summary)
 
 	const completedCount = tasks.filter(t => t.status === 'complete').length
+	const inProgressCount = tasks.filter(t => t.status === 'in_progress').length
 	const totalCount = tasks.length
+
+	// Build status text showing progress
+	const getStatusText = () => {
+		if (inProgressCount > 0 && completedCount === 0) {
+			return `${inProgressCount} in progress`
+		} else if (completedCount > 0 && inProgressCount > 0) {
+			return `${completedCount}/${totalCount} done, ${inProgressCount} in progress`
+		} else {
+			return `${completedCount}/${totalCount} tasks`
+		}
+	}
 
 	// Show first 2 tasks when collapsed, all when expanded
 	const visibleTasks = isExpanded ? tasks : tasks.slice(0, 2)
@@ -197,10 +224,10 @@ const PlanningResultWrapper: React.FC<PlanningResultWrapperProps> = ({
 					<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
 				</svg>
 				<span className="text-void-fg-1 text-sm font-medium">
-					Created Todo List
+					{getActionText(false)}
 				</span>
 				<span className="text-void-fg-4 text-xs italic ml-1">
-					{totalCount} tasks
+					{getStatusText()}
 				</span>
 			</div>
 
@@ -210,13 +237,6 @@ const PlanningResultWrapper: React.FC<PlanningResultWrapperProps> = ({
 					{tasks.map((task, index) => (
 						<TaskRow key={index} task={task} index={index} />
 					))}
-				</div>
-			)}
-
-			{/* Update indicator */}
-			{latestPlanning.id !== toolMessage.id && (
-				<div className="px-3 pb-2 text-xs text-void-fg-4 italic">
-					Plan updated. Showing latest version.
 				</div>
 			)}
 		</div>

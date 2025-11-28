@@ -27,8 +27,9 @@ const ImplementationPlanPreviewWrapper: React.FC<ImplementationPlanPreviewWrappe
 }) => {
 	const accessor = useAccessor()
 	const commandService = accessor.get('ICommandService')
-	const chatThreadsService = accessor.get('IChatThreadService') as any
+	const chatThreadsService = accessor.get('IChatThreadService')
 	const liteModeService = accessor.get('ILiteModeService') as any
+	const voidSettingsService = accessor.get('IVoidSettingsService')
 
 	const [refreshKey, setRefreshKey] = useState(0)
 	const [latestPlan, setLatestPlan] = useState(toolMessage)
@@ -141,16 +142,21 @@ const ImplementationPlanPreviewWrapper: React.FC<ImplementationPlanPreviewWrappe
 	}
 
 	const handleApprove = async () => {
-		if (!planInfo.planId || isApproving) return
+		console.log('[ImplementationPlanPreview] handleApprove called', { planId: planInfo.planId, isApproving, threadId })
+		console.log('[ImplementationPlanPreview] chatThreadsService:', chatThreadsService)
+		console.log('[ImplementationPlanPreview] chatThreadsService.addUserMessageAndStreamResponse:', chatThreadsService?.addUserMessageAndStreamResponse)
+
+		if (!planInfo.planId || isApproving) {
+			console.log('[ImplementationPlanPreview] Early return - planId or isApproving', { planId: planInfo.planId, isApproving })
+			return
+		}
 
 		setIsApproving(true)
 		try {
-			// Get settings service to switch to Code mode
-			const voidSettingsService = accessor.get('IVoidSettingsService') as any
-
 			// Switch to Code mode (agent) for execution
 			if (voidSettingsService?.setGlobalSetting) {
-				await voidSettingsService.setGlobalSetting('chatMode', 'agent')
+				console.log('[ImplementationPlanPreview] Switching to agent mode')
+				voidSettingsService.setGlobalSetting('chatMode', 'agent')
 			}
 
 			// Send approval message that instructs AI to create a task plan and execute
@@ -164,12 +170,20 @@ const ImplementationPlanPreviewWrapper: React.FC<ImplementationPlanPreviewWrappe
 
 Please begin execution now.`
 
+			console.log('[ImplementationPlanPreview] Calling addUserMessageAndStreamResponse with:', { threadId, userMessage: approvalMessage.substring(0, 100) + '...' })
+
+			if (!chatThreadsService?.addUserMessageAndStreamResponse) {
+				console.error('[ImplementationPlanPreview] addUserMessageAndStreamResponse method not found on chatThreadsService!')
+				return
+			}
+
 			await chatThreadsService.addUserMessageAndStreamResponse({
 				threadId,
 				userMessage: approvalMessage
 			})
+			console.log('[ImplementationPlanPreview] Message sent successfully')
 		} catch (error) {
-			console.error('Failed to approve implementation plan:', error)
+			console.error('[ImplementationPlanPreview] Failed to approve implementation plan:', error)
 		} finally {
 			setIsApproving(false)
 		}

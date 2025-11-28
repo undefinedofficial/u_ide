@@ -35,11 +35,16 @@ import { ToolApprovalTypeSwitch } from '../void-settings-tsx/Settings.js';
 
 import { persistentTerminalNameOfId } from '../../../terminalToolService.js';
 import { removeMCPToolNamePrefix } from '../../../../common/mcpServiceTypes.js';
-import { FadeIn, SlideInRight, TypingIndicator, ToolLoadingIndicator, ReActPhaseIndicator } from './ChatAnimations.js';
+import { TypingIndicator, ToolLoadingIndicator, ReActPhaseIndicator } from './ChatAnimations.js';
 import { MCPServerModal } from './MCPServerModal.js';
 import { TaskPlan } from '../../../chatThreadService.js';
 import { PlanStatusPanel } from './PlanStatusPanel.js';
 import { CheckpointTimeline } from './CheckpointTimeline.js';
+
+// Lazy-loaded components - MUST be at module level to avoid re-creating on every render
+const LazyPlanningResultWrapper = React.lazy(() => import('./PlanningResultWrapper.js'))
+const LazyWalkthroughResultWrapper = React.lazy(() => import('./WalkthroughResultWrapper.js'))
+const LazyImplementationPlanPreviewWrapper = React.lazy(() => import('./ImplementationPlanPreviewWrapper.js'))
 
 // Image Preview Component
 const ImagePreview = ({ images, onRemove }: { images: ImageAttachment[], onRemove: (index: number) => void }) => {
@@ -953,8 +958,6 @@ const scrollToBottom = (divRef: { current: HTMLElement | null }, smooth: boolean
 
 const ScrollToBottomContainer = ({ children, className, style, scrollContainerRef }: { children: React.ReactNode, className?: string, style?: React.CSSProperties, scrollContainerRef: React.MutableRefObject<HTMLDivElement | null> }) => {
 	const [isAtBottom, setIsAtBottom] = useState(true); // Start at bottom
-	const isScrollingRef = useRef(false); // Prevent scroll jitter during streaming
-	const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const divRef = scrollContainerRef
 
@@ -970,35 +973,21 @@ const ScrollToBottomContainer = ({ children, className, style, scrollContainerRe
 		setIsAtBottom(isBottom);
 	};
 
-	// Debounced scroll to bottom - prevents jitter during rapid updates
-	const debouncedScrollToBottom = useCallback(() => {
-		if (scrollTimeoutRef.current) {
-			clearTimeout(scrollTimeoutRef.current);
-		}
-		if (isScrollingRef.current) return;
-
-		isScrollingRef.current = true;
-		scrollTimeoutRef.current = setTimeout(() => {
-			scrollToBottom(divRef, true); // Use smooth scrolling
-			isScrollingRef.current = false;
-		}, 50); // Small delay to batch multiple updates
+	// Instant scroll to bottom - no animation for better UX during streaming
+	const instantScrollToBottom = useCallback(() => {
+		scrollToBottom(divRef, false); // Use instant scrolling, no smooth animation
 	}, [divRef]);
 
 	// When children change (new messages added)
 	useEffect(() => {
 		if (isAtBottom) {
-			debouncedScrollToBottom();
+			instantScrollToBottom();
 		}
-	}, [children, isAtBottom, debouncedScrollToBottom]);
+	}, [children, isAtBottom, instantScrollToBottom]);
 
 	// Initial scroll to bottom
 	useEffect(() => {
 		scrollToBottom(divRef);
-		return () => {
-			if (scrollTimeoutRef.current) {
-				clearTimeout(scrollTimeoutRef.current);
-			}
-		};
 	}, []);
 
 	return (
@@ -1940,36 +1929,32 @@ const AssistantMessageComponent = ({ chatMessage, isCheckpointGhost, isCommitted
 	return <>
 		{/* reasoning token */}
 		{hasReasoning &&
-			<FadeIn duration={200}>
-				<div className={`${isCheckpointGhost ? 'opacity-50' : ''}`}>
-					<ReasoningWrapper isDoneReasoning={isDoneReasoning} isStreaming={!isCommitted}>
-						<SmallProseWrapper>
-							<ChatMarkdownRender
-								string={reasoningStr}
-								chatMessageLocation={chatMessageLocation}
-								isApplyEnabled={false}
-								isLinkDetectionEnabled={true}
-							/>
-						</SmallProseWrapper>
-					</ReasoningWrapper>
-				</div>
-			</FadeIn>
+			<div className={`${isCheckpointGhost ? 'opacity-50' : ''}`}>
+				<ReasoningWrapper isDoneReasoning={isDoneReasoning} isStreaming={!isCommitted}>
+					<SmallProseWrapper>
+						<ChatMarkdownRender
+							string={reasoningStr}
+							chatMessageLocation={chatMessageLocation}
+							isApplyEnabled={false}
+							isLinkDetectionEnabled={true}
+						/>
+					</SmallProseWrapper>
+				</ReasoningWrapper>
+			</div>
 		}
 
 		{/* assistant message */}
 		{chatMessage.displayContent &&
-			<SlideInRight>
-				<div className={`${isCheckpointGhost ? 'opacity-50' : ''}`}>
-					<ProseWrapper>
-						<ChatMarkdownRender
-							string={chatMessage.displayContent || ''}
-							chatMessageLocation={chatMessageLocation}
-							isApplyEnabled={true}
-							isLinkDetectionEnabled={true}
-						/>
-					</ProseWrapper>
-				</div>
-			</SlideInRight>
+			<div className={`${isCheckpointGhost ? 'opacity-50' : ''}`}>
+				<ProseWrapper>
+					<ChatMarkdownRender
+						string={chatMessage.displayContent || ''}
+						chatMessageLocation={chatMessageLocation}
+						isApplyEnabled={true}
+						isLinkDetectionEnabled={true}
+					/>
+				</ProseWrapper>
+			</div>
 		}
 	</>
 
@@ -3332,13 +3317,9 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	'create_plan': {
 		resultWrapper: (params) => {
 			const { toolMessage, messageIdx, threadId } = params
-
-			// Import the PlanningResultWrapper component
-			const PlanningResultWrapper = React.lazy(() => import('./PlanningResultWrapper.js'))
-
 			return (
-				<React.Suspense fallback={<div>Loading plan...</div>}>
-					<PlanningResultWrapper
+				<React.Suspense fallback={null}>
+					<LazyPlanningResultWrapper
 						toolMessage={toolMessage}
 						messageIdx={messageIdx}
 						threadId={threadId}
@@ -3351,13 +3332,9 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	'update_task_status': {
 		resultWrapper: (params) => {
 			const { toolMessage, messageIdx, threadId } = params
-
-			// Import the PlanningResultWrapper component
-			const PlanningResultWrapper = React.lazy(() => import('./PlanningResultWrapper.js'))
-
 			return (
-				<React.Suspense fallback={<div>Loading update...</div>}>
-					<PlanningResultWrapper
+				<React.Suspense fallback={null}>
+					<LazyPlanningResultWrapper
 						toolMessage={toolMessage}
 						messageIdx={messageIdx}
 						threadId={threadId}
@@ -3370,13 +3347,9 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	'add_tasks_to_plan': {
 		resultWrapper: (params) => {
 			const { toolMessage, messageIdx, threadId } = params
-
-			// Import the PlanningResultWrapper component
-			const PlanningResultWrapper = React.lazy(() => import('./PlanningResultWrapper.js'))
-
 			return (
-				<React.Suspense fallback={<div>Loading tasks...</div>}>
-					<PlanningResultWrapper
+				<React.Suspense fallback={null}>
+					<LazyPlanningResultWrapper
 						toolMessage={toolMessage}
 						messageIdx={messageIdx}
 						threadId={threadId}
@@ -3389,13 +3362,9 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	'get_plan_status': {
 		resultWrapper: (params) => {
 			const { toolMessage, messageIdx, threadId } = params
-
-			// Import the PlanningResultWrapper component
-			const PlanningResultWrapper = React.lazy(() => import('./PlanningResultWrapper.js'))
-
 			return (
-				<React.Suspense fallback={<div>Loading status...</div>}>
-					<PlanningResultWrapper
+				<React.Suspense fallback={null}>
+					<LazyPlanningResultWrapper
 						toolMessage={toolMessage}
 						messageIdx={messageIdx}
 						threadId={threadId}
@@ -3408,13 +3377,9 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	'update_walkthrough': {
 		resultWrapper: (params) => {
 			const { toolMessage, messageIdx, threadId } = params
-
-			// Import the WalkthroughResultWrapper component
-			const WalkthroughResultWrapper = React.lazy(() => import('./WalkthroughResultWrapper.js'))
-
 			return (
-				<React.Suspense fallback={<div>Loading walkthrough...</div>}>
-					<WalkthroughResultWrapper
+				<React.Suspense fallback={null}>
+					<LazyWalkthroughResultWrapper
 						toolMessage={toolMessage}
 						messageIdx={messageIdx}
 						threadId={threadId}
@@ -3428,13 +3393,9 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	'create_implementation_plan': {
 		resultWrapper: (params) => {
 			const { toolMessage, messageIdx, threadId } = params
-
-			// Import the ImplementationPlanPreviewWrapper component
-			const ImplementationPlanPreviewWrapper = React.lazy(() => import('./ImplementationPlanPreviewWrapper.js'))
-
 			return (
-				<React.Suspense fallback={<div>Loading implementation plan...</div>}>
-					<ImplementationPlanPreviewWrapper
+				<React.Suspense fallback={null}>
+					<LazyImplementationPlanPreviewWrapper
 						toolMessage={toolMessage}
 						messageIdx={messageIdx}
 						threadId={threadId}
@@ -3446,13 +3407,9 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	'preview_implementation_plan': {
 		resultWrapper: (params) => {
 			const { toolMessage, messageIdx, threadId } = params
-
-			// Import the ImplementationPlanPreviewWrapper component
-			const ImplementationPlanPreviewWrapper = React.lazy(() => import('./ImplementationPlanPreviewWrapper.js'))
-
 			return (
-				<React.Suspense fallback={<div>Loading implementation plan...</div>}>
-					<ImplementationPlanPreviewWrapper
+				<React.Suspense fallback={null}>
+					<LazyImplementationPlanPreviewWrapper
 						toolMessage={toolMessage}
 						messageIdx={messageIdx}
 						threadId={threadId}
@@ -3464,13 +3421,9 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	'execute_implementation_plan': {
 		resultWrapper: (params) => {
 			const { toolMessage, messageIdx, threadId } = params
-
-			// Import the ImplementationPlanPreviewWrapper component
-			const ImplementationPlanPreviewWrapper = React.lazy(() => import('./ImplementationPlanPreviewWrapper.js'))
-
 			return (
-				<React.Suspense fallback={<div>Loading implementation plan...</div>}>
-					<ImplementationPlanPreviewWrapper
+				<React.Suspense fallback={null}>
+					<LazyImplementationPlanPreviewWrapper
 						toolMessage={toolMessage}
 						messageIdx={messageIdx}
 						threadId={threadId}
@@ -3482,13 +3435,9 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	'update_implementation_step': {
 		resultWrapper: (params) => {
 			const { toolMessage, messageIdx, threadId } = params
-
-			// Import the ImplementationPlanPreviewWrapper component
-			const ImplementationPlanPreviewWrapper = React.lazy(() => import('./ImplementationPlanPreviewWrapper.js'))
-
 			return (
-				<React.Suspense fallback={<div>Loading implementation plan...</div>}>
-					<ImplementationPlanPreviewWrapper
+				<React.Suspense fallback={null}>
+					<LazyImplementationPlanPreviewWrapper
 						toolMessage={toolMessage}
 						messageIdx={messageIdx}
 						threadId={threadId}
@@ -3500,13 +3449,9 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	'get_implementation_status': {
 		resultWrapper: (params) => {
 			const { toolMessage, messageIdx, threadId } = params
-
-			// Import the ImplementationPlanPreviewWrapper component
-			const ImplementationPlanPreviewWrapper = React.lazy(() => import('./ImplementationPlanPreviewWrapper.js'))
-
 			return (
-				<React.Suspense fallback={<div>Loading implementation plan...</div>}>
-					<ImplementationPlanPreviewWrapper
+				<React.Suspense fallback={null}>
+					<LazyImplementationPlanPreviewWrapper
 						toolMessage={toolMessage}
 						messageIdx={messageIdx}
 						threadId={threadId}
@@ -3518,13 +3463,9 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	'open_walkthrough_preview': {
 		resultWrapper: (params) => {
 			const { toolMessage, messageIdx, threadId } = params
-
-			// Import the WalkthroughResultWrapper component (same as update_walkthrough)
-			const WalkthroughResultWrapper = React.lazy(() => import('./WalkthroughResultWrapper.js'))
-
 			return (
-				<React.Suspense fallback={<div>Loading walkthrough...</div>}>
-					<WalkthroughResultWrapper
+				<React.Suspense fallback={null}>
+					<LazyWalkthroughResultWrapper
 						toolMessage={toolMessage}
 						messageIdx={messageIdx}
 						threadId={threadId}
@@ -4306,7 +4247,46 @@ export const SidebarChat = () => {
 		chatThreadsService.setAutoContinuePreference(threadId, value)
 	}, [chatThreadsService, threadId])
 
+	// Auto-continue effect: automatically send "continue" when enabled and LLM finishes
+	// Track message count to detect when a new assistant message is added
+	const prevMessageCountRef = useRef(currentThread?.messages?.length || 0)
+	const autoContinueTriggeredRef = useRef(false)
 
+	useEffect(() => {
+		const messageCount = currentThread?.messages?.length || 0
+		const prevCount = prevMessageCountRef.current
+		prevMessageCountRef.current = messageCount
+
+		// Reset trigger flag when a new message is added
+		if (messageCount !== prevCount) {
+			autoContinueTriggeredRef.current = false
+		}
+
+		// Don't trigger if already triggered for this message
+		if (autoContinueTriggeredRef.current) return
+
+		// Don't trigger while running
+		if (isRunning) return
+
+		// Check if auto-continue is enabled
+		if (!autoContinueEnabled) return
+
+		// Check if last message is from assistant
+		const lastNonCheckpointMessage = currentThread?.messages?.slice().reverse().find(msg => msg.role !== 'checkpoint')
+		if (lastNonCheckpointMessage?.role !== 'assistant') return
+
+		// Mark as triggered to prevent duplicate triggers
+		autoContinueTriggeredRef.current = true
+
+		const responseLength = lastNonCheckpointMessage.displayContent?.trim().length || 0
+		console.log(`[AutoContinue] Triggering auto-continue (${responseLength} chars)`)
+		// Small delay to let UI settle
+		const timer = setTimeout(() => {
+			onSubmit('continue')
+		}, 500)
+
+		return () => clearTimeout(timer)
+	}, [isRunning, autoContinueEnabled, currentThread?.messages, onSubmit])
 
 	// resolve mount info
 	const isResolved = chatThreadsState.allThreads[threadId]?.state.mountedInfo?.mountedIsResolvedRef.current
@@ -4400,13 +4380,16 @@ export const SidebarChat = () => {
 	const lastMessage = previousMessages[previousMessages.length - 1];
 	const lastMessageIsTool = lastMessage?.role === 'tool';
 
-	// Show tool UI when:
-	// 1. Tool is being generated (toolIsGenerating) AND not already in messages
-	// 2. Tool name detected (hasToolName) - covers streaming detection
-	// 3. Tool call just completed but execution hasn't started (toolCallJustCompleted)
-	// 4. Tool is executing (isRunning === 'tool') AND not already in messages
-
-	const shouldShowToolUI = (toolIsGenerating || hasToolName || toolCallJustCompleted || isRunning === 'tool' || isReActActionPhase) && !lastMessageIsTool;
+	// Show tool UI using the SAME logic as the status indicator (which works correctly)
+	// This matches the threadStatus logic at lines 3755-3761
+	const shouldShowToolUI = (
+		// Tool is executing (isRunning === 'tool')
+		isRunning === 'tool' ||
+		// Tool is being generated (native OR XML) - same as isAnyToolGenerating in status indicator
+		isAnyToolActivity ||
+		// ReAct action phase
+		isReActActionPhase
+	) && !lastMessageIsTool;
 
 	const generatingTool = shouldShowToolUI && (activeToolName || isReActActionPhase) ? (
 		<>

@@ -6,75 +6,24 @@
 import React, { useEffect, useState, useRef } from 'react';
 
 /**
- * Fade-in animation for messages
+ * Fade-in animation for messages - DISABLED for better UX
  */
-export const FadeIn = ({ children, delay = 0, duration = 300 }: { children: React.ReactNode, delay?: number, duration?: number }) => {
-	const [isVisible, setIsVisible] = useState(false);
-
-	useEffect(() => {
-		const timer = setTimeout(() => setIsVisible(true), delay);
-		return () => clearTimeout(timer);
-	}, [delay]);
-
-	return (
-		<div
-			style={{
-				opacity: isVisible ? 1 : 0,
-				transform: isVisible ? 'translateY(0)' : 'translateY(8px)',
-				transition: `opacity ${duration}ms ease-out, transform ${duration}ms ease-out`,
-			}}
-		>
-			{children}
-		</div>
-	);
+export const FadeIn = ({ children }: { children: React.ReactNode, delay?: number, duration?: number }) => {
+	return <>{children}</>;
 };
 
 /**
- * Slide-in from left animation (for user messages)
+ * Slide-in from left animation (for user messages) - DISABLED for better UX
  */
-export const SlideInLeft = ({ children, delay = 0 }: { children: React.ReactNode, delay?: number }) => {
-	const [isVisible, setIsVisible] = useState(false);
-
-	useEffect(() => {
-		const timer = setTimeout(() => setIsVisible(true), delay);
-		return () => clearTimeout(timer);
-	}, [delay]);
-
-	return (
-		<div
-			style={{
-				opacity: isVisible ? 1 : 0,
-				transform: isVisible ? 'translateX(0)' : 'translateX(-12px)',
-				transition: 'opacity 250ms ease-out, transform 250ms ease-out',
-			}}
-		>
-			{children}
-		</div>
-	);
+export const SlideInLeft = ({ children }: { children: React.ReactNode, delay?: number }) => {
+	return <>{children}</>;
 };
 
 /**
- * Slide-in from right animation (for assistant messages)
+ * Slide-in from right animation (for assistant messages) - DISABLED for better UX
  */
-export const SlideInRight = ({ children, delay = 0 }: { children: React.ReactNode, delay?: number }) => {
-	const [isVisible, setIsVisible] = useState(false);
-
-	useEffect(() => {
-		const timer = setTimeout(() => setIsVisible(true), delay);
-		return () => clearTimeout(timer);
-	}, [delay]);
-
-	return (
-		<div
-			style={{
-				opacity: isVisible ? 1 : 0,
-				transform: isVisible ? 'translateX(0)' : 'translateX(12px)',
-				transition: 'opacity 250ms ease-out, transform 250ms ease-out',
-			}}
-		>
-			{children}
-		</div>
-	);
+export const SlideInRight = ({ children }: { children: React.ReactNode, delay?: number }) => {
+	return <>{children}</>;
 };
 
 /**

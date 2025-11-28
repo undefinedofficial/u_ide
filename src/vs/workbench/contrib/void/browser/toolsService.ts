@@ -38,6 +38,26 @@ const isFalsy = (u: unknown) => {
 	return !u || u === 'null' || u === 'undefined'
 }
 
+// Helper to parse JSON that might be in JavaScript object notation (unquoted keys)
+// Some LLMs output { id: "value" } instead of { "id": "value" }
+const parseJSONOrJSObject = (str: string): any => {
+	// First try standard JSON parse
+	try {
+		return JSON.parse(str)
+	} catch (e) {
+		// Try to convert JS object notation to JSON by quoting unquoted keys
+		// This handles: { id: "value" } -> { "id": "value" }
+		try {
+			// Quote unquoted keys: matches word characters followed by colon
+			const jsonified = str.replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3')
+			return JSON.parse(jsonified)
+		} catch (e2) {
+			// If that fails too, throw the original error
+			throw e
+		}
+	}
+}
+
 const validateStr = (argName: string, value: unknown) => {
 	if (value === null) throw new Error(`Invalid LLM output: ${argName} was null.`)
 	if (typeof value !== 'string') throw new Error(`Invalid LLM output format: ${argName} must be a string, but its type is "${typeof value}". Full value: ${JSON.stringify(value)}.`)
@@ -345,10 +365,11 @@ export class ToolsService implements IToolsService {
 				const goal = validateStr('goal', goalUnknown);
 
 				// Validate tasks array - handle both array and JSON string
+				// Also handles JS object notation (unquoted keys) that some LLMs output
 				let tasksParsed: any;
 				if (typeof tasksUnknown === 'string') {
 					try {
-						tasksParsed = JSON.parse(tasksUnknown);
+						tasksParsed = parseJSONOrJSObject(tasksUnknown);
 					} catch (e) {
 						throw new Error(`Invalid LLM output: tasks parameter is a string but not valid JSON: ${tasksUnknown}`);
 					}
@@ -397,10 +418,11 @@ export class ToolsService implements IToolsService {
 				const { tasks: tasksUnknown } = params;
 
 				// Validate tasks array - handle both array and JSON string
+				// Also handles JS object notation (unquoted keys) that some LLMs output
 				let tasksParsed: any;
 				if (typeof tasksUnknown === 'string') {
 					try {
-						tasksParsed = JSON.parse(tasksUnknown);
+						tasksParsed = parseJSONOrJSObject(tasksUnknown);
 					} catch (e) {
 						throw new Error(`Invalid LLM output: tasks parameter is a string but not valid JSON: ${tasksUnknown}`);
 					}
@@ -454,10 +476,11 @@ export class ToolsService implements IToolsService {
 				const goal = validateStr('goal', goalUnknown);
 
 				// Validate steps array - handle both array and JSON string
+				// Also handles JS object notation (unquoted keys) that some LLMs output
 				let stepsParsed: any;
 				if (typeof stepsUnknown === 'string') {
 					try {
-						stepsParsed = JSON.parse(stepsUnknown);
+						stepsParsed = parseJSONOrJSObject(stepsUnknown);
 					} catch (e) {
 						throw new Error(`Invalid LLM output: steps parameter is a string but not valid JSON: ${stepsUnknown}`);
 					}

@@ -49,35 +49,6 @@ const RETRY_DELAY = 2000 // Delay between retries in milliseconds
 export const AUTO_CONTINUE_CHAR_THRESHOLD = 200; // Still used by UI auto-continue
 const MAX_AGENT_ITERATIONS = 50 // Maximum number of iterations in agent mode to prevent infinite loops
 
-// Detect when LLM is describing an action it intends to take (should continue) vs. when it's done
-const isDescribingIntendedAction = (text: string): boolean => {
-	const trimmed = text.trim().toLowerCase()
-
-	// Patterns that indicate the LLM is about to take action
-	const actionPatterns = [
-		/let me (read|check|look|see|examine|open|create|edit|write|search|find|run|execute)/i,
-		/i('ll| will| need to| should| can) (read|check|look|see|examine|open|create|edit|write|search|find|run|execute)/i,
-		/now i('ll| will| need to)/i,
-		/first,? (i('ll| will)|let me)/i,
-		/let's (read|check|look|see|examine|open|create|edit|write|search|find|run|execute)/i,
-		/i('ll| will) (now |then )?(read|check|look|see|examine|open|create|edit|write|search|find|run|execute)/i,
-	]
-
-	// Check if text matches action patterns
-	for (const pattern of actionPatterns) {
-		if (pattern.test(trimmed)) {
-			return true
-		}
-	}
-
-	// Check for trailing colon which often indicates "here's what I'll do:"
-	if (trimmed.endsWith(':')) {
-		return true
-	}
-
-	return false
-}
-
 const splitThinkTags = (input: string): { displayText: string; reasoningText: string } => {
 	if (!input) {
 		return { displayText: '', reasoningText: '' }
@@ -1175,6 +1146,15 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 				// Note: Tool calls with empty content are valid (especially for Ollama)
 				const isEmptyResponse = (!info.fullText || info.fullText.trim().length === 0) && !toolCall
 				if (isEmptyResponse) {
+					// In agent mode, silently continue the loop - the LLM may need another prompt
+					// Don't add empty message to thread, just continue
+					if (chatMode === 'agent') {
+						console.log(`[chatThreadService] Agent mode: Empty response, silently continuing loop`)
+						shouldSendAnotherMessage = true
+						continue
+					}
+
+					// In chat mode, retry with delay
 					console.warn(`[chatThreadService] LLM returned empty response, treating as error for retry`)
 					// Don't add empty message to thread
 					// Continue to retry logic below by setting shouldRetryLLM
@@ -1242,18 +1222,12 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 				}
 				// Auto-extract tasks from any LLM response with text content
 				else if (!isEmptyResponse && info.fullText.trim().length > 0) {
-					// In agent mode: Check if LLM is describing an action it intends to take
+					// Pure ReAct pattern: if LLM responds with text and no tool call, it's done
+					// The LLM's behavior IS the signal - no regex pattern matching needed
 					if (chatMode === 'agent') {
-						// If LLM says "Let me read the file..." but doesn't call a tool, continue the loop
-						if (isDescribingIntendedAction(info.fullText)) {
-							console.log(`[chatThreadService] Agent mode: LLM described intended action without tool call, continuing loop`)
-							shouldSendAnotherMessage = true
-						} else {
-							// LLM responded with text and no tool call, and not describing an action - task complete
-							console.log(`[chatThreadService] Agent mode: LLM responded with text, no tool call - task complete`)
-							shouldSendAnotherMessage = false
-							break
-						}
+						console.log(`[chatThreadService] Agent mode: LLM responded with text, no tool call - task complete`)
+						shouldSendAnotherMessage = false
+						break
 					}
 
 				} // end while (attempts)

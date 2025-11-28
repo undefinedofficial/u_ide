@@ -663,7 +663,7 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 					}
 				} else {
 					// Generic empty response error for non-Ollama or non-tool cases
-					onError({ message: 'Void: Response from model was empty.', fullError: null })
+					onError({ message: 'A-Coder: Response from model was empty.', fullError: null })
 				}
 			}
 			else if (hasToolCallWithEmptyContent && providerName === 'ollama') {
@@ -999,7 +999,7 @@ const sendMistralFIM = ({ messages, onFinalMessage, onError, settingsOfProvider,
 // ------------ OLLAMA ------------
 const newOllamaSDK = ({ endpoint }: { endpoint: string }) => {
 	// if endpoint is empty, normally ollama will send to 11434, but we want it to fail - the user should type it in
-	if (!endpoint) throw new Error(`Ollama Endpoint was empty (please enter ${defaultProviderSettings.ollama.endpoint} in Void if you want the default url).`)
+	if (!endpoint) throw new Error(`Ollama Endpoint was empty (please enter ${defaultProviderSettings.ollama.endpoint} in A-Coder if you want the default url).`)
 	const ollama = new Ollama({ host: endpoint })
 	return ollama
 }
@@ -1106,20 +1106,20 @@ const _sendOllamaChatWithFallback = async (params: SendChatParams_Internal) => {
 
 	// For models with native tool support, try OpenAI-compatible endpoint first
 	if (hasNativeTools && hasTools) {
-		console.log(`[sendOllamaChatWithFallback] 🚀 Trying OpenAI-compatible endpoint with native tools`)
+		console.log(`[sendOllamaChatWithFallback] 🚀 Trying OpenAI - compatible endpoint with native tools`)
 
 		try {
 			// Try the OpenAI-compatible endpoint
 			await _sendOpenAICompatibleChat(params)
-			console.log(`[sendOllamaChatWithFallback] ✅ OpenAI-compatible endpoint succeeded`)
+			console.log(`[sendOllamaChatWithFallback] ✅ OpenAI - compatible endpoint succeeded`)
 			return
 		} catch (error) {
-			console.warn(`[sendOllamaChatWithFallback] ⚠️ OpenAI-compatible endpoint failed:`, error)
+			console.warn(`[sendOllamaChatWithFallback] ⚠️ OpenAI - compatible endpoint failed: `, error)
 
 			// Check if it's a transient server error (5xx) that might be worth retrying
 			const isTransientServerError = error?.status >= 500 && error?.status < 600
 			if (isTransientServerError) {
-				console.log(`[sendOllamaChatWithFallback] 🔄 Detected transient server error (${error.status}), retrying once...`)
+				console.log(`[sendOllamaChatWithFallback] 🔄 Detected transient server error(${error.status}), retrying once...`)
 				try {
 					// Wait a moment before retry
 					await new Promise(resolve => setTimeout(resolve, 1000))
@@ -1127,7 +1127,7 @@ const _sendOllamaChatWithFallback = async (params: SendChatParams_Internal) => {
 					console.log(`[sendOllamaChatWithFallback] ✅ Retry succeeded`)
 					return
 				} catch (retryError) {
-					console.warn(`[sendOllamaChatWithFallback] ⚠️ Retry also failed:`, retryError)
+					console.warn(`[sendOllamaChatWithFallback] ⚠️ Retry also failed: `, retryError)
 				}
 			}
 
@@ -1146,7 +1146,7 @@ const _sendOllamaChatWithFallback = async (params: SendChatParams_Internal) => {
 			// Check if it's a transient server error that might be worth retrying
 			const isTransientServerError = error?.status >= 500 && error?.status < 600
 			if (isTransientServerError) {
-				console.log(`[sendOllamaChatWithFallback] 🔄 Detected transient server error in fallback (${error.status}), retrying once...`)
+				console.log(`[sendOllamaChatWithFallback] 🔄 Detected transient server error in fallback(${error.status}), retrying once...`)
 				try {
 					// Wait a moment before retry
 					await new Promise(resolve => setTimeout(resolve, 2000))
@@ -1154,12 +1154,12 @@ const _sendOllamaChatWithFallback = async (params: SendChatParams_Internal) => {
 					console.log(`[sendOllamaChatWithFallback] ✅ Fallback retry succeeded`)
 					return
 				} catch (retryError) {
-					console.warn(`[sendOllamaChatWithFallback] ⚠️ Fallback retry also failed:`, retryError)
+					console.warn(`[sendOllamaChatWithFallback] ⚠️ Fallback retry also failed: `, retryError)
 				}
 			}
 
-			console.error(`[sendOllamaChatWithFallback] ❌ Both attempts failed:`, error)
-			params.onError({ message: `Model produced a result A-Coder couldn't apply`, fullError: error })
+			console.error(`[sendOllamaChatWithFallback] ❌ Both attempts failed: `, error)
+			params.onError({ message: `Model produced a result A - Coder couldn't apply`, fullError: error })
 		}
 	} else {
 		// No tools needed, use standard OpenAI-compatible chat
@@ -1268,7 +1268,7 @@ const sendGeminiChat = async ({
 
 			// on final
 			if (!fullTextSoFar && !fullReasoningSoFar && !toolName) {
-				onError({ message: 'Void: Response from model was empty.', fullError: null })
+				onError({ message: 'A-Coder: Response from model was empty.', fullError: null })
 			} else {
 				if (!toolId) toolId = generateUuid() // ids are empty, but other providers might expect an id
 				const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId)
