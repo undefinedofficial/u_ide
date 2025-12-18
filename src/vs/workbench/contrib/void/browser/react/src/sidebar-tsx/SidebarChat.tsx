@@ -4415,36 +4415,27 @@ export const SidebarChat = () => {
 	const lastTriggeredMessageIdRef = useRef<string | null>(null)
 
 	useEffect(() => {
-		// Don't trigger while running
-		if (isRunning) {
-			console.log(`[AutoContinue] Skipping - still running: ${isRunning}`)
-			return
-		}
+		// Don't trigger while running - no logging here to avoid spam during streaming
+		if (isRunning) return
 
 		// Check if auto-continue is enabled
 		if (!autoContinueEnabled) return
 
 		// Check if last message is from assistant
 		const lastNonCheckpointMessage = currentThread?.messages?.slice().reverse().find(msg => msg.role !== 'checkpoint')
-		if (lastNonCheckpointMessage?.role !== 'assistant') {
-			console.log(`[AutoContinue] Skipping - last message not from assistant`)
-			return
-		}
+		if (lastNonCheckpointMessage?.role !== 'assistant') return
 
 		// Get the message ID to track if we've already triggered for this message
 		const messageId = (lastNonCheckpointMessage as any).id || `${currentThread?.messages?.length}`
 
 		// Don't trigger if we already triggered for this exact message
-		if (lastTriggeredMessageIdRef.current === messageId) {
-			console.log(`[AutoContinue] Skipping - already triggered for message ${messageId}`)
-			return
-		}
+		if (lastTriggeredMessageIdRef.current === messageId) return
 
 		// Mark as triggered for this message
 		lastTriggeredMessageIdRef.current = messageId
 
 		const responseLength = lastNonCheckpointMessage.displayContent?.trim().length || 0
-		console.log(`[AutoContinue] Triggering auto-continue for message ${messageId} (${responseLength} chars)`)
+		console.log(`[AutoContinue] Triggering for message ${messageId} (${responseLength} chars)`)
 
 		// Small delay to let UI settle
 		const timer = setTimeout(() => {
@@ -4468,10 +4459,14 @@ export const SidebarChat = () => {
 
 
 
+	// PERFORMANCE: Virtualization - limit rendered messages to prevent UI freezing
+	const MAX_VISIBLE_MESSAGES = 50; // Only render last 50 messages initially
+	const [showAllMessages, setShowAllMessages] = useState(false);
+
 	const previousMessagesHTML = useMemo(() => {
 		// const lastMessageIdx = previousMessages.findLastIndex(v => v.role !== 'checkpoint')
 		// tool request shows up as Editing... if in progress
-		return previousMessages
+		const filteredMessages = previousMessages
 			.map((message, originalIdx) => ({ message, originalIdx })) // Preserve original index
 			.filter(({ message }) => {
 				// Filter out assistant messages that only contain "(empty message)"
@@ -4482,21 +4477,50 @@ export const SidebarChat = () => {
 					}
 				}
 				return true;
-			})
-			.map(({ message, originalIdx }) => {
-				return <div key={originalIdx} className="mb-4 flex flex-col" data-message-idx={originalIdx}>
-					<ChatBubble
-						currCheckpointIdx={currCheckpointIdx}
-						chatMessage={message}
-						messageIdx={originalIdx}
-						isCommitted={true}
-						chatIsRunning={isRunning}
-						threadId={threadId}
-						_scrollToBottom={() => scrollToBottom(scrollContainerRef)}
-					/>
+			});
+
+		// PERFORMANCE: Only render recent messages unless user requests all
+		const shouldVirtualize = !showAllMessages && filteredMessages.length > MAX_VISIBLE_MESSAGES;
+		const messagesToRender = shouldVirtualize
+			? filteredMessages.slice(-MAX_VISIBLE_MESSAGES)
+			: filteredMessages;
+		const hiddenCount = filteredMessages.length - messagesToRender.length;
+
+		const messageElements = messagesToRender.map(({ message, originalIdx }) => {
+			return <div key={originalIdx} className="mb-4 flex flex-col" data-message-idx={originalIdx}>
+				<ChatBubble
+					currCheckpointIdx={currCheckpointIdx}
+					chatMessage={message}
+					messageIdx={originalIdx}
+					isCommitted={true}
+					chatIsRunning={isRunning}
+					threadId={threadId}
+					_scrollToBottom={() => scrollToBottom(scrollContainerRef)}
+				/>
+			</div>
+		});
+
+		// Add "Load more" button if messages are hidden
+		if (hiddenCount > 0) {
+			messageElements.unshift(
+				<div key="load-more" className="mb-4 flex justify-center">
+					<button
+						onClick={() => setShowAllMessages(true)}
+						className="px-4 py-2 text-sm text-void-fg-3 hover:text-void-fg-1 bg-void-bg-2 hover:bg-void-bg-3 border border-void-border-2 rounded-lg transition-colors"
+					>
+						Load {hiddenCount} earlier messages
+					</button>
 				</div>
-			})
-	}, [previousMessages, threadId, currCheckpointIdx, isRunning])
+			);
+		}
+
+		return messageElements;
+	}, [previousMessages, threadId, currCheckpointIdx, isRunning, showAllMessages])
+
+	// Reset showAllMessages when thread changes
+	useEffect(() => {
+		setShowAllMessages(false);
+	}, [threadId]);
 
 	// Use the actual message index for the streaming bubble so React doesn't remount when streaming ends
 	const streamingChatIdx = previousMessages.length

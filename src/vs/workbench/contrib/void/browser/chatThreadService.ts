@@ -48,7 +48,6 @@ const CHAT_RETRIES = 3 // Number of retries for LLM errors (including empty resp
 const RETRY_DELAY = 2000 // Delay between retries in milliseconds
 export const AUTO_CONTINUE_CHAR_THRESHOLD = 200; // Still used by UI auto-continue
 const MAX_AGENT_ITERATIONS = 50 // Maximum number of iterations in agent mode to prevent infinite loops
-const MAX_TEXT_ONLY_CONTINUES = 3 // Maximum consecutive text-only responses before stopping (prevents LLM from just talking without acting)
 
 const splitThinkTags = (input: string): { displayText: string; reasoningText: string } => {
 	if (!input) {
@@ -930,7 +929,6 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		let nMessagesSent = 0
 		let shouldSendAnotherMessage = true
 		let isRunningWhenEnd: IsRunningType = undefined
-		let consecutiveTextOnlyResponses = 0 // Track text-only responses for auto-continue limiting
 
 		// before enter loop, call tool
 		if (callThisToolFirst) {
@@ -946,6 +944,11 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 		// tool use loop
 		while (shouldSendAnotherMessage) {
+			// PERFORMANCE: Yield to event loop periodically to prevent UI freezing
+			if (nMessagesSent > 0 && nMessagesSent % 3 === 0) {
+				await new Promise(resolve => setTimeout(resolve, 0));
+			}
+
 			// false by default each iteration
 			shouldSendAnotherMessage = false
 			isRunningWhenEnd = undefined
@@ -1231,9 +1234,6 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 				// call tool if there is one
 				if (toolCall) {
-					// Reset text-only counter since LLM is taking action
-					consecutiveTextOnlyResponses = 0
-
 					const mcpTools = this._mcpService.getMCPTools()
 					console.log(`[chatThreadService] LLM called tool: ${toolCall.name}`)
 					console.log(`[chatThreadService] Tool call params:`, JSON.stringify(toolCall.rawParams))
@@ -1253,35 +1253,17 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 					this._setStreamState(threadId, { isRunning: 'idle', interrupt: 'not_needed' }) // just decorative, for clarity
 				}
-				// Auto-extract tasks from any LLM response with text content
-				// Use textContent which already excludes "(empty message)" placeholder
+				// Handle text-only responses (no tool call)
+				// Following Claude Code / Continue pattern: If no tool call, task is complete.
+				// The LLM knows when it needs to use tools - if it responds with just text, it's done.
 				else if (!isEmptyResponse && textContent.length > 0 && textContent !== '(empty message)') {
 					if (chatMode === 'agent') {
-						// Count sentences (split by . ! ? followed by space or end)
-						const sentences = textContent.split(/[.!?]+(?:\s|$)/).filter(s => s.trim().length > 0)
-						const sentenceCount = sentences.length
-
-						// Track consecutive text-only responses
-						consecutiveTextOnlyResponses++
-
-						// If response is short (< 3 sentences), LLM might be describing what it's about to do
-						// Auto-continue to prompt it to actually take action (but limit to prevent infinite loops)
-						if (sentenceCount < 3 && consecutiveTextOnlyResponses < MAX_TEXT_ONLY_CONTINUES) {
-							console.log(`[chatThreadService] Agent mode: Short response (${sentenceCount} sentences, attempt ${consecutiveTextOnlyResponses}/${MAX_TEXT_ONLY_CONTINUES}) - auto-continuing to prompt action`)
-							shouldSendAnotherMessage = true
-						} else if (consecutiveTextOnlyResponses >= MAX_TEXT_ONLY_CONTINUES) {
-							// Too many text-only responses - LLM is stuck, stop and let user intervene
-							console.log(`[chatThreadService] Agent mode: Max text-only continues reached (${consecutiveTextOnlyResponses}) - stopping to let user intervene`)
-							shouldSendAnotherMessage = false
-							break
-						} else {
-							// Longer response (3+ sentences) = LLM is done explaining or asking a question
-							console.log(`[chatThreadService] Agent mode: Complete response (${sentenceCount} sentences) - task complete`)
-							shouldSendAnotherMessage = false
-							break
-						}
+						// No tool call = task complete. This is how Claude Code, Continue, and other agents work.
+						// The LLM will call tools when it needs to take action. Text-only means it's finished.
+						console.log(`[chatThreadService] Agent mode: Text-only response (no tool call) - task complete`)
+						shouldSendAnotherMessage = false
+						break
 					}
-
 				} // end while (attempts)
 			} // end while (send message)
 

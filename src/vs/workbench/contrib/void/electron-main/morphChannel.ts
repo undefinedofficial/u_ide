@@ -6,7 +6,7 @@
 import { IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { Event } from '../../../../base/common/event.js';
 import { MorphClient } from '@morphllm/morphsdk';
-import * as fs from 'fs';
+import * as fs from 'fs/promises';
 import * as path from 'path';
 
 /**
@@ -44,10 +44,10 @@ export class MorphChannel implements IServerChannel {
 				// SDK seems to treat paths as relative to CWD, so use current directory
 				const tempFileName = `morph-${Date.now()}-${path.basename(filePath)}`;
 				const tempFilePath = path.resolve(tempFileName);
-				
+
 				try {
 					console.log('[MorphChannel] Writing temp file:', tempFilePath);
-					fs.writeFileSync(tempFilePath, originalCode, 'utf8');
+					await fs.writeFile(tempFilePath, originalCode, 'utf8');
 
 					// Get Morph client
 					const morph = this.getMorphClient(apiKey);
@@ -73,9 +73,9 @@ export class MorphChannel implements IServerChannel {
 					}
 
 					// Read the modified file
-					const appliedCode = fs.readFileSync(tempFilePath, 'utf8');
-					console.log('[MorphChannel] Successfully applied code, length:', appliedCode.length);
-					
+					const appliedCode = await fs.readFile(tempFilePath, 'utf8');
+					console.log('[MorphChannel] Successfully received applied code, length:', appliedCode.length);
+
 					return appliedCode;
 
 				} catch (error) {
@@ -84,12 +84,14 @@ export class MorphChannel implements IServerChannel {
 				} finally {
 					// Always clean up temp file
 					try {
-						if (fs.existsSync(tempFilePath)) {
-							fs.unlinkSync(tempFilePath);
-							console.log('[MorphChannel] Cleaned up temp file');
-						}
+						await fs.access(tempFilePath);
+						await fs.unlink(tempFilePath);
+						console.log('[MorphChannel] Cleaned up temp file');
 					} catch (cleanupError) {
-						console.error('[MorphChannel] Failed to cleanup temp file:', cleanupError);
+						// File doesn't exist or couldn't be deleted - that's fine
+						if ((cleanupError as NodeJS.ErrnoException).code !== 'ENOENT') {
+							console.error('[MorphChannel] Failed to cleanup temp file:', cleanupError);
+						}
 					}
 				}
 			}

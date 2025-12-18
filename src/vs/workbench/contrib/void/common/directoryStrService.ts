@@ -212,6 +212,9 @@ const computeAndStringifyDirectoryTree = async (
 	return { content, wasCutOff };
 };
 
+// Yield to event loop to prevent UI freezing
+const yieldToEventLoop = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0));
+
 // Helper function to render children with proper tree formatting
 const renderChildrenCombined = async (
 	children: IFileStat[],
@@ -243,6 +246,11 @@ const renderChildrenCombined = async (
 	const hasMoreItems = children.length > itemsToProcess.length;
 
 	for (let i = 0; i < itemsToProcess.length; i++) {
+		// PERFORMANCE: Yield to event loop every 50 items to prevent UI freezing
+		if (i > 0 && i % 50 === 0) {
+			await yieldToEventLoop();
+		}
+
 		// Check if we've reached the file limit
 		if (fileCount.count >= MAX_FILES_TOTAL) {
 			childrenCutOff = true;
@@ -325,6 +333,7 @@ export async function getAllUrisInDirectory(
 	fileService: IFileService,
 ): Promise<URI[]> {
 	const result: URI[] = [];
+	let itemsProcessed = 0;
 
 	// Helper function to recursively collect URIs
 	async function visitAll(folderStat: IFileStat): Promise<boolean> {
@@ -343,6 +352,12 @@ export async function getAllUrisInDirectory(
 
 			// Process files first (common convention to list files before directories)
 			for (const child of eChildren) {
+				// PERFORMANCE: Yield to event loop every 100 items to prevent UI freezing
+				itemsProcessed++;
+				if (itemsProcessed % 100 === 0) {
+					await yieldToEventLoop();
+				}
+
 				if (!child.isDirectory) {
 					result.push(child.resource);
 

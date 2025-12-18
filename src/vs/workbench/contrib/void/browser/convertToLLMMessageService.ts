@@ -1,5 +1,4 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { deepClone } from '../../../../base/common/objects.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -293,7 +292,8 @@ const prepareOpenAIOrAnthropicMessages = ({
 		contextWindow * 1 / 2, // reserve at least 1/4 of the token window length
 		reservedOutputTokenSpace ?? 4_096 // defaults to 4096
 	)
-	let messages: (SimpleLLMMessage | { role: 'system', content: string })[] = deepClone(messages_)
+	// PERFORMANCE: Use shallow copy instead of deepClone - we create new objects when modifying anyway
+	let messages: (SimpleLLMMessage | { role: 'system', content: string })[] = [...messages_]
 
 	// ================ system message ================
 	// A COMPLETE HACK: last message is system message for context purposes

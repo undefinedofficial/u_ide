@@ -311,11 +311,16 @@ const findTextInCode = (text: string, fileContents: string, canFallbackToRemoveW
 	}
 
 	// Strategy 3: Indentation-preserving match (handles different indentation levels)
+	// PERFORMANCE: Limit search to prevent UI freezing on large files
 	const { normalized: textIndentNorm, indentMap: textIndents } = normalizePreservingIndentation(text);
 	const fileLines = fileContents.split('\n');
 	const textLines = text.split('\n');
 
-	for (let i = 0; i <= fileLines.length - textLines.length; i++) {
+	// Limit iterations to prevent blocking - max 2000 candidates checked
+	const maxIterations = Math.min(2000, fileLines.length - textLines.length + 1);
+	const step = Math.max(1, Math.floor((fileLines.length - textLines.length + 1) / maxIterations));
+
+	for (let i = 0; i <= fileLines.length - textLines.length; i += step) {
 		const candidateLines = fileLines.slice(i, i + textLines.length);
 		const { normalized: candidateNorm, indentMap: candidateIndents } = normalizePreservingIndentation(candidateLines.join('\n'));
 
@@ -357,6 +362,9 @@ class EditCodeService extends Disposable implements IEditCodeService {
 
 	diffAreaOfId: Record<string, DiffArea> = {}; // diffareaId -> diffArea
 	diffOfId: Record<string, Diff> = {}; // diffid -> diff (redundant with diffArea._diffOfId)
+
+	// PERFORMANCE: Debounce timers for diff computation per URI
+	private _debouncedRefreshTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
 	// events
 
@@ -445,23 +453,35 @@ class EditCodeService extends Disposable implements IEditCodeService {
 		for (const change of e.changes) {
 			this._realignAllDiffAreasLines(uri, change.text, change.range)
 		}
-		this._refreshStylesAndDiffsInURI(uri)
 
-		// if diffarea has no diffs after a user edit, delete it
-		const diffAreasToDelete: DiffZone[] = []
-		for (const diffareaid of this.diffAreasOfURI[uri.fsPath] ?? []) {
-			const diffArea = this.diffAreaOfId[diffareaid] ?? null
-			const shouldDelete = diffArea?.type === 'DiffZone' && Object.keys(diffArea._diffOfId).length === 0
-			if (shouldDelete) {
-				diffAreasToDelete.push(diffArea)
+		// PERFORMANCE: Debounce diff computation to prevent UI freezing during rapid typing
+		const uriKey = uri.fsPath;
+		const existingTimer = this._debouncedRefreshTimers.get(uriKey);
+		if (existingTimer) {
+			clearTimeout(existingTimer);
+		}
+
+		const timer = setTimeout(() => {
+			this._debouncedRefreshTimers.delete(uriKey);
+			this._refreshStylesAndDiffsInURI(uri);
+
+			// if diffarea has no diffs after a user edit, delete it
+			const diffAreasToDelete: DiffZone[] = []
+			for (const diffareaid of this.diffAreasOfURI[uri.fsPath] ?? []) {
+				const diffArea = this.diffAreaOfId[diffareaid] ?? null
+				const shouldDelete = diffArea?.type === 'DiffZone' && Object.keys(diffArea._diffOfId).length === 0
+				if (shouldDelete) {
+					diffAreasToDelete.push(diffArea)
+				}
 			}
-		}
-		if (diffAreasToDelete.length !== 0) {
-			const { onFinishEdit } = this._addToHistory(uri)
-			diffAreasToDelete.forEach(da => this._deleteDiffZone(da))
-			onFinishEdit()
-		}
+			if (diffAreasToDelete.length !== 0) {
+				const { onFinishEdit } = this._addToHistory(uri)
+				diffAreasToDelete.forEach(da => this._deleteDiffZone(da))
+				onFinishEdit()
+			}
+		}, 100); // 100ms debounce
 
+		this._debouncedRefreshTimers.set(uriKey, timer);
 	}
 
 
