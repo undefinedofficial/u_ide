@@ -1263,6 +1263,7 @@ export const VoidCustomDropdownBox = <T extends NonNullable<any>>({
 	matchInputWidth = false,
 	gapPx = 0,
 	offsetPx = -6,
+	searchable = false,
 }: {
 	options: T[];
 	selectedOption: T | undefined;
@@ -1276,9 +1277,12 @@ export const VoidCustomDropdownBox = <T extends NonNullable<any>>({
 	matchInputWidth?: boolean;
 	gapPx?: number;
 	offsetPx?: number;
+	searchable?: boolean;
 }) => {
 	const [isOpen, setIsOpen] = useState(false);
+	const [filterText, setFilterText] = useState('');
 	const measureRef = useRef<HTMLDivElement>(null);
+	const searchInputRef = useRef<HTMLInputElement>(null);
 	const isDark = useIsDark();
 
 	// Replace manual positioning with floating-ui
@@ -1310,7 +1314,7 @@ export const VoidCustomDropdownBox = <T extends NonNullable<any>>({
 
 					Object.assign(elements.floating.style, {
 						maxHeight: `${maxHeight}px`,
-						overflowY: 'auto',
+						// overflowY: 'auto', // Moved to inner div for sticky header support
 						// Ensure the width isn't constrained by the parent
 						width: `${Math.max(
 							rects.reference.width,
@@ -1358,6 +1362,28 @@ export const VoidCustomDropdownBox = <T extends NonNullable<any>>({
 		document.addEventListener('mousedown', handleClickOutside);
 		return () => document.removeEventListener('mousedown', handleClickOutside);
 	}, [isOpen, refs.floating, refs.reference]);
+
+	// Reset filter when closed
+	useEffect(() => {
+		if (!isOpen) {
+			setFilterText('');
+		} else if (searchable && searchInputRef.current) {
+			// Focus input when opened
+			requestAnimationFrame(() => {
+				searchInputRef.current?.focus();
+			});
+		}
+	}, [isOpen, searchable]);
+
+	const filteredOptions = useMemo(() => {
+		if (!searchable || !filterText) return options;
+		const lowerFilter = filterText.toLowerCase();
+		return options.filter(option => {
+			const name = getOptionDropdownName(option).toLowerCase();
+			const detail = getOptionDropdownDetail?.(option)?.toLowerCase() || '';
+			return name.includes(lowerFilter) || detail.includes(lowerFilter);
+		});
+	}, [options, filterText, searchable, getOptionDropdownName, getOptionDropdownDetail]);
 
 	if (selectedOption === undefined)
 		return null
@@ -1416,7 +1442,7 @@ export const VoidCustomDropdownBox = <T extends NonNullable<any>>({
 			{isOpen && (
 				<div
 					ref={refs.setFloating}
-					className={`z-[300] rounded-xl backdrop-blur-md shadow-lg
+					className={`z-[300] rounded-xl backdrop-blur-md shadow-lg flex flex-col overflow-hidden
 						${isDark
 							? 'border border-white/10 bg-black/70 shadow-black/40'
 							: 'border border-black/10 bg-white/90 shadow-black/10'}`}
@@ -1433,46 +1459,76 @@ export const VoidCustomDropdownBox = <T extends NonNullable<any>>({
 					}}
 					onWheel={(e) => e.stopPropagation()}
 				>
-					<div className='overflow-auto max-h-80 py-1'>
-						{options.map((option) => {
-							const thisOptionIsSelected = getOptionsEqual(option, selectedOption);
-							const optionName = getOptionDropdownName(option);
-							const optionDetail = getOptionDropdownDetail?.(option) || '';
-
-							return (
-								<div
-									key={optionName}
-									className={`flex items-center px-2.5 py-1.5 pr-4 cursor-pointer whitespace-nowrap
-									transition-colors duration-100 rounded-md
-									${thisOptionIsSelected
-											? 'bg-blue-500/80 text-white'
-											: `text-void-fg-2 ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-black/5 hover:text-black'}`}
+					{searchable && (
+						<div className={`p-2 border-b ${isDark ? 'border-white/10' : 'border-black/5'}`}>
+							<input
+								ref={searchInputRef}
+								type="text"
+								value={filterText}
+								onChange={(e) => setFilterText(e.target.value)}
+								placeholder="Search..."
+								className={`w-full px-2 py-1 text-xs rounded border bg-transparent focus:outline-none focus:ring-1 focus:ring-void-accent
+									${isDark
+										? 'border-white/10 text-white placeholder-white/40'
+										: 'border-black/10 text-black placeholder-black/40'
+									}
 								`}
-									onClick={() => {
-										onChangeOption(option);
+								onClick={(e) => e.stopPropagation()}
+								onKeyDown={(e) => {
+									e.stopPropagation();
+									// Select first option on Enter if there is one
+									if (e.key === 'Enter' && filteredOptions.length > 0) {
+										onChangeOption(filteredOptions[0]);
 										setIsOpen(false);
-									}}
-								>
-									<div className="w-4 flex justify-center flex-shrink-0">
-										{thisOptionIsSelected && (
-											<svg className="size-3" viewBox="0 0 12 12" fill="none">
-												<path
-													d="M10 3L4.5 8.5L2 6"
-													stroke="currentColor"
-													strokeWidth="1.5"
-													strokeLinecap="round"
-													strokeLinejoin="round"
-												/>
-											</svg>
-										)}
+									}
+								}}
+							/>
+						</div>
+					)}
+					<div className='overflow-auto max-h-80 py-1'>
+						{filteredOptions.length === 0 ? (
+							<div className="px-3 py-2 text-xs opacity-50 text-center">No results found</div>
+						) : (
+							filteredOptions.map((option) => {
+								const thisOptionIsSelected = getOptionsEqual(option, selectedOption);
+								const optionName = getOptionDropdownName(option);
+								const optionDetail = getOptionDropdownDetail?.(option) || '';
+
+								return (
+									<div
+										key={optionName + optionDetail}
+										className={`flex items-center px-2.5 py-1.5 pr-4 cursor-pointer whitespace-nowrap
+									transition-colors duration-100 rounded-md mx-1
+									${thisOptionIsSelected
+												? 'bg-blue-500/80 text-white'
+												: `text-void-fg-2 ${isDark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-black/5 hover:text-black'}`}
+								`}
+										onClick={() => {
+											onChangeOption(option);
+											setIsOpen(false);
+										}}
+									>
+										<div className="w-4 flex justify-center flex-shrink-0">
+											{thisOptionIsSelected && (
+												<svg className="size-3" viewBox="0 0 12 12" fill="none">
+													<path
+														d="M10 3L4.5 8.5L2 6"
+														stroke="currentColor"
+														strokeWidth="1.5"
+														strokeLinecap="round"
+														strokeLinejoin="round"
+													/>
+												</svg>
+											)}
+										</div>
+										<span className="flex justify-between items-center w-full gap-x-1">
+											<span>{optionName}</span>
+											<span className='opacity-60'>{optionDetail}</span>
+										</span>
 									</div>
-									<span className="flex justify-between items-center w-full gap-x-1">
-										<span>{optionName}</span>
-										<span className='opacity-60'>{optionDetail}</span>
-									</span>
-								</div>
-							);
-						})}
+								);
+							})
+						)}
 					</div>
 
 				</div>
