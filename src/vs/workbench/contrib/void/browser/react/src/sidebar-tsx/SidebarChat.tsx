@@ -517,6 +517,45 @@ const ReasoningOptionSlider = ({ featureName }: { featureName: FeatureName }) =>
 }
 
 
+const MorphOptions = ({ featureName }: { featureName: FeatureName }) => {
+	const accessor = useAccessor()
+	const voidSettingsService = accessor.get('IVoidSettingsService')
+	const voidSettingsState = useSettingsState()
+
+	const modelSelection = voidSettingsState.modelSelectionOfFeature[featureName]
+	if (!modelSelection) return null
+
+	const { modelName, providerName } = modelSelection
+	const modelSelectionOptions = voidSettingsState.optionsOfModelSelection[featureName][providerName]?.[modelName]
+
+	const enableMorphFastApply = voidSettingsState.globalSettings.enableMorphFastApply
+
+	if (!enableMorphFastApply) return null
+
+	return (
+		<div className='flex items-center gap-x-2 px-2 py-1 rounded -mx-2 -my-1'>
+			<div
+				className='flex items-center gap-x-1 cursor-pointer group hover:bg-void-bg-3 px-1.5 py-0.5 rounded transition-colors duration-200'
+				onClick={(e) => {
+					e.stopPropagation()
+					voidSettingsService.setOptionsOfModelSelection(featureName, providerName, modelName, {
+						morphFastApply: !modelSelectionOptions?.morphFastApply
+					})
+				}}
+			>
+				<span className='text-void-fg-3 text-[10px] select-none uppercase tracking-tight'>Fast Apply</span>
+				<VoidSwitch
+					size='xxs'
+					value={!!modelSelectionOptions?.morphFastApply}
+					onChange={(newVal) => {
+						voidSettingsService.setOptionsOfModelSelection(featureName, providerName, modelName, { morphFastApply: newVal })
+					}}
+				/>
+			</div>
+		</div>
+	)
+}
+
 
 const nameOfChatMode: Record<ChatMode, string> = {
 	'normal': 'Chat',
@@ -762,6 +801,7 @@ export const VoidChatArea: React.FC<VoidChatAreaProps> = ({
 				{showModelDropdown && (
 					<div className='flex flex-col gap-y-1'>
 						<ReasoningOptionSlider featureName={featureName} />
+						<MorphOptions featureName={featureName} />
 
 						<div className='flex items-center flex-wrap gap-x-2 gap-y-1 text-nowrap'>
 							{featureName === 'Chat' && (
@@ -2024,10 +2064,30 @@ const titleOfBuiltinToolName = {
 	// Read/search tools - no loading animation (fast operations)
 	'read_file': { done: 'Read file', proposed: 'Read file', running: 'Reading file' },
 	'outline_file': { done: 'File outline', proposed: 'File outline', running: 'Getting file outline' },
-	'ls_dir': { done: 'Inspected folder', proposed: 'Inspect folder', running: 'Inspecting folder' },
-	'get_dir_tree': { done: 'Inspected folder tree', proposed: 'Inspect folder tree', running: 'Inspecting folder tree' },
-	'search_pathnames_only': { done: 'Searched by file name', proposed: 'Search by file name', running: 'Searching by file name' },
-	'search_for_files': { done: 'Searched', proposed: 'Search', running: 'Searching' },
+	'ls_dir': { done: 'List directory', proposed: 'List directory', running: 'Listing directory' },
+	'get_dir_tree': { done: 'Directory tree', proposed: 'Directory tree', running: 'Building directory tree' },
+	'search_pathnames_only': { done: 'Search pathnames', proposed: 'Search pathnames', running: 'Searching pathnames' },
+	'search_for_files': { done: 'Search files', proposed: 'Search files', running: 'Searching files' },
+	'search_in_file': { done: 'Search in file', proposed: 'Search in file', running: 'Searching file' },
+	'read_lint_errors': { done: 'Read lint errors', proposed: 'Read lint errors', running: 'Reading lint errors' },
+	'fast_context': { done: 'Fast context', proposed: 'Fast context', running: 'Gathering fast context' },
+	'codebase_search': { done: 'Semantic search', proposed: 'Semantic search', running: 'Searching codebase' },
+	'repo_init': { done: 'Repo initialized', proposed: 'Init repo', running: 'Initializing repo' },
+	'repo_clone': { done: 'Repo cloned', proposed: 'Clone repo', running: 'Cloning repo' },
+	'repo_add': { done: 'Staged changes', proposed: 'Stage changes', running: 'Staging changes' },
+	'repo_commit': { done: 'Committed', proposed: 'Commit changes', running: 'Committing changes' },
+	'repo_push': { done: 'Pushed', proposed: 'Push changes', running: 'Pushing changes' },
+	'repo_pull': { done: 'Pulled', proposed: 'Pull changes', running: 'Pulling changes' },
+	'repo_status': { done: 'Checked status', proposed: 'Get status', running: 'Checking status' },
+	'repo_status_matrix': { done: 'Checked status matrix', proposed: 'Get status matrix', running: 'Checking status matrix' },
+	'repo_log': { done: 'Read log', proposed: 'Get log', running: 'Reading log' },
+	'repo_checkout': { done: 'Checked out', proposed: 'Checkout', running: 'Checking out' },
+	'repo_branch': { done: 'Created branch', proposed: 'Create branch', running: 'Creating branch' },
+	'repo_list_branches': { done: 'Listed branches', proposed: 'List branches', running: 'Listing branches' },
+	'repo_current_branch': { done: 'Got current branch', proposed: 'Get current branch', running: 'Getting current branch' },
+	'repo_resolve_ref': { done: 'Resolved reference', proposed: 'Resolve reference', running: 'Resolving reference' },
+	'repo_get_commit_metadata': { done: 'Got commit metadata', proposed: 'Get commit metadata', running: 'Getting commit metadata' },
+	'repo_wait_for_embeddings': { done: 'Embeddings ready', proposed: 'Wait for embeddings', running: 'Waiting for embeddings' },
 	'create_file_or_folder': { done: `Created`, proposed: `Create`, running: loadingTitleWrapper(`Creating`) },
 	'delete_file_or_folder': { done: `Deleted`, proposed: `Delete`, running: loadingTitleWrapper(`Deleting`) },
 	'edit_file': { done: `Edited file`, proposed: 'Edit file', running: loadingTitleWrapper('Editing file') },
@@ -2038,13 +2098,10 @@ const titleOfBuiltinToolName = {
 	'open_persistent_terminal': { done: `Opened terminal`, proposed: 'Open terminal', running: loadingTitleWrapper('Opening terminal') },
 	'kill_persistent_terminal': { done: `Killed terminal`, proposed: 'Kill terminal', running: loadingTitleWrapper('Killing terminal') },
 
-	'read_lint_errors': { done: `Read lint errors`, proposed: 'Read lint errors', running: 'Reading lint errors' },
-	'search_in_file': { done: 'Searched in file', proposed: 'Search in file', running: 'Searching in file' },
-
 	'run_code': { done: 'Executed code', proposed: 'Execute code', running: loadingTitleWrapper('Executing code') },
 
 	// Planning tools
-	'create_plan': { done: 'Created plan', proposed: 'Create plan', running: loadingTitleWrapper('Creating plan') },
+	'create_plan': { done: 'Plan created', proposed: 'Create plan', running: loadingTitleWrapper('Creating plan') },
 	'update_task_status': { done: 'Updated task', proposed: 'Update task', running: loadingTitleWrapper('Updating task') },
 	'get_plan_status': { done: 'Got plan status', proposed: 'Get plan status', running: loadingTitleWrapper('Getting plan status') },
 	'add_tasks_to_plan': { done: 'Added tasks', proposed: 'Add tasks', running: loadingTitleWrapper('Adding tasks') },
@@ -2127,6 +2184,13 @@ const toolNameToDesc = (toolName: BuiltinToolName, _toolParams: BuiltinToolCallP
 				desc1: basename + readingInfo,
 				desc1Info: getRelative(toolParams.uri, accessor),
 			};
+		},
+		'fast_context': () => {
+			const toolParams = _toolParams as BuiltinToolCallParams['fast_context']
+			return {
+				desc1: toolParams.query,
+				desc1Info: 'Morph fast context',
+			}
 		},
 		'outline_file': () => {
 			const toolParams = _toolParams as BuiltinToolCallParams['outline_file']
@@ -3016,6 +3080,51 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 
 		}
 	},
+	'fast_context': {
+		resultWrapper: ({ toolMessage }) => {
+			const accessor = useAccessor()
+
+			const title = getTitle(toolMessage)
+			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name as BuiltinToolName, toolMessage.params, accessor)
+
+			if (toolMessage.type === 'tool_request') return null
+			if (toolMessage.type === 'running_now') return null
+
+			const isRejected = toolMessage.type === 'rejected'
+			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError: false, icon: null, isRejected }
+
+			if (toolMessage.type === 'success') {
+				const { result } = toolMessage
+				const contexts = result?.contexts ?? []
+				componentParams.numResults = contexts.length
+				componentParams.children = (
+					<ToolChildrenWrapper>
+						<div className='flex flex-col gap-2'>
+							{contexts.length === 0 && (
+								<SmallProseWrapper>No contexts found for this query.</SmallProseWrapper>
+							)}
+							{contexts.map((ctx, i) => (
+								<div key={i} className='rounded border border-void-border-2 bg-void-bg-2/60 px-3 py-2 space-y-1'>
+									<div className='flex items-center justify-between gap-2 text-sm text-void-fg-2'>
+										<span className='font-medium truncate'>{ctx.file}</span>
+									</div>
+									<CodeChildren>
+										<pre className='font-mono whitespace-pre-wrap'>{ctx.content}</pre>
+									</CodeChildren>
+								</div>
+							))}
+						</div>
+					</ToolChildrenWrapper>
+				)
+			} else if (toolMessage.type === 'tool_error') {
+				componentParams.bottomChildren = <BottomChildren title='Error'>
+					<CodeChildren>{toolMessage.result}</CodeChildren>
+				</BottomChildren>
+			}
+
+			return <ToolHeaderWrapper {...componentParams} />
+		},
+	},
 	'ls_dir': {
 		resultWrapper: ({ toolMessage }) => {
 			const accessor = useAccessor()
@@ -3864,25 +3973,29 @@ const CommandBarInChat = () => {
 			}
 			// Use the "running" title from titleOfBuiltinToolName if it's a builtin tool
 			if (isABuiltinToolName(executingToolName)) {
-				const runningTitle = titleOfBuiltinToolName[executingToolName].running
-				// Extract text from the loading wrapper if it exists
-				if (typeof runningTitle === 'object' && runningTitle && 'props' in runningTitle) {
-					const props = runningTitle.props as any
-					return props.children?.[0] || 'Running tool...'
+				const runningTitle = titleOfBuiltinToolName[executingToolName]?.running
+				if (runningTitle) {
+					// Extract text from the loading wrapper if it exists
+					if (typeof runningTitle === 'object' && runningTitle && 'props' in runningTitle) {
+						const props = runningTitle.props as any
+						return props.children?.[0] || 'Running tool...'
+					}
+					return String(runningTitle)
 				}
-				return String(runningTitle)
 			}
 		}
 
 		// Check if a tool is being generated in the LLM response
 		const generatingToolName = streamingToolCall?.name
 		if (generatingToolName && isABuiltinToolName(generatingToolName)) {
-			const runningTitle = titleOfBuiltinToolName[generatingToolName].running
-			if (typeof runningTitle === 'object' && runningTitle && 'props' in runningTitle) {
-				const props = runningTitle.props as any
-				return props.children?.[0] || 'Generating tool...'
+			const runningTitle = titleOfBuiltinToolName[generatingToolName]?.running
+			if (runningTitle) {
+				if (typeof runningTitle === 'object' && runningTitle && 'props' in runningTitle) {
+					const props = runningTitle.props as any
+					return props.children?.[0] || 'Generating tool...'
+				}
+				return String(runningTitle)
 			}
-			return String(runningTitle)
 		}
 
 		// Default for XML or unknown tools

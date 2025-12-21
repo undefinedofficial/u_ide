@@ -80,7 +80,7 @@
     "@microsoft/1ds-post-js": "^3.2.13",
     "@mistralai/mistralai": "^1.6.0",
     "@modelcontextprotocol/sdk": "^1.11.2",
-    "@morphllm/morphsdk": "^0.2.15",
+    "@morphllm/morphsdk": "^0.2.75",
     "@parcel/watcher": "2.5.1",
     "@types/semver": "^7.5.8",
     "@vscode/deviceid": "^0.1.1",
@@ -114,7 +114,6 @@
     "groq-sdk": "^0.20.1",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
-    "isolated-vm": "^6.0.2",
     "js-tiktoken": "^1.0.21",
     "jschardet": "3.1.4",
     "kerberos": "2.1.1",
@@ -129,6 +128,7 @@
     "open": "^8.4.2",
     "openai": "^4.96.0",
     "posthog-node": "^4.14.0",
+    "quickjs-emscripten": "^0.31.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-tooltip": "^5.28.1",
@@ -138,7 +138,8 @@
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "9.2.0",
     "yauzl": "^3.0.0",
-    "yazl": "^2.4.3"
+    "yazl": "^2.4.3",
+    "zod": "^4.1.8"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0",

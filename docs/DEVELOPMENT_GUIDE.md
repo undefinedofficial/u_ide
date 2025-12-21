@@ -163,7 +163,6 @@ This will download the Electron binary and create the app structure.
 - **`../VSCode-darwin-arm64/`** - Production build output (outside repo)
 
 ## Quick Reference
-
 | Task | Command |
 |------|---------|
 | Start development | `Cmd+Shift+B` then `./scripts/code.sh` |

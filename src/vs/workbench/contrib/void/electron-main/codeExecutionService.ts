@@ -3,15 +3,15 @@
  *  Licensed under the Apache License, Version 2.0. See LICENSE.txt for more information.
  *--------------------------------------------------------------------------------------*/
 
-import ivm from 'isolated-vm';
+import { shouldInterruptAfterDeadline, QuickJSAsyncContext, QuickJSAsyncRuntime, newAsyncRuntime, QuickJSHandle } from 'quickjs-emscripten';
 
 /**
  * Code Execution Service
- * 
+ *
  * Implements Anthropic's "Code Execution with MCP" pattern for 98% token reduction.
  * Instead of passing large data through the model context, code runs in a sandbox
  * and only returns small summaries/results.
- * 
+ *
  * Key benefits:
  * - Large data stays in execution environment (never enters model context)
  * - Tools can be composed in code (no round-trips through model)
@@ -42,17 +42,14 @@ export interface CodeExecutionResult {
 }
 
 export class CodeExecutionService {
-	
+
 	constructor() {
-		// Tool calling will be added via IPC in a future iteration
+		// Tool calling is handled via IPC callbacks passed to executeCode
 	}
 
 	/**
 	 * Execute TypeScript/JavaScript code in an isolated sandbox.
-	 * 
-	 * Note: Tool access will be added in a future iteration via IPC callbacks.
-	 * For now, this executes pure JavaScript/TypeScript code.
-	 * 
+	 *
 	 * Example:
 	 * ```typescript
 	 * const data = [1, 2, 3, 4, 5];
@@ -72,63 +69,76 @@ export class CodeExecutionService {
 
 		const logs: string[] = [];
 
+		let runtime: QuickJSAsyncRuntime | undefined;
+		let context: QuickJSAsyncContext | undefined;
+
 		try {
-			// Create isolate with memory limit
-			const isolate = new ivm.Isolate({ memoryLimit });
+			runtime = await newAsyncRuntime();
 
-			// Create context
-			const context = await isolate.createContext();
+			// Set memory limit (QuickJS takes bytes)
+			runtime.setMemoryLimit(memoryLimit * 1024 * 1024);
 
-			// Get global object
-			const jail = context.global;
+			// Set interrupt handler for timeout
+			runtime.setInterruptHandler(shouldInterruptAfterDeadline(Date.now() + timeout));
 
-			// Set global reference
-			await jail.set('global', jail.derefInto());
+			context = runtime.newContext();
 
 			// Create console.log for capturing output
-			await jail.set('log', new ivm.Callback((...args: any[]) => {
-				const message = args.map(arg => 
-					typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-				).join(' ');
+			const logHandle = context.newFunction('log', (...args) => {
+				const message = args.map(arg => {
+					if (context) {
+						const dumped = context.dump(arg);
+						return typeof dumped === 'object' ? JSON.stringify(dumped) : String(dumped);
+					}
+					return '';
+				}).join(' ');
 				logs.push(message);
-			}));
+			});
+			context.setProp(context.global, 'log', logHandle);
+			logHandle.dispose();
 
 			// Create console object
-			await context.eval(`
-				global.console = {
+			const consoleResult = await context.evalCodeAsync(`
+				globalThis.console = {
 					log: (...args) => log(...args),
 					error: (...args) => log('ERROR:', ...args),
 					warn: (...args) => log('WARN:', ...args),
 					info: (...args) => log('INFO:', ...args)
 				};
 			`);
+			if (consoleResult.error) {
+				consoleResult.error.dispose();
+			}
 
 			// Create tools object if callback provided
 			if (toolCallback) {
-				const toolsObject = await this.createToolsObject(isolate, context, toolCallback);
-				await jail.set('tools', toolsObject);
+				await this.injectTools(context, toolCallback);
 			}
 
-			// Wrap code in async function
-			const wrappedCode = `
-				(async () => {
-					${code}
-				})()
-			`;
+			// Wrap code in async function and execute
+			// Note: We use a return statement to capture the final value
+			const wrappedCode = `(async () => {
+				${code}
+			})()`;
 
-			// Compile and run with timeout
-			const script = await isolate.compileScript(wrappedCode);
-			const result = await script.run(context, { timeout, promise: true });
+			const result = await context.evalCodeAsync(wrappedCode);
 
-			// Copy result back to main isolate
-			const copiedResult = await result?.copy();
+			if (result.error) {
+				const error = context.dump(result.error);
+				result.error.dispose();
+				return {
+					success: false,
+					error: typeof error === 'object' ? JSON.stringify(error) : String(error),
+					logs
+				};
+			}
 
-			// Dispose isolate
-			isolate.dispose();
+			const value = context.dump(result.value);
+			result.value.dispose();
 
 			return {
 				success: true,
-				result: copiedResult,
+				result: value,
 				logs
 			};
 
@@ -138,21 +148,21 @@ export class CodeExecutionService {
 				error: error instanceof Error ? error.message : String(error),
 				logs
 			};
+		} finally {
+			if (context) context.dispose();
+			if (runtime) runtime.dispose();
 		}
 	}
 
 	/**
-	 * Create a tools object that exposes all built-in tools as async functions
-	 * in the isolated context via IPC callbacks.
+	 * Inject tools into the QuickJS context
 	 */
-	private async createToolsObject(
-		isolate: ivm.Isolate,
-		context: ivm.Context,
+	private async injectTools(
+		context: QuickJSAsyncContext,
 		toolCallback: (toolName: string, params: any) => Promise<any>
-	): Promise<ivm.Reference<object>> {
-		const toolWrappers: Record<string, ivm.Callback> = {};
+	): Promise<void> {
+		const toolsHandle = context.newObject();
 
-		// List of all built-in tools (excluding run_code to prevent recursion)
 		const toolNames = [
 			'read_file', 'outline_file', 'ls_dir', 'get_dir_tree',
 			'search_pathnames_only', 'search_for_files', 'search_in_file',
@@ -161,26 +171,23 @@ export class CodeExecutionService {
 			'open_persistent_terminal', 'kill_persistent_terminal'
 		];
 
-		// Create a callback wrapper for each tool
 		for (const toolName of toolNames) {
-			toolWrappers[toolName] = new ivm.Callback(async (...args: any[]) => {
+			const toolFn = context.newAsyncifiedFunction(toolName, async (...args: QuickJSHandle[]) => {
 				try {
-					// Call the tool via IPC callback
-					const result = await toolCallback(toolName, args);
-					// Return stringified result since we can't transfer complex objects
-					return JSON.stringify(result);
+					const dumpedArgs = args.map(arg => context.dump(arg));
+					const result = await toolCallback(toolName, dumpedArgs);
+					// Return result as a JSON string to avoid complex object transfer issues
+					return context.newString(JSON.stringify(result));
 				} catch (error) {
-					throw new Error(`Tool ${toolName} failed: ${error instanceof Error ? error.message : String(error)}`);
+					const errorMsg = `Tool ${toolName} failed: ${error instanceof Error ? error.message : String(error)}`;
+					throw new Error(errorMsg);
 				}
-			}, { async: true });
+			});
+			context.setProp(toolsHandle, toolName, toolFn);
+			toolFn.dispose();
 		}
 
-		// Create the tools object in the isolate
-		const toolsRef = await context.eval(`({})`);
-		for (const [name, callback] of Object.entries(toolWrappers)) {
-			await toolsRef.set(name, callback);
-		}
-
-		return toolsRef;
+		context.setProp(context.global, 'tools', toolsHandle);
+		toolsHandle.dispose();
 	}
 }

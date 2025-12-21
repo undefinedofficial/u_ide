@@ -402,6 +402,9 @@ export async function getAllUrisInDirectory(
 class DirectoryStrService extends Disposable implements IDirectoryStrService {
 	_serviceBrand: undefined;
 
+	private _allDirectoriesStrCache: { str: string, timestamp: number } | null = null;
+	private readonly CACHE_EXPIRY_MS = 30 * 1000; // 30 seconds
+
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IFileService private readonly fileService: IFileService,
@@ -453,6 +456,12 @@ class DirectoryStrService extends Disposable implements IDirectoryStrService {
 	}
 
 	async getAllDirectoriesStr({ cutOffMessage, }: { cutOffMessage: string, }) {
+		const now = Date.now();
+		if (this._allDirectoriesStrCache && (now - this._allDirectoriesStrCache.timestamp < this.CACHE_EXPIRY_MS)) {
+			console.log('[DirectoryStrService] Returning cached directory string');
+			return this._allDirectoriesStrCache.str;
+		}
+
 		let str: string = '';
 		let cutOff = false;
 		const folders = this.workspaceContextService.getWorkspace().folders;
@@ -506,7 +515,13 @@ class DirectoryStrService extends Disposable implements IDirectoryStrService {
 			}
 		}
 
-		const ans = cutOff ? `${str.trimEnd()}\n${cutOffMessage}` : str
+		const ans = cutOff ? `${str.trimEnd()}\n${cutOffMessage}` : str;
+		
+		this._allDirectoriesStrCache = {
+			str: ans,
+			timestamp: now
+		};
+
 		return ans
 	}
 }

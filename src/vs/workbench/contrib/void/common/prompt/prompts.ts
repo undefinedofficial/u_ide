@@ -228,7 +228,6 @@ By specifying start_line and end_line parameters, you can efficiently read speci
 			explanation: { description: 'Optional. One sentence explanation of why this tool is being used and how it contributes to the goal.' },
 		},
 	},
-
 	outline_file: {
 		name: 'outline_file',
 		description: `Gets a high-level outline of a file's structure without reading the actual implementation.
@@ -342,6 +341,164 @@ Line 200: export async function processData(input: string): Promise<Result>
 **When to use:** After editing a file, to check if your changes introduced any errors, or when debugging compilation issues.`,
 		params: {
 			...uriParam('file'),
+		},
+	},
+
+	fast_context: {
+		name: 'fast_context',
+		description: `Gather intelligent context from across the entire repository using Morph's advanced semantic search (warpGrep).
+
+**What you'll receive:**
+- A list of highly relevant code contexts (file paths and snippets)
+- Intelligent matching based on semantic meaning, not just exact keywords
+- Better results for conceptual queries like "how is authentication handled?" or "find all middleware"
+
+**When to use:**
+- At the start of a task to find relevant code you don't know the location of
+- To find all related implementations of a concept across multiple files
+- When standard keyword search (search_for_files) returns too many or too few results
+
+**Example:**
+- fast_context(query="Find authentication middleware")`,
+		params: {
+			query: { description: 'The semantic query or concept to search for in the repository.' },
+		},
+	},
+	codebase_search: {
+		name: 'codebase_search',
+		description: `Semantic search over Morph Repo Storage (indexed code).`,
+		params: {
+			query: { description: 'Semantic query to search the indexed codebase.' },
+			repo_id: { description: 'Optional repo identifier; falls back to Morph settings.' },
+			branch: { description: 'Branch to search (defaults to Morph settings).' },
+			commit_hash: { description: 'Specific commit hash to search.' },
+		},
+	},
+	repo_init: {
+		name: 'repo_init',
+		description: 'Initialize a Morph Repo Storage repository.',
+		params: {
+			repo_id: { description: 'Optional repo identifier; falls back to Morph settings.' },
+			dir: { description: 'Directory to init; defaults to workspace root.' },
+		},
+	},
+	repo_clone: {
+		name: 'repo_clone',
+		description: 'Clone a Morph Repo Storage repository.',
+		params: {
+			repo_id: { description: 'Repo identifier to clone.' },
+			dir: { description: 'Target directory to clone into.' },
+		},
+	},
+	repo_add: {
+		name: 'repo_add',
+		description: 'Stage files for commit (git add).',
+		params: {
+			dir: { description: 'Repository directory; defaults to workspace root.' },
+			filepath: { description: 'Path to stage; use "." to stage all.' },
+		},
+	},
+	repo_commit: {
+		name: 'repo_commit',
+		description: 'Commit staged changes with optional metadata.',
+		params: {
+			dir: { description: 'Repository directory; defaults to workspace root.' },
+			message: { description: 'Commit message.' },
+			metadata: { description: 'Optional metadata object (JSON).' },
+		},
+	},
+	repo_push: {
+		name: 'repo_push',
+		description: 'Push to remote and optionally index embeddings.',
+		params: {
+			dir: { description: 'Repository directory; defaults to workspace root.' },
+			branch: { description: 'Branch name; defaults to Morph settings.' },
+			index: { description: 'Generate embeddings (defaults to Morph settings).' },
+			wait_for_embeddings: { description: 'Block until embeddings complete (defaults to Morph settings).' },
+		},
+	},
+	repo_pull: {
+		name: 'repo_pull',
+		description: 'Pull latest changes from remote.',
+		params: {
+			dir: { description: 'Repository directory; defaults to workspace root.' },
+		},
+	},
+	repo_status: {
+		name: 'repo_status',
+		description: 'Get status of a specific file.',
+		params: {
+			dir: { description: 'Repository directory; defaults to workspace root.' },
+			filepath: { description: 'File path to check status for.' },
+		},
+	},
+	repo_status_matrix: {
+		name: 'repo_status_matrix',
+		description: 'Get status of all files in the repository.',
+		params: {
+			dir: { description: 'Repository directory; defaults to workspace root.' },
+		},
+	},
+	repo_log: {
+		name: 'repo_log',
+		description: 'Get commit history.',
+		params: {
+			dir: { description: 'Repository directory; defaults to workspace root.' },
+			depth: { description: 'Maximum number of commits to return.' },
+		},
+	},
+	repo_checkout: {
+		name: 'repo_checkout',
+		description: 'Checkout a branch or commit.',
+		params: {
+			dir: { description: 'Repository directory; defaults to workspace root.' },
+			ref: { description: 'Branch name or commit hash to checkout.' },
+		},
+	},
+	repo_branch: {
+		name: 'repo_branch',
+		description: 'Create a new branch.',
+		params: {
+			dir: { description: 'Repository directory; defaults to workspace root.' },
+			name: { description: 'Name of the new branch.' },
+		},
+	},
+	repo_list_branches: {
+		name: 'repo_list_branches',
+		description: 'List all branches in the repository.',
+		params: {
+			dir: { description: 'Repository directory; defaults to workspace root.' },
+		},
+	},
+	repo_current_branch: {
+		name: 'repo_current_branch',
+		description: 'Get the name of the current branch.',
+		params: {
+			dir: { description: 'Repository directory; defaults to workspace root.' },
+		},
+	},
+	repo_resolve_ref: {
+		name: 'repo_resolve_ref',
+		description: 'Resolve a reference (branch, tag, HEAD) to a commit hash.',
+		params: {
+			dir: { description: 'Repository directory; defaults to workspace root.' },
+			ref: { description: 'Reference to resolve.' },
+		},
+	},
+	repo_get_commit_metadata: {
+		name: 'repo_get_commit_metadata',
+		description: 'Get metadata, chat history, and recording ID for a commit.',
+		params: {
+			repo_id: { description: 'Optional repo identifier.' },
+			commit_hash: { description: 'Commit hash to get metadata for.' },
+		},
+	},
+	repo_wait_for_embeddings: {
+		name: 'repo_wait_for_embeddings',
+		description: 'Wait until embeddings are finished for a repo/commit.',
+		params: {
+			repo_id: { description: 'Repo identifier; defaults to Morph settings.' },
+			timeout_ms: { description: 'Timeout in milliseconds (default 120000).' },
 		},
 	},
 
@@ -960,6 +1117,7 @@ const gatherModeTools: BuiltinToolName[] = [
 	'search_for_files',
 	'search_in_file',
 	'read_lint_errors',
+	'fast_context',
 	// Implementation planning - create detailed plans for user review
 	'create_implementation_plan',
 	'preview_implementation_plan',
@@ -977,6 +1135,7 @@ const agentModeTools: BuiltinToolName[] = [
 	'search_for_files',
 	'search_in_file',
 	'read_lint_errors',
+	'fast_context',
 	// Edit/Write tools - make changes
 	'create_file_or_folder',
 	'delete_file_or_folder',
@@ -1006,6 +1165,7 @@ const studentModeTools: BuiltinToolName[] = [
 	'search_pathnames_only',
 	'search_for_files',
 	'search_in_file',
+	'fast_context',
 	// Teaching tools - explain, teach, and practice
 	'explain_code',
 	'teach_concept',
@@ -1018,7 +1178,7 @@ const studentModeTools: BuiltinToolName[] = [
 	'edit_file',
 ]
 
-export const availableTools = (chatMode: ChatMode | null, mcpTools: InternalToolInfo[] | undefined) => {
+export const availableTools = (chatMode: ChatMode | null, mcpTools: InternalToolInfo[] | undefined, options?: { enableMorphFastContext?: boolean }) => {
 
 	// Select tools based on mode
 	// - normal (Chat): No tools - pure conversation
@@ -1031,8 +1191,11 @@ export const availableTools = (chatMode: ChatMode | null, mcpTools: InternalTool
 				: chatMode === 'student' ? studentModeTools
 					: undefined
 
-	// Filter out run_code tool (not working, causes failures and slowdowns)
-	const filteredBuiltinToolNames = builtinToolNames?.filter(toolName => toolName !== 'run_code');
+	// Filter out tools based on status (keep fast_context always available in tool modes)
+	const filteredBuiltinToolNames = builtinToolNames?.filter(toolName => {
+		if (toolName === 'run_code') return false;
+		return true;
+	});
 
 	const effectiveBuiltinTools = filteredBuiltinToolNames?.map(toolName => builtinTools[toolName]) ?? undefined
 	// MCP tools available in both gather and agent modes
@@ -1149,7 +1312,7 @@ function newFunction() {
 // ======================================================== chat (normal, gather, agent) ========================================================
 
 
-export const chat_systemMessage = ({ workspaceFolders, openedURIs, activeURI, persistentTerminalIDs, directoryStr, chatMode: mode, mcpTools, specialToolFormat, studentLevel }: { workspaceFolders: string[], directoryStr: string, openedURIs: string[], activeURI: string | undefined, persistentTerminalIDs: string[], chatMode: ChatMode, mcpTools: InternalToolInfo[] | undefined, specialToolFormat: 'openai-style' | 'anthropic-style' | 'gemini-style' | undefined, studentLevel?: 'beginner' | 'intermediate' | 'advanced' }) => {
+export const chat_systemMessage = ({ workspaceFolders, openedURIs, activeURI, persistentTerminalIDs, directoryStr, chatMode: mode, mcpTools, specialToolFormat, studentLevel, enableMorphFastContext }: { workspaceFolders: string[], directoryStr: string, openedURIs: string[], activeURI: string | undefined, persistentTerminalIDs: string[], chatMode: ChatMode, mcpTools: InternalToolInfo[] | undefined, specialToolFormat: 'openai-style' | 'anthropic-style' | 'gemini-style' | undefined, studentLevel?: 'beginner' | 'intermediate' | 'advanced', enableMorphFastContext?: boolean }) => {
 
 	// ============ IDENTITY ============
 	const identityRole = mode === 'agent' ? 'agent' : mode === 'student' ? 'tutor' : 'assistant'
@@ -1210,7 +1373,7 @@ ${persistentTerminalIDs.join(', ')}` : ''}
 </communication>`
 
 	// ============ TOOL CALLING ============
-	const allTools = availableTools(mode, mcpTools)
+	const allTools = availableTools(mode, mcpTools, { enableMorphFastContext })
 	let toolCalling = ''
 
 	if (allTools && allTools.length > 0 && (mode === 'agent' || mode === 'gather' || mode === 'student')) {

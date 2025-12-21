@@ -228,7 +228,7 @@ export class MCPChannel implements IServerChannel {
 				await client.connect(transport);
 				console.log(`[MCP] Connected via HTTP to ${serverName}`);
 				const { tools } = await client.listTools()
-				const toolsWithUniqueName = tools.map(({ name, ...rest }) => ({ name: this._addUniquePrefix(name, serverName), mcpServerName: serverName, ...rest }))
+				const toolsWithUniqueName = tools.map(({ name, ...rest }: { name: string, [key: string]: any }) => ({ name: this._addUniquePrefix(name, serverName), mcpServerName: serverName, ...rest }))
 				console.log(`✅ Loaded ${toolsWithUniqueName.length} tools from ${serverName} via HTTP`);
 				info = {
 					status: isOn ? 'success' : 'offline',
@@ -242,7 +242,7 @@ export class MCPChannel implements IServerChannel {
 					await client.connect(transport);
 					console.log(`[MCP] Connected via SSE to ${serverName}`);
 					const { tools } = await client.listTools()
-					const toolsWithUniqueName = tools.map(({ name, ...rest }) => ({ name: this._addUniquePrefix(name, serverName), mcpServerName: serverName, ...rest }))
+					const toolsWithUniqueName = tools.map(({ name, ...rest }: { name: string, [key: string]: any }) => ({ name: this._addUniquePrefix(name, serverName), mcpServerName: serverName, ...rest }))
 					console.log(`✅ Loaded ${toolsWithUniqueName.length} tools from ${serverName} via SSE`);
 					info = {
 						status: isOn ? 'success' : 'offline',
@@ -275,7 +275,7 @@ export class MCPChannel implements IServerChannel {
 
 			// Get the tools from the server
 			const { tools } = await client.listTools()
-			const toolsWithUniqueName = tools.map(({ name, ...rest }) => ({ name: this._addUniquePrefix(name, serverName), mcpServerName: serverName, ...rest }))
+			const toolsWithUniqueName = tools.map(({ name, ...rest }: { name: string, [key: string]: any }) => ({ name: this._addUniquePrefix(name, serverName), mcpServerName: serverName, ...rest }))
 			console.log(`✅ Loaded ${toolsWithUniqueName.length} tools from ${serverName} (stdio)`);
 
 			// Create a full command string for display

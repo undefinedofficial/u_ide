@@ -31,31 +31,30 @@ export const SlideInRight = ({ children }: { children: React.ReactNode, delay?: 
  * Enhanced typing indicator with smooth cross-fade transitions and shimmer text
  * Optimized for better immersion and reduced jitter
  */
+const MESSAGES_BY_STATE: Record<'thinking' | 'processing' | 'generating', string[]> = {
+	thinking: [
+		'A-Coder is thinking',
+		'A-Coder is planning the next steps',
+		'A-Coder is looking over your code',
+	],
+	processing: [
+		'A-Coder is processing your request',
+		'A-Coder is working out the best way to tackle this',
+		'A-Coder is checking context and tools',
+	],
+	generating: [
+		'A-Coder is drafting a response',
+		'A-Coder is putting the pieces together',
+		'A-Coder is writing your answer',
+	],
+};
+
 export const TypingIndicator = ({
 	state = 'thinking', // 'thinking' | 'processing' | 'generating'
 }: {
 	state?: 'thinking' | 'processing' | 'generating';
 }) => {
-	// Rotating loading messages
-	const messagesByState: Record<'thinking' | 'processing' | 'generating', string[]> = {
-		thinking: [
-			'A-Coder is thinking',
-			'A-Coder is planning the next steps',
-			'A-Coder is looking over your code',
-		],
-		processing: [
-			'A-Coder is processing your request',
-			'A-Coder is working out the best way to tackle this',
-			'A-Coder is checking context and tools',
-		],
-		generating: [
-			'A-Coder is drafting a response',
-			'A-Coder is putting the pieces together',
-			'A-Coder is writing your answer',
-		],
-	};
-
-	const allMessages = messagesByState[state] ?? messagesByState.thinking;
+	const allMessages = MESSAGES_BY_STATE[state] ?? MESSAGES_BY_STATE.thinking;
 	const [messageIndex, setMessageIndex] = useState(() => Math.floor(Math.random() * allMessages.length));
 	const [isTransitioning, setIsTransitioning] = useState(false);
 	const [displayMessage, setDisplayMessage] = useState(allMessages[messageIndex]);
@@ -65,20 +64,23 @@ export const TypingIndicator = ({
 		const interval = window.setInterval(() => {
 			setIsTransitioning(true);
 			setTimeout(() => {
-				const nextIndex = (messageIndex + 1) % allMessages.length;
-				setMessageIndex(nextIndex);
-				setDisplayMessage(allMessages[nextIndex]);
+				setMessageIndex(prev => (prev + 1) % allMessages.length);
 				setIsTransitioning(false);
 			}, 300); // Half of transition duration
 		}, 5000);
 		return () => window.clearInterval(interval);
-	}, [allMessages, messageIndex]);
+	}, [allMessages.length]); // Only depend on length
+
+	// Update display message when index or allMessages changes
+	useEffect(() => {
+		setDisplayMessage(allMessages[messageIndex]);
+	}, [messageIndex, allMessages]);
 
 	// Update display message when state changes
 	useEffect(() => {
 		setIsTransitioning(true);
 		setTimeout(() => {
-			const newMessages = messagesByState[state] || messagesByState.thinking;
+			const newMessages = MESSAGES_BY_STATE[state] || MESSAGES_BY_STATE.thinking;
 			const newIndex = Math.floor(Math.random() * newMessages.length);
 			setMessageIndex(newIndex);
 			setDisplayMessage(newMessages[newIndex]);
@@ -86,15 +88,16 @@ export const TypingIndicator = ({
 		}, 300);
 	}, [state]);
 
-	        return (
-	                <div className="py-2 h-8 flex items-center">
-	                        <span 
-	                                className={`text-sm select-none text-shimmer transition-all duration-500 ease-in-out ${isTransitioning ? 'opacity-0 translate-y-1' : 'opacity-100 translate-y-0'}`}
-	                        >
-	                                {displayMessage}
-	                        </span>
-	                </div>
-	        );};
+	return (
+		<div className="py-2 h-8 flex items-center">
+			<span
+				className={`text-sm select-none text-shimmer transition-all duration-500 ease-in-out ${isTransitioning ? 'opacity-0 translate-y-1' : 'opacity-100 translate-y-0'}`}
+			>
+				{displayMessage}
+			</span>
+		</div>
+	);
+};
 
 /**
  * ReAct phase indicator for showing Thought/Action/Observation phases

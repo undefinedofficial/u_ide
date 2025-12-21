@@ -567,7 +567,7 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 
 
 	// system message
-	private _generateChatMessagesSystemMessage = async (chatMode: ChatMode, specialToolFormat: 'openai-style' | 'anthropic-style' | 'gemini-style' | undefined) => {
+	private _generateChatMessagesSystemMessage = async (chatMode: ChatMode, specialToolFormat: 'openai-style' | 'anthropic-style' | 'gemini-style' | undefined, modelSelection: ModelSelection | null) => {
 		const workspaceFolders = this.workspaceContextService.getWorkspace().folders.map(f => f.uri.fsPath)
 
 		const openedURIs = this.modelService.getModels().filter(m => m.isAttachedToEditor()).map(m => m.uri.fsPath) || [];
@@ -586,7 +586,16 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 		// Get student level for student mode
 		const studentLevel = chatMode === 'student' ? this.voidSettingsService.state.globalSettings.studentLevel : undefined
 
-		const systemMessage = chat_systemMessage({ workspaceFolders, openedURIs, directoryStr, activeURI, persistentTerminalIDs, chatMode, mcpTools, specialToolFormat, studentLevel })
+		// Get morph settings
+		let enableMorphFastContext = this.voidSettingsService.state.globalSettings.enableMorphFastContext
+		if (modelSelection) {
+			const modelSelectionOptions = this.voidSettingsService.state.optionsOfModelSelection['Chat'][modelSelection.providerName]?.[modelSelection.modelName]
+			if (modelSelectionOptions?.morphFastContext !== undefined) {
+				enableMorphFastContext = modelSelectionOptions.morphFastContext
+			}
+		}
+
+		const systemMessage = chat_systemMessage({ workspaceFolders, openedURIs, directoryStr, activeURI, persistentTerminalIDs, chatMode, mcpTools, specialToolFormat, studentLevel, enableMorphFastContext })
 		return systemMessage
 	}
 
@@ -681,7 +690,7 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 
 		const { disableSystemMessage } = this.voidSettingsService.state.globalSettings;
 		// Pass the ACTUAL specialToolFormat (can be undefined) to system message for XML tool calling
-		const fullSystemMessage = await this._generateChatMessagesSystemMessage(chatMode, specialToolFormat)
+		const fullSystemMessage = await this._generateChatMessagesSystemMessage(chatMode, specialToolFormat, modelSelection)
 		const systemMessage = disableSystemMessage ? '' : fullSystemMessage;
 
 		const modelSelectionOptions = this.voidSettingsService.state.optionsOfModelSelection['Chat'][modelSelection.providerName]?.[modelSelection.modelName]

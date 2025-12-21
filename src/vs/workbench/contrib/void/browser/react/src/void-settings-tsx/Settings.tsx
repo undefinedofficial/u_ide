@@ -1428,22 +1428,38 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 															</SettingBox>
 														</SettingCard>
 
-														{/* Morph Fast Apply Card */}
+														{/* Morph Settings Card */}
 														<SettingCard
 															isDark={isDark}
-															title="Morph Fast Apply"
-															description="Use Morph API for intelligent and faster code application."
+															title="Morph Settings"
+															description="Use Morph API for intelligent code application and fast context gathering."
 														>
 															<SettingBox>
-																<SettingRow label="Enabled">
-																	<VoidSwitch
-																		size='sm'
-																		value={settingsState.globalSettings.enableMorphFastApply}
-																		onChange={(newVal) => voidSettingsService.setGlobalSetting('enableMorphFastApply', newVal)}
-																	/>
-																</SettingRow>
+																<div className="space-y-4">
+																	<SettingRow label="Fast Apply Enabled" description="Use Morph for faster code application.">
+																		<VoidSwitch
+																			size='sm'
+																			value={settingsState.globalSettings.enableMorphFastApply}
+																			onChange={(newVal) => voidSettingsService.setGlobalSetting('enableMorphFastApply', newVal)}
+																		/>
+																	</SettingRow>
+																	<SettingRow label="Fast Context Enabled" description="Use Morph for intelligent context gathering.">
+																		<VoidSwitch
+																			size='sm'
+																			value={settingsState.globalSettings.enableMorphFastContext}
+																			onChange={(newVal) => voidSettingsService.setGlobalSetting('enableMorphFastContext', newVal)}
+																		/>
+																	</SettingRow>
+																	<SettingRow label="Repo Storage Enabled" description="Use Morph Repo Storage for git operations and semantic search.">
+																		<VoidSwitch
+																			size='sm'
+																			value={settingsState.globalSettings.enableMorphRepoStorage}
+																			onChange={(newVal) => voidSettingsService.setGlobalSetting('enableMorphRepoStorage', newVal)}
+																		/>
+																	</SettingRow>
+																</div>
 
-																{settingsState.globalSettings.enableMorphFastApply && (
+																{(settingsState.globalSettings.enableMorphFastApply || settingsState.globalSettings.enableMorphFastContext || settingsState.globalSettings.enableMorphRepoStorage) && (
 																	<div className="mt-4 pt-4 border-t border-void-border-2 space-y-4">
 																		<div>
 																			<label className="text-xs font-medium text-void-fg-3 uppercase tracking-wide mb-2 block">Morph API Key</label>
@@ -1468,6 +1484,43 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 																				arrowTouchesText={false}
 																			/>
 																		</div>
+
+																		{settingsState.globalSettings.enableMorphRepoStorage && (
+																			<div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-void-border-2">
+																				<div className="space-y-2">
+																					<label className="text-xs font-medium text-void-fg-3 uppercase tracking-wide block">Morph Repo ID</label>
+																					<VoidSimpleInputBox
+																						value={settingsState.globalSettings.morphRepoId ?? ''}
+																						onChangeValue={(newVal) => voidSettingsService.setGlobalSetting('morphRepoId', newVal)}
+																						placeholder='e.g. org/project'
+																						compact={true}
+																					/>
+																				</div>
+																				<div className="space-y-2">
+																					<label className="text-xs font-medium text-void-fg-3 uppercase tracking-wide block">Default Branch</label>
+																					<VoidSimpleInputBox
+																						value={settingsState.globalSettings.morphRepoBranch ?? 'main'}
+																						onChangeValue={(newVal) => voidSettingsService.setGlobalSetting('morphRepoBranch', newVal)}
+																						placeholder='main'
+																						compact={true}
+																					/>
+																				</div>
+																				<SettingRow label="Index on Push" description="Automatically generate embeddings after push.">
+																					<VoidSwitch
+																						size='sm'
+																						value={settingsState.globalSettings.morphRepoIndexOnPush ?? true}
+																						onChange={(newVal) => voidSettingsService.setGlobalSetting('morphRepoIndexOnPush', newVal)}
+																					/>
+																				</SettingRow>
+																				<SettingRow label="Wait for Embeddings" description="Block pushes until embeddings are finished.">
+																					<VoidSwitch
+																						size='sm'
+																						value={settingsState.globalSettings.morphRepoWaitForEmbeddings ?? false}
+																						onChange={(newVal) => voidSettingsService.setGlobalSetting('morphRepoWaitForEmbeddings', newVal)}
+																					/>
+																				</SettingRow>
+																			</div>
+																		)}
 																	</div>
 																)}
 															</SettingBox>

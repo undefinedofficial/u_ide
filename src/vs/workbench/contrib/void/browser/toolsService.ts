@@ -216,8 +216,8 @@ export class ToolsService implements IToolsService {
 				const pageNumber = validatePageNum(pageNumberUnknown)
 				const explanation = typeof explanationUnknown === 'string' ? explanationUnknown : null
 
-				let startLine = validateNumber(startLineUnknown, { default: null })
-				let endLine = validateNumber(endLineUnknown, { default: null })
+				let startLine: number | null = validateNumber(startLineUnknown, { default: null })
+				let endLine: number | null = validateNumber(endLineUnknown, { default: null })
 
 				if (startLine !== null && startLine < 1) startLine = null
 				if (endLine !== null && endLine < 1) endLine = null
@@ -287,6 +287,148 @@ export class ToolsService implements IToolsService {
 				} = params
 				const uri = validateURI(uriUnknown)
 				return { uri }
+			},
+
+			fast_context: (params: RawToolParamsObj) => {
+				const { query: queryUnknown } = params;
+				const query = validateStr('query', queryUnknown);
+				return { query };
+			},
+
+			codebase_search: (params: RawToolParamsObj) => {
+				const { query: queryUnknown, repo_id: repoIdUnknown, branch: branchUnknown, commit_hash: commitHashUnknown } = params;
+				const query = validateStr('query', queryUnknown);
+				const repoId = validateOptionalStr('repo_id', repoIdUnknown) ?? undefined;
+				const branch = validateOptionalStr('branch', branchUnknown) ?? undefined;
+				const commitHash = validateOptionalStr('commit_hash', commitHashUnknown) ?? undefined;
+				return { query, repoId, branch, commitHash };
+			},
+
+			repo_init: (params: RawToolParamsObj) => {
+				const { repo_id: repoIdUnknown, dir: dirUnknown } = params;
+				const repoId = validateOptionalStr('repo_id', repoIdUnknown) ?? undefined;
+				const dir = validateOptionalStr('dir', dirUnknown) ?? undefined;
+				return { repoId, dir };
+			},
+
+			repo_clone: (params: RawToolParamsObj) => {
+				const { repo_id: repoIdUnknown, dir: dirUnknown } = params;
+				const repoId = validateStr('repo_id', repoIdUnknown);
+				const dir = validateStr('dir', dirUnknown);
+				return { repoId, dir };
+			},
+
+			repo_add: (params: RawToolParamsObj) => {
+				const { dir: dirUnknown, filepath: filepathUnknown } = params;
+				const dir = validateOptionalStr('dir', dirUnknown) ?? undefined;
+				const filepath = validateOptionalStr('filepath', filepathUnknown) ?? undefined;
+				return { dir, filepath };
+			},
+
+			repo_commit: (params: RawToolParamsObj) => {
+				const { dir: dirUnknown, message: messageUnknown, metadata: metadataUnknown } = params;
+				const dir = validateOptionalStr('dir', dirUnknown) ?? undefined;
+				const message = validateStr('message', messageUnknown);
+				let metadata: Record<string, any> | undefined = undefined;
+				if (metadataUnknown !== undefined) {
+					if (typeof metadataUnknown === 'string') {
+						try { metadata = JSON.parse(metadataUnknown); }
+						catch (e) { throw new Error('metadata must be valid JSON'); }
+					} else if (typeof metadataUnknown === 'object') {
+						metadata = metadataUnknown as Record<string, any>;
+					} else {
+						throw new Error('metadata must be an object or JSON string');
+					}
+				}
+				return { dir, message, metadata };
+			},
+
+			repo_push: (params: RawToolParamsObj) => {
+				const { dir: dirUnknown, branch: branchUnknown, index: indexUnknown, wait_for_embeddings: waitUnknown } = params;
+				const dir = validateOptionalStr('dir', dirUnknown) ?? undefined;
+				const branch = validateOptionalStr('branch', branchUnknown) ?? undefined;
+				let index: boolean | undefined = undefined;
+				if (indexUnknown !== undefined) {
+					index = validateBoolean(indexUnknown, { default: false });
+				}
+				let waitForEmbeddings: boolean | undefined = undefined;
+				if (waitUnknown !== undefined) {
+					waitForEmbeddings = validateBoolean(waitUnknown, { default: false });
+				}
+				return { dir, branch, index, waitForEmbeddings };
+			},
+
+			repo_pull: (params: RawToolParamsObj) => {
+				const { dir: dirUnknown } = params;
+				const dir = validateOptionalStr('dir', dirUnknown) ?? undefined;
+				return { dir };
+			},
+
+			repo_status: (params: RawToolParamsObj) => {
+				const { dir: dirUnknown, filepath: filepathUnknown } = params;
+				const dir = validateOptionalStr('dir', dirUnknown) ?? undefined;
+				const filepath = validateStr('filepath', filepathUnknown);
+				return { dir, filepath };
+			},
+
+			repo_status_matrix: (params: RawToolParamsObj) => {
+				const { dir: dirUnknown } = params;
+				const dir = validateOptionalStr('dir', dirUnknown) ?? undefined;
+				return { dir };
+			},
+
+			repo_log: (params: RawToolParamsObj) => {
+				const { dir: dirUnknown, depth: depthUnknown } = params;
+				const dir = validateOptionalStr('dir', dirUnknown) ?? undefined;
+				const depth = depthUnknown === undefined ? undefined : validateNumber(depthUnknown, { default: null }) ?? undefined;
+				return { dir, depth };
+			},
+
+			repo_checkout: (params: RawToolParamsObj) => {
+				const { dir: dirUnknown, ref: refUnknown } = params;
+				const dir = validateOptionalStr('dir', dirUnknown) ?? undefined;
+				const ref = validateStr('ref', refUnknown);
+				return { dir, ref };
+			},
+
+			repo_branch: (params: RawToolParamsObj) => {
+				const { dir: dirUnknown, name: nameUnknown } = params;
+				const dir = validateOptionalStr('dir', dirUnknown) ?? undefined;
+				const name = validateStr('name', nameUnknown);
+				return { dir, name };
+			},
+
+			repo_list_branches: (params: RawToolParamsObj) => {
+				const { dir: dirUnknown } = params;
+				const dir = validateOptionalStr('dir', dirUnknown) ?? undefined;
+				return { dir };
+			},
+
+			repo_current_branch: (params: RawToolParamsObj) => {
+				const { dir: dirUnknown } = params;
+				const dir = validateOptionalStr('dir', dirUnknown) ?? undefined;
+				return { dir };
+			},
+
+			repo_resolve_ref: (params: RawToolParamsObj) => {
+				const { dir: dirUnknown, ref: refUnknown } = params;
+				const dir = validateOptionalStr('dir', dirUnknown) ?? undefined;
+				const ref = validateStr('ref', refUnknown);
+				return { dir, ref };
+			},
+
+			repo_get_commit_metadata: (params: RawToolParamsObj) => {
+				const { repo_id: repoIdUnknown, commit_hash: commitHashUnknown } = params;
+				const repoId = validateOptionalStr('repo_id', repoIdUnknown) ?? undefined;
+				const commitHash = validateStr('commit_hash', commitHashUnknown);
+				return { repoId, commitHash };
+			},
+
+			repo_wait_for_embeddings: (params: RawToolParamsObj) => {
+				const { repo_id: repoIdUnknown, timeout_ms: timeoutUnknown } = params;
+				const repoId = validateOptionalStr('repo_id', repoIdUnknown) ?? undefined;
+				const timeoutMs = timeoutUnknown === undefined ? undefined : validateNumber(timeoutUnknown, { default: 120000 }) ?? undefined;
+				return { repoId, timeoutMs };
 			},
 
 			// ---
@@ -614,12 +756,9 @@ export class ToolsService implements IToolsService {
 
 		this.callTool = {
 			read_file: async ({ uri, startLine, endLine, pageNumber, explanation }) => {
-				await voidModelService.initializeModel(uri)
-				const { model } = await voidModelService.getModelSafe(uri)
-				if (model === null) { throw new Error(`No contents; File does not exist.`) }
-
-				const totalNumLines = model.getLineCount()
-				const totalFileLen = model.getValueLength(EndOfLinePreference.LF)
+				// Optimization: Check file size first
+				const stat = await this._fileService.resolve(uri, { resolveMetadata: true });
+				const isLargeFile = stat.size > 1024 * 1024; // > 1MB is considered large for a Monaco model
 
 				// Helper to add line numbers to content
 				const addLineNumbers = (content: string, startLineNum: number): string => {
@@ -628,6 +767,32 @@ export class ToolsService implements IToolsService {
 						`${startLineNum + idx} | ${line}`
 					).join('\n')
 				}
+
+				if (isLargeFile && startLine === null && endLine === null) {
+					console.log(`[ToolsService] Reading large file (${stat.size} bytes) via IFileService: ${uri.fsPath}`);
+					const fromIdx = MAX_FILE_CHARS_PAGE * (pageNumber - 1);
+					const toIdx = Math.min(MAX_FILE_CHARS_PAGE * pageNumber, stat.size);
+					const length = toIdx - fromIdx;
+
+					const content = await this._fileService.readFile(uri, { length, position: fromIdx });
+					const rawContents = content.value.toString();
+
+					// For large files, estimating line numbers since we don't have the full model
+					// This is a tradeoff for performance. We assume roughly 80 chars per line.
+					const estimatedStartLine = Math.floor(fromIdx / 80) + 1;
+					const fileContents = addLineNumbers(rawContents, estimatedStartLine);
+					const hasNextPage = toIdx < stat.size;
+
+					return { result: { fileContents, totalFileLen: stat.size, hasNextPage, totalNumLines: Math.floor(stat.size / 80) } };
+				}
+
+				// Fallback to model for smaller files or specific line ranges
+				await voidModelService.initializeModel(uri)
+				const { model } = await voidModelService.getModelSafe(uri)
+				if (model === null) { throw new Error(`No contents; File does not exist.`) }
+
+				const totalNumLines = model.getLineCount()
+				const totalFileLen = model.getValueLength(EndOfLinePreference.LF)
 
 				// If specific line range is requested, return that range
 				if (startLine !== null || endLine !== null) {
@@ -646,23 +811,10 @@ export class ToolsService implements IToolsService {
 				// Full file - apply pagination
 				const fromIdx = MAX_FILE_CHARS_PAGE * (pageNumber - 1)
 				const toIdx = Math.min(MAX_FILE_CHARS_PAGE * pageNumber, totalFileLen)
-				
-				// Optimization: If we need a page, we still need to find which lines it corresponds to
-				// for the line numbers. This is still slightly inefficient but better than loading the whole string.
-				// However, model.getValueInRange uses line numbers.
-				// To use characters, we'd need to convert character offsets to line numbers.
-				
-				// For now, let's at least avoid the full model.getValue() call.
-				// We can get the full contents only for the paginated part if we really have to, 
-				// but let's try to be smarter.
-				
-				// If we use pagination by characters, we can use model.getValueInRange with offsets if supported,
-				// but standard ITextModel doesn't have offset-based getValue.
-				// It has getOffsetAtPos and getPositionAt(offset).
-				
+
 				const startPos = model.getPositionAt(fromIdx)
 				const endPos = model.getPositionAt(toIdx)
-				
+
 				const rawContents = model.getValueInRange({
 					startLineNumber: startPos.lineNumber,
 					startColumn: startPos.column,
@@ -749,7 +901,7 @@ export class ToolsService implements IToolsService {
 				await voidModelService.initializeModel(uri);
 				const { model } = await voidModelService.getModelSafe(uri);
 				if (model === null) { throw new Error(`No contents; File does not exist.`); }
-				
+
 				const matches = model.findMatches(
 					query,
 					false, // searchOnlyEditableRange
@@ -758,10 +910,10 @@ export class ToolsService implements IToolsService {
 					null,  // wordSeparators
 					false  // captureMatches
 				);
-				
+
 				// Get unique line numbers
 				const lines = [...new Set(matches.map(m => m.range.startLineNumber))].sort((a, b) => a - b);
-				
+
 				return { result: { lines } };
 			},
 
@@ -769,6 +921,127 @@ export class ToolsService implements IToolsService {
 				await timeout(1000)
 				const { lintErrors } = this._getLintErrors(uri)
 				return { result: { lintErrors } }
+			},
+
+			fast_context: async ({ query }) => {
+				const workspaceFolders = workspaceContextService.getWorkspace().folders;
+				const repoRoot = workspaceFolders.length > 0 ? workspaceFolders[0].uri.fsPath : '.';
+
+				const contexts = await this.morphService.fastContext({
+					query,
+					repoRoot
+				});
+
+				return { result: { contexts } };
+			},
+
+			codebase_search: async ({ query, repoId, branch, commitHash }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+
+				const results = await this.morphService.codebaseSearch({
+					query,
+					repoId,
+					branch,
+					commitHash,
+				});
+				return { result: results };
+			},
+
+			repo_init: async ({ repoId, dir }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+				return { result: await this.morphService.repoInit({ repoId, dir }) };
+			},
+
+			repo_clone: async ({ repoId, dir }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+				return { result: await this.morphService.repoClone({ repoId, dir }) };
+			},
+
+			repo_add: async ({ dir, filepath }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+				return { result: await this.morphService.repoAdd({ dir, filepath }) };
+			},
+
+			repo_commit: async ({ dir, message, metadata }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+				return { result: await this.morphService.repoCommit({ dir, message, metadata }) };
+			},
+
+			repo_push: async ({ dir, branch, index, waitForEmbeddings }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+				return { result: await this.morphService.repoPush({ dir, branch, index, waitForEmbeddings }) };
+			},
+
+			repo_pull: async ({ dir }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+				return { result: await this.morphService.repoPull({ dir }) };
+			},
+
+			repo_status: async ({ dir, filepath }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+				return { result: await this.morphService.repoStatus({ dir, filepath }) };
+			},
+
+			repo_status_matrix: async ({ dir }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+				return { result: await this.morphService.repoStatusMatrix({ dir }) };
+			},
+
+			repo_log: async ({ dir, depth }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+				return { result: await this.morphService.repoLog({ dir, depth }) };
+			},
+
+			repo_checkout: async ({ dir, ref }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+				return { result: await this.morphService.repoCheckout({ dir, ref }) };
+			},
+
+			repo_branch: async ({ dir, name }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+				return { result: await this.morphService.repoBranch({ dir, name }) };
+			},
+
+			repo_list_branches: async ({ dir }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+				return { result: await this.morphService.repoListBranches({ dir }) };
+			},
+
+			repo_current_branch: async ({ dir }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+				return { result: await this.morphService.repoCurrentBranch({ dir }) };
+			},
+
+			repo_resolve_ref: async ({ dir, ref }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+				return { result: await this.morphService.repoResolveRef({ dir, ref }) };
+			},
+
+			repo_get_commit_metadata: async ({ repoId, commitHash }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+				return { result: await this.morphService.repoGetCommitMetadata({ repoId, commitHash }) };
+			},
+
+			repo_wait_for_embeddings: async ({ repoId, timeoutMs }) => {
+				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
+				return { result: await this.morphService.repoWaitForEmbeddings({ repoId, timeoutMs }) };
 			},
 
 			// ---
@@ -1403,6 +1676,19 @@ For each module include:
 				// Try TOON encoding for structured lint error data
 				return this._maybeEncodeToon(result.lintErrors, lintErrorsStr);
 			},
+			fast_context: (params, result) => {
+				if (result.contexts.length === 0) {
+					return `Morph found no relevant contexts for your query: "${params.query}"`;
+				}
+
+				let output = `Morph found ${result.contexts.length} relevant code contexts for your query: "${params.query}"\n\n`;
+
+				for (const ctx of result.contexts) {
+					output += `File: ${ctx.file}\n\`\`\`\n${ctx.content}\n\`\`\`\n\n`;
+				}
+
+				return output;
+			},
 			// ---
 			create_file_or_folder: (params, result) => {
 				return `URI ${params.uri.fsPath} successfully created.`
@@ -1427,6 +1713,62 @@ For each module include:
 						: '')
 
 				return `Change successfully made to ${params.uri.fsPath}.${lintErrsString}`
+			},
+			codebase_search: (params, result) => {
+				if (result.results.length === 0) return `No results found for codebase search: "${params.query}"`
+				let output = `Codebase search results for "${params.query}":\n\n`
+				for (const res of result.results) {
+					output += `File: ${res.filePath} (Score: ${res.score || 'N/A'})\n\`\`\`\n${res.snippet}\n\`\`\`\n\n`
+				}
+				return output
+			},
+			repo_init: (params, result) => {
+				return result.success ? `Repository successfully initialized in ${params.dir || 'root'}.` : `Failed to initialize repository.`
+			},
+			repo_clone: (params, result) => {
+				return result.success ? `Repository ${params.repoId} successfully cloned into ${params.dir}.` : `Failed to clone repository.`
+			},
+			repo_add: (params, result) => {
+				return result.success ? `File ${params.filepath || '.'} successfully staged.` : `Failed to stage file.`
+			},
+			repo_commit: (params, result) => {
+				return result.success ? `Changes successfully committed. ${result.commitSha ? `Commit SHA: ${result.commitSha}` : ''}` : `Failed to commit changes.`
+			},
+			repo_push: (params, result) => {
+				return result.success ? `Changes successfully pushed to ${params.branch || 'remote'}.` : `Failed to push changes.`
+			},
+			repo_pull: (params, result) => {
+				return result.success ? `Changes successfully pulled from remote.` : `Failed to pull changes.`
+			},
+			repo_status: (params, result) => {
+				return `Status for ${params.filepath}: ${JSON.stringify(result, null, 2)}`
+			},
+			repo_status_matrix: (params, result) => {
+				return `Status Matrix: ${JSON.stringify(result, null, 2)}`
+			},
+			repo_log: (params, result) => {
+				return `Commit Log: ${JSON.stringify(result, null, 2)}`
+			},
+			repo_checkout: (params, result) => {
+				return result.success ? `Successfully checked out ${params.ref}.` : `Failed to checkout ${params.ref}.`
+			},
+			repo_branch: (params, result) => {
+				return result.success ? `Successfully created branch ${params.name}.` : `Failed to create branch ${params.name}.`
+			},
+			repo_list_branches: (params, result) => {
+				return `Branches: ${result.join(', ')}`
+			},
+			repo_current_branch: (params, result) => {
+				return `Current branch: ${result}`
+			},
+			repo_resolve_ref: (params, result) => {
+				return `Resolved ${params.ref} to ${result}`
+			},
+			repo_get_commit_metadata: (params, result) => {
+				return `Commit Metadata: ${JSON.stringify(result, null, 2)}`
+			},
+			repo_wait_for_embeddings: (params, result) => {
+				return result.success ? `Embeddings are now ready.` : `Timed out waiting for embeddings.`
 			},
 			run_command: (params, result) => {
 				const { resolveReason, result: result_, } = result

@@ -19,6 +19,7 @@ export const sendLLMMessage = async ({
 	abortRef: abortRef_,
 	logging: { loggingName, loggingExtras },
 	settingsOfProvider,
+	globalSettings,
 	modelSelection,
 	modelSelectionOptions,
 	overridesOfModel,
@@ -166,12 +167,12 @@ export const sendLLMMessage = async ({
 		}
 		const { sendFIM, sendChat } = implementation
 		if (messagesType === 'chatMessages') {
-			await sendChat({ messages: messages_, onText, onFinalMessage, onError, settingsOfProvider, modelSelectionOptions, overridesOfModel, modelName, _setAborter, providerName, separateSystemMessage, chatMode, mcpTools })
+			await sendChat({ messages: messages_, onText, onFinalMessage, onError, settingsOfProvider, globalSettings, modelSelectionOptions, overridesOfModel, modelName, _setAborter, providerName, separateSystemMessage, chatMode, mcpTools })
 			return
 		}
 		if (messagesType === 'FIMMessage') {
 			if (sendFIM) {
-				await sendFIM({ messages: messages_, onText, onFinalMessage, onError, settingsOfProvider, modelSelectionOptions, overridesOfModel, modelName, _setAborter, providerName, separateSystemMessage })
+				await sendFIM({ messages: messages_, onText, onFinalMessage, onError, settingsOfProvider, globalSettings, modelSelectionOptions, overridesOfModel, modelName, _setAborter, providerName, separateSystemMessage })
 				return
 			}
 			onError({ message: `Error running Autocomplete with ${providerName} - ${modelName}.`, fullError: null })

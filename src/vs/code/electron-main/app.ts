@@ -1267,7 +1267,7 @@ export class CodeApplication extends Disposable {
 		const mcpChannel = new MCPChannel();
 		mainProcessElectronServer.registerChannel('void-channel-mcp', mcpChannel);
 
-		// Void - Code Execution with isolated-vm
+		// Void - Code Execution with quickjs-emscripten
 		const codeExecutionChannel = new CodeExecutionChannel();
 		mainProcessElectronServer.registerChannel('void-channel-code-execution', codeExecutionChannel);
 

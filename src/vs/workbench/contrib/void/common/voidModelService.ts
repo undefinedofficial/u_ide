@@ -26,7 +26,8 @@ export const IVoidModelService = createDecorator<IVoidModelService>('voidVoidMod
 class VoidModelService extends Disposable implements IVoidModelService {
 	_serviceBrand: undefined;
 	static readonly ID = 'voidVoidModelService';
-	private readonly _modelRefOfURI: Record<string, IReference<IResolvedTextEditorModel>> = {};
+	private readonly _modelRefOfURI: Map<string, IReference<IResolvedTextEditorModel>> = new Map();
+	private readonly MAX_MODELS = 50;
 
 	constructor(
 		@ITextModelService private readonly _textModelService: ITextModelService,
@@ -43,10 +44,28 @@ class VoidModelService extends Disposable implements IVoidModelService {
 
 	initializeModel = async (uri: URI) => {
 		try {
-			if (uri.fsPath in this._modelRefOfURI) return;
+			const fsPath = uri.fsPath;
+			if (this._modelRefOfURI.has(fsPath)) {
+				// Move to end of Map (most recently used)
+				const ref = this._modelRefOfURI.get(fsPath)!;
+				this._modelRefOfURI.delete(fsPath);
+				this._modelRefOfURI.set(fsPath, ref);
+				return;
+			}
+
+			// Enforce limit
+			if (this._modelRefOfURI.size >= this.MAX_MODELS) {
+				const oldestKey = this._modelRefOfURI.keys().next().value;
+				if (oldestKey) {
+					console.log(`[VoidModelService] Disposing oldest model reference: ${oldestKey}`);
+					this._modelRefOfURI.get(oldestKey)?.dispose();
+					this._modelRefOfURI.delete(oldestKey);
+				}
+			}
+
 			const editorModelRef = await this._textModelService.createModelReference(uri);
 			// Keep a strong reference to prevent disposal
-			this._modelRefOfURI[uri.fsPath] = editorModelRef;
+			this._modelRefOfURI.set(fsPath, editorModelRef);
 		}
 		catch (e) {
 			console.log('InitializeModel error:', e)
@@ -54,10 +73,14 @@ class VoidModelService extends Disposable implements IVoidModelService {
 	};
 
 	getModelFromFsPath = (fsPath: string): VoidModelType => {
-		const editorModelRef = this._modelRefOfURI[fsPath];
+		const editorModelRef = this._modelRefOfURI.get(fsPath);
 		if (!editorModelRef) {
 			return { model: null, editorModel: null };
 		}
+
+		// Move to end of Map (most recently used)
+		this._modelRefOfURI.delete(fsPath);
+		this._modelRefOfURI.set(fsPath, editorModelRef);
 
 		const model = editorModelRef.object.textEditorModel;
 
@@ -74,16 +97,17 @@ class VoidModelService extends Disposable implements IVoidModelService {
 
 
 	getModelSafe = async (uri: URI): Promise<VoidModelType> => {
-		if (!(uri.fsPath in this._modelRefOfURI)) await this.initializeModel(uri);
+		if (!this._modelRefOfURI.has(uri.fsPath)) await this.initializeModel(uri);
 		return this.getModel(uri);
 
 	};
 
 	override dispose() {
 		super.dispose();
-		for (const ref of Object.values(this._modelRefOfURI)) {
+		for (const ref of this._modelRefOfURI.values()) {
 			ref.dispose(); // release reference to allow disposal
 		}
+		this._modelRefOfURI.clear();
 	}
 }
 

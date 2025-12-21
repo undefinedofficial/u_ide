@@ -7,7 +7,7 @@ Implementing Anthropic's "Code Execution with MCP" pattern for 98% token reducti
 
 ### 1. Core Infrastructure
 - ✅ **CodeExecutionService** (`electron-main/codeExecutionService.ts`)
-  - Uses `isolated-vm` for secure sandboxed execution
+  - Uses `quickjs-emscripten` (QuickJS via WebAssembly) for secure sandboxed execution
   - Memory limits (128MB default)
   - Timeout protection (30s default)
   - Console logging capture
@@ -114,9 +114,9 @@ mainProcessElectronServer.registerChannel('void-channel-code-execution', codeExe
          │ toolCallback provided
          ▼
 ┌──────────────────┐
-│  isolated-vm     │
+│quickjs-emscripten│
 │    Sandbox       │
-│                  │
+│      (Wasm)      │
 │  tools.readFile()│◄─┐
 │  tools.editFile()│  │ IPC callback
 │  etc.            │  │ (to be implemented)
@@ -165,7 +165,7 @@ mainProcessElectronServer.registerChannel('void-channel-code-execution', codeExe
 ### ✅ Implemented
 - Memory limits (128MB)
 - Execution timeouts (30s)
-- Isolated V8 context
+- WebAssembly Sandbox (QuickJS)
 - No direct file system access
 - No network access
 - No process spawning
@@ -212,7 +212,7 @@ const code = `
   const results = [];
   for (const file of files) {
     const content = await tools.readFile(file);
-    results.push({ file, lines: content.split('\\n').length });
+    results.push({ file, lines: content.split('\n').length });
   }
   return results;
 `;
@@ -235,8 +235,8 @@ const code = `
 
 ## Dependencies
 
-- ✅ `isolated-vm` - Installed
-- ✅ `ivm` types - Built-in with package
+- ✅ `quickjs-emscripten` - Installed
+- ✅ Windows/macOS/Linux compatible (WebAssembly based)
 
 ## Estimated Completion Time
 
@@ -249,4 +249,4 @@ const code = `
 
 - [Anthropic's Code Execution with MCP](https://www.marktechpost.com/2025/11/08/anthropic-turns-mcp-agents-into-code-first-systems-with-code-execution-with-mcp-approach/)
 - [Cloudflare Workers Code Mode](https://blog.cloudflare.com/workers-ai-code-mode/)
-- [isolated-vm Documentation](https://github.com/laverdet/isolated-vm)
+- [quickjs-emscripten Documentation](https://github.com/justjake/quickjs-emscripten)

@@ -460,7 +460,13 @@ export type GlobalSettings = {
 	autoAcceptLLMChanges: boolean;
 	enableVisionSupport: boolean;
 	enableMorphFastApply: boolean; // Use Morph API for intelligent code application
-	morphApiKey: string; // API key for Morph Fast Apply
+	enableMorphFastContext: boolean; // Use Morph API for fast context gathering
+	enableMorphRepoStorage: boolean; // Use Morph Repo Storage (git + semantic search)
+	morphRepoId?: string; // Repo identifier for Morph Repo Storage
+	morphRepoBranch?: string; // Branch to use for Morph Repo Storage operations
+	morphRepoIndexOnPush?: boolean; // Whether to index embeddings on push
+	morphRepoWaitForEmbeddings?: boolean; // Whether to block push until embeddings finish
+	morphApiKey: string; // API key for Morph
 	morphModel: 'morph-v3-fast' | 'morph-v3-large' | 'auto'; // Morph model to use
 	enableToolResultTOON: boolean;
 	maxAgentIterations: number; // Maximum number of iterations in agent mode
@@ -488,6 +494,12 @@ export const defaultGlobalSettings: GlobalSettings = {
 	autoAcceptLLMChanges: false,
 	enableVisionSupport: false,
 	enableMorphFastApply: false,
+	enableMorphFastContext: false,
+	enableMorphRepoStorage: false,
+	morphRepoId: undefined,
+	morphRepoBranch: 'main',
+	morphRepoIndexOnPush: true,
+	morphRepoWaitForEmbeddings: false,
 	morphApiKey: '',
 	morphModel: 'auto',
 	enableToolResultTOON: false,
@@ -518,6 +530,7 @@ export type ModelSelectionOptions = {
 	reasoningBudget?: number;
 	reasoningEffort?: string;
 	morphFastApply?: boolean; // Use Morph Fast Apply for edit_file and rewrite_file tools
+	morphFastContext?: boolean; // Use Morph Fast Context for context gathering
 }
 
 export type OptionsOfModelSelection = {
