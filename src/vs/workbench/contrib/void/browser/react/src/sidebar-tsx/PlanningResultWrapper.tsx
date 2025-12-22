@@ -233,7 +233,7 @@ const PlanningResultWrapper: React.FC<PlanningResultWrapperProps> = ({
 
 			{/* Task list - collapsible */}
 			{isExpanded && (
-				<div className="space-y-0.5 px-3 pb-3 pt-1">
+				<div className="space-y-0.5 px-3 pb-3 pt-1 max-h-96 overflow-auto">
 					{tasks.map((task, index) => (
 						<TaskRow key={index} task={task} index={index} />
 					))}

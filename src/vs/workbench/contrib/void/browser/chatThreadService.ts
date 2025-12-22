@@ -56,35 +56,42 @@ const splitThinkTags = (input: string): { displayText: string; reasoningText: st
 
 	const reasoningParts: string[] = []
 
-	// Support both Chinese think tags and OpenAI-style reasoning tags
-	const CHINESE_THINK_REGEX = /<think>([\s\S]*?)<\/think>/gi
-	const OPENAI_REASONING_REGEX = /<reasoning>([\s\S]*?)<\/reasoning>/gi
+	// Helper to extract content from both closed and unclosed tags
+	const extractFromTags = (text: string, openTag: string, closeTag: string): string => {
+		let currentText = text
+		let lastIndex = 0
 
-	// Extract Chinese think tags
-	const displayWithoutChineseThink = input.replace(CHINESE_THINK_REGEX, (_match, captured) => {
-		const trimmed = (captured ?? '').trim()
-		if (trimmed) {
-			reasoningParts.push(trimmed)
+		while (true) {
+			const openIdx = currentText.indexOf(openTag, lastIndex)
+			if (openIdx === -1) break
+
+			const closeIdx = currentText.indexOf(closeTag, openIdx + openTag.length)
+			
+			if (closeIdx !== -1) {
+				// Found closed tag
+				const content = currentText.substring(openIdx + openTag.length, closeIdx).trim()
+				if (content) reasoningParts.push(content)
+				currentText = currentText.substring(0, openIdx) + currentText.substring(closeIdx + closeTag.length)
+				lastIndex = openIdx
+			} else {
+				// Found unclosed tag - take everything until the end
+				const content = currentText.substring(openIdx + openTag.length).trim()
+				if (content) reasoningParts.push(content)
+				currentText = currentText.substring(0, openIdx)
+				break // No more closed tags possible after an unclosed one
+			}
 		}
-		return ''
-	})
+		return currentText
+	}
 
-	// Extract OpenAI reasoning tags
-	const displayWithoutReasoning = displayWithoutChineseThink.replace(OPENAI_REASONING_REGEX, (_match, captured) => {
-		const trimmed = (captured ?? '').trim()
-		if (trimmed) {
-			reasoningParts.push(trimmed)
-		}
-		return ''
-	})
+	let remainingText = input
+	remainingText = extractFromTags(remainingText, '<think>', '</think>')
+	remainingText = extractFromTags(remainingText, '<reasoning>', '</reasoning>')
 
-	const displayText = displayWithoutReasoning
-		.replace(/<\/think>/gi, '')
-		.replace(/<\/reasoning>/gi, '')
-		.replace(/<think>/gi, '')
-		.replace(/<reasoning>/gi, '')
-	const reasoningText = reasoningParts.join('\n\n')
-	return { displayText, reasoningText }
+	return { 
+		displayText: remainingText.trim(), 
+		reasoningText: reasoningParts.join('\n\n') 
+	}
 }
 
 const mergeReasoningContent = (existing?: string | null, fromTags?: string | null): string => {
@@ -1275,7 +1282,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 				// Note: Tool calls with empty content are valid (especially for Ollama)
 				// Also treat "(empty message)" placeholder as empty
 				const textContent = info.fullText?.trim() || ''
-				const isEmptyResponse = (textContent.length === 0 || textContent === '(empty message)') && !toolCall
+				const isEmptyResponse = (textContent.length === 0 || textContent === '(empty message)') && !toolCall && !info.fullReasoning && (!info.anthropicReasoning || info.anthropicReasoning.length === 0)
 				if (isEmptyResponse) {
 					// In both modes, retry with delay if we haven't exhausted attempts
 					if (nAttempts < CHAT_RETRIES) {

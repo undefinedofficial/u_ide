@@ -1443,9 +1443,9 @@ const ToolHeaderWrapper = ({
 				{children !== undefined && (
 					<div
 						className={`
-							overflow-hidden transition-all duration-300 ease-in-out border-t border-void-border-2 bg-void-bg-1/20
-							${isExpanded ? 'opacity-100 max-h-[2000px] py-3' : 'max-h-0 opacity-0'}
-							px-3 text-void-fg-2 overflow-x-auto
+							overflow-auto transition-all duration-300 ease-in-out border-t border-void-border-2 bg-void-bg-1/20
+							${isExpanded ? 'opacity-100 max-h-96 py-3' : 'max-h-0 opacity-0'}
+							px-3 text-void-fg-2
 						`}
 					>
 						{children}
@@ -2036,8 +2036,8 @@ const ReasoningWrapper = ({ isDoneReasoning, isStreaming, children }: { isDoneRe
 				</div>
 
 				<div className={`
-					overflow-hidden transition-all duration-300 ease-in-out
-					${isOpen ? 'opacity-100 max-h-[1000px] border-t border-void-border-2/50 p-3' : 'max-h-0 opacity-0'}
+					overflow-auto transition-all duration-300 ease-in-out
+					${isOpen ? 'opacity-100 max-h-96 border-t border-void-border-2/50 p-3' : 'max-h-0 opacity-0'}
 				`}>
 					<div className='!select-text cursor-auto text-[11px] leading-relaxed text-void-fg-3 font-medium italic'>
 						{children}
@@ -2855,9 +2855,6 @@ const MCPToolWrapper = ({ toolMessage }: WrapperProps<string>) => {
 	const desc1 = removeMCPToolNamePrefix(toolMessage.name)
 	const icon = null
 
-
-	if (toolMessage.type === 'running_now') return null // do not show running
-
 	const isError = false
 	const isRejected = toolMessage.type === 'rejected'
 	const { rawParams, params } = toolMessage
@@ -2921,9 +2918,6 @@ const DefaultToolResultWrapper: ResultWrapper<BuiltinToolName> = ({ toolMessage 
 	const title = getTitle(toolMessage)
 	const { desc1, desc1Info } = toolNameToDesc(toolMessage.name as BuiltinToolName, toolMessage.params, accessor)
 
-	if (toolMessage.type === 'tool_request') return null
-	if (toolMessage.type === 'running_now') return null
-
 	const isRejected = toolMessage.type === 'rejected'
 	const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError: false, icon: null, isRejected }
 
@@ -2959,9 +2953,6 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 
 			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor);
 			const icon = null
-
-			if (toolMessage.type === 'tool_request') return null // do not show past requests
-			if (toolMessage.type === 'running_now') return null // do not show running
 
 			const isError = false
 			const isRejected = toolMessage.type === 'rejected'
@@ -3008,9 +2999,6 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor);
 			const icon = null
 
-			if (toolMessage.type === 'tool_request') return null // do not show past requests
-			if (toolMessage.type === 'running_now') return null // do not show running
-
 			const isError = false
 			const isRejected = toolMessage.type === 'rejected'
 			const { rawParams, params } = toolMessage
@@ -3032,19 +3020,16 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			return <ToolHeaderWrapper {...componentParams} />
 		},
 	},
-	'get_dir_tree': {
-		resultWrapper: ({ toolMessage }) => {
-			const accessor = useAccessor()
-			const commandService = accessor.get('ICommandService')
-
-			const title = getTitle(toolMessage)
-			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor)
-			const icon = null
-
-			if (toolMessage.type === 'tool_request') return null // do not show past requests
-			if (toolMessage.type === 'running_now') return null // do not show running
-
-			const isError = false
+	    'get_dir_tree': {
+	        resultWrapper: ({ toolMessage }) => {
+	            const accessor = useAccessor()
+	            const commandService = accessor.get('ICommandService')
+	
+	            const title = getTitle(toolMessage)
+	            const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor)
+	            const icon = null
+	
+	            const isError = false
 			const isRejected = toolMessage.type === 'rejected'
 			const { rawParams, params } = toolMessage
 			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError, icon, isRejected, }
@@ -3086,9 +3071,6 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 
 			const title = getTitle(toolMessage)
 			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name as BuiltinToolName, toolMessage.params, accessor)
-
-			if (toolMessage.type === 'tool_request') return null
-			if (toolMessage.type === 'running_now') return null
 
 			const isRejected = toolMessage.type === 'rejected'
 			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError: false, icon: null, isRejected }
@@ -3133,9 +3115,6 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			const title = getTitle(toolMessage)
 			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor)
 			const icon = null
-
-			if (toolMessage.type === 'tool_request') return null // do not show past requests
-			if (toolMessage.type === 'running_now') return null // do not show running
 
 			const isError = false
 			const isRejected = toolMessage.type === 'rejected'
@@ -3189,9 +3168,6 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor)
 			const icon = null
 
-			if (toolMessage.type === 'tool_request') return null // do not show past requests
-			if (toolMessage.type === 'running_now') return null // do not show running
-
 			const { rawParams, params } = toolMessage
 			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError, icon, isRejected, }
 
@@ -3237,9 +3213,6 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			const title = getTitle(toolMessage)
 			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor)
 			const icon = null
-
-			if (toolMessage.type === 'tool_request') return null // do not show past requests
-			if (toolMessage.type === 'running_now') return null // do not show running
 
 			const { rawParams, params } = toolMessage
 			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError, icon, isRejected, }
@@ -3293,9 +3266,6 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor);
 			const icon = null;
 
-			if (toolMessage.type === 'tool_request') return null // do not show past requests
-			if (toolMessage.type === 'running_now') return null // do not show running
-
 			const { rawParams, params } = toolMessage;
 			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError, icon, isRejected };
 
@@ -3340,9 +3310,6 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			const { uri } = toolMessage.params ?? {}
 			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor)
 			const icon = null
-
-			if (toolMessage.type === 'tool_request') return null // do not show past requests
-			if (toolMessage.type === 'running_now') return null // do not show running
 
 			const isError = false
 			const isRejected = toolMessage.type === 'rejected'
@@ -3503,7 +3470,6 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 					threadId={threadId}
 				/>
 			}
-			if (toolMessage.type === 'running_now') return null // do not show running
 
 			const isError = false
 			const isRejected = toolMessage.type === 'rejected'
@@ -3541,9 +3507,6 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			const title = getTitle(toolMessage)
 			const icon = null
 
-			if (toolMessage.type === 'tool_request') return null // do not show past requests
-			if (toolMessage.type === 'running_now') return null // do not show running
-
 			const isError = false
 			const isRejected = toolMessage.type === 'rejected'
 			const { rawParams, params } = toolMessage
@@ -3573,9 +3536,6 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor)
 			const title = getTitle(toolMessage)
 			const icon = null
-
-			if (toolMessage.type === 'tool_request') return null
-			if (toolMessage.type === 'running_now') return null
 
 			const isError = false
 			const isRejected = toolMessage.type === 'rejected'
@@ -4614,11 +4574,12 @@ export const SidebarChat = () => {
 		const filteredMessages = previousMessages
 			.map((message, originalIdx) => ({ message, originalIdx })) // Preserve original index
 			.filter(({ message }) => {
-				// Filter out assistant messages that only contain "(empty message)"
+				// Filter out assistant messages that are truly empty (no content AND no reasoning)
 				if (message.role === 'assistant') {
-					const content = message.displayContent?.trim() || '';
-					if (content === '(empty message)' || content === '') {
-						return false; // Skip this message
+					const hasContent = !!(message.displayContent?.trim() && message.displayContent?.trim() !== '(empty message)');
+					const hasReasoning = !!(message.reasoning?.trim());
+					if (!hasContent && !hasReasoning) {
+						return false;
 					}
 				}
 				return true;
@@ -4704,6 +4665,8 @@ export const SidebarChat = () => {
 
 	// Quick tools that should NOT show any loading UI - just wait for completed result
 	const isQuickTool = (name: string | undefined) => {
+		return false;
+		/*
 		return name === 'read_file' ||
 			name === 'outline_file' ||
 			name === 'ls_dir' ||
@@ -4712,6 +4675,7 @@ export const SidebarChat = () => {
 			name === 'search_for_files' ||
 			name === 'search_in_file' ||
 			name === 'read_lint_errors';
+		*/
 	};
 
 	// ReAct Phase Indicator - show when we have a detected ReAct phase

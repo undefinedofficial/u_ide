@@ -587,7 +587,10 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 					if (reasoningDelta && chunkCount <= 5) {
 						console.log(`[sendLLMMessage] Chunk ${chunkCount} reasoning delta:`, reasoningDelta.substring(0, 100))
 					}
-					fullReasoningSoFar += reasoningDelta
+					// Accumulate reasoning if reasoning is enabled in settings, OR if it's an unrecognized model (reasoningInfo is null)
+					if (!reasoningInfo || reasoningInfo.isReasoningEnabled) {
+						fullReasoningSoFar += reasoningDelta
+					}
 				}
 
 				// Strip XML blocks from text during streaming if model doesn't support native tools
@@ -604,19 +607,32 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 			// on final
 			console.log(`[sendLLMMessage] Stream completed. Total chunks: ${chunkCount}, fullText: "${fullTextSoFar}", reasoning: "${fullReasoningSoFar}", toolName: "${toolName}", toolParams: "${toolParamsStr}"`)
 
-			// If no native tool call detected and model doesn't support native tools, check for XML tool calls
-			if (!toolName && !specialToolFormat && fullTextSoFar) {
+			// Fallback: If no native tool call detected, check for XML tool calls in both content and reasoning
+			if (!toolName && (fullTextSoFar || fullReasoningSoFar)) {
 				const { extractXMLToolCalls, stripXMLBlocks } = await import('../../common/helpers/extractXMLTools.js')
-				const xmlToolCalls = extractXMLToolCalls(fullTextSoFar)
-				if (xmlToolCalls.length > 0) {
-					const firstCall = xmlToolCalls[0]
+				
+				// 1. Check main content
+				const xmlToolCallsInText = extractXMLToolCalls(fullTextSoFar)
+				if (xmlToolCallsInText.length > 0) {
+					const firstCall = xmlToolCallsInText[0]
 					toolName = firstCall.toolName
 					toolParamsStr = JSON.stringify(firstCall.parameters)
-					toolId = 'xml-tool-call-1'
-					// Strip XML blocks from the text so we don't show hallucinated results
+					toolId = 'xml-tool-call-text-1'
 					fullTextSoFar = stripXMLBlocks(fullTextSoFar)
-					console.log(`[sendLLMMessage] ✅ Extracted XML tool call: ${toolName}`, firstCall.parameters)
-					console.log(`[sendLLMMessage] Cleaned text (XML stripped): "${fullTextSoFar}"`)
+					console.log(`[sendLLMMessage] ✅ Extracted XML tool call from text: ${toolName}`, firstCall.parameters)
+				}
+				
+				// 2. Check reasoning (Nemotron and other models sometimes put tools here)
+				if (!toolName && fullReasoningSoFar) {
+					const xmlToolCallsInReasoning = extractXMLToolCalls(fullReasoningSoFar)
+					if (xmlToolCallsInReasoning.length > 0) {
+						const firstCall = xmlToolCallsInReasoning[0]
+						toolName = firstCall.toolName
+						toolParamsStr = JSON.stringify(firstCall.parameters)
+						toolId = 'xml-tool-call-reasoning-1'
+						fullReasoningSoFar = stripXMLBlocks(fullReasoningSoFar)
+						console.log(`[sendLLMMessage] ✅ Extracted XML tool call from reasoning: ${toolName}`, firstCall.parameters)
+					}
 				}
 			}
 
@@ -744,7 +760,7 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 								applyToolCall({ function: { name: toolName, arguments: toolParamsStr }, id: toolId, index: 0 }, { isFinal: true })
 							}
 
-							if (nameOfReasoningFieldInDelta) {
+							if (nameOfReasoningFieldInDelta && (!reasoningInfo || reasoningInfo.isReasoningEnabled)) {
 								const deltaAny = delta as any
 								const reasoningDelta = (deltaAny?.[nameOfReasoningFieldInDelta] || deltaAny?.reasoning || deltaAny?.thinking || '') + ''
 								fullReasoningSoFar += reasoningDelta
@@ -760,6 +776,30 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 						}
 
 						console.log(`[sendLLMMessage] Retry stream completed. Chunks: ${chunkCount}`)
+
+						// Fallback: If no native tool call detected, check for XML tool calls in both content and reasoning
+						if (!toolName && (fullTextSoFar || fullReasoningSoFar)) {
+							const { extractXMLToolCalls, stripXMLBlocks } = await import('../../common/helpers/extractXMLTools.js')
+							
+							const xmlToolCallsInText = extractXMLToolCalls(fullTextSoFar)
+							if (xmlToolCallsInText.length > 0) {
+								const firstCall = xmlToolCallsInText[0]
+								toolName = firstCall.toolName
+								toolParamsStr = JSON.stringify(firstCall.parameters)
+								toolId = 'xml-tool-call-text-retry-1'
+								fullTextSoFar = stripXMLBlocks(fullTextSoFar)
+							} else if (fullReasoningSoFar) {
+								const xmlToolCallsInReasoning = extractXMLToolCalls(fullReasoningSoFar)
+								if (xmlToolCallsInReasoning.length > 0) {
+									const firstCall = xmlToolCallsInReasoning[0]
+									toolName = firstCall.toolName
+									toolParamsStr = JSON.stringify(firstCall.parameters)
+									toolId = 'xml-tool-call-reasoning-retry-1'
+									fullReasoningSoFar = stripXMLBlocks(fullReasoningSoFar)
+								}
+							}
+						}
+
 						const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId)
 						const toolCallObj = toolCall ? { toolCall } : {}
 						onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning: null, ...toolCallObj })

@@ -65,7 +65,20 @@ const ImplementationPlanPreviewWrapper: React.FC<ImplementationPlanPreviewWrappe
 
 	const result = latestPlan.result
 	if (!result) {
-		return <div className="p-3 text-void-fg-3">Implementation plan preview not available</div>
+		return (
+			<div className="void-implementation-plan-result w-full rounded-xl overflow-hidden border border-void-border-2 bg-void-bg-2 shadow-sm">
+				<div className="flex items-center gap-2 px-3 py-2">
+					<div
+						className="w-3 h-3 border-2 rounded-full border-void-accent"
+						style={{
+							borderTopColor: 'transparent',
+							animation: 'spin 0.8s linear infinite'
+						}}
+					/>
+					<span className="text-void-fg-3 text-sm">Preparing implementation plan...</span>
+				</div>
+			</div>
+		)
 	}
 
 	// Extract plan information
@@ -353,7 +366,7 @@ My requested changes:`
 
 			{/* Collapsible Content */}
 			{isExpanded && (
-				<div className="border-t border-void-border-2">
+				<div className="border-t border-void-border-2 max-h-96 overflow-auto">
 					{/* Plan Content */}
 					<div className="p-3">
 						{/* Render steps if available */}

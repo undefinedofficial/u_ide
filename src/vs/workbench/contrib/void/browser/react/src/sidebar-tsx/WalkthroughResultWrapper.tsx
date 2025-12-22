@@ -60,7 +60,22 @@ const WalkthroughResultWrapper: React.FC<WalkthroughResultWrapperProps> = ({
 	const toolName = latestWalkthrough.name
 
 	if (!result || typeof result === 'string') {
-		return null
+		return (
+			<div className="void-walkthrough-result w-full rounded-xl overflow-hidden border border-void-border-2 bg-void-bg-2 shadow-sm">
+				<div className="flex items-center gap-2 px-3 py-2">
+					<div
+						className="w-3 h-3 border-2 rounded-full border-void-accent"
+						style={{
+							borderTopColor: 'transparent',
+							animation: 'spin 0.8s linear infinite'
+						}}
+					/>
+					<span className="text-void-fg-3 text-sm">
+						{toolName === 'update_walkthrough' ? 'Updating walkthrough...' : 'Preparing walkthrough...'}
+					</span>
+				</div>
+			</div>
+		)
 	}
 
 	// Handle open_walkthrough_preview tool result

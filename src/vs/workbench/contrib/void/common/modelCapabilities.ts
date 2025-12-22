@@ -858,7 +858,8 @@ const openAICompatIncludeInPayloadReasoning = (reasoningInfo: SendableReasoningI
 // https://ollama.com/blog/thinking
 // For Gemini models via Ollama Cloud, use `thinking_level` instead
 const ollamaIncludeInPayloadReasoning = (reasoningInfo: SendableReasoningInfo) => {
-	if (!reasoningInfo?.isReasoningEnabled) return null
+	if (!reasoningInfo) return null
+	if (!reasoningInfo.isReasoningEnabled) return { think: false }
 
 	// For effort slider models (like Gemini 3 Pro Preview), use thinking_level
 	if (reasoningInfo.type === 'effort_slider_value') {
@@ -1394,7 +1395,7 @@ const ollamaModelOptions = {
 		downloadable: { sizeGb: 20 },
 		supportsFIM: false,
 		supportsSystemMessage: 'system-role',
-		reasoningCapabilities: { supportsReasoning: true, canIOReasoning: false, canTurnOffReasoning: false, openSourceThinkTags: ['<think>', '</think>'] },
+		reasoningCapabilities: { supportsReasoning: true, canIOReasoning: true, canTurnOffReasoning: false, openSourceThinkTags: ['<think>', '</think>'] },
 	},
 	'deepseek-r1': {
 		contextWindow: 128_000,
@@ -1403,7 +1404,7 @@ const ollamaModelOptions = {
 		downloadable: { sizeGb: 4.7 },
 		supportsFIM: false,
 		supportsSystemMessage: 'system-role',
-		reasoningCapabilities: { supportsReasoning: true, canIOReasoning: false, canTurnOffReasoning: false, openSourceThinkTags: ['<think>', '</think>'] },
+		reasoningCapabilities: { supportsReasoning: true, canIOReasoning: true, canTurnOffReasoning: false, openSourceThinkTags: ['<think>', '</think>'] },
 	},
 	'devstral:latest': {
 		contextWindow: 131_000,
@@ -1903,6 +1904,9 @@ export type SendableReasoningInfo = {
 	type: 'effort_slider_value',
 	isReasoningEnabled: true,
 	reasoningEffort: string,
+} | {
+	type: 'disabled',
+	isReasoningEnabled: false,
 } | null
 
 
@@ -1942,9 +1946,12 @@ export const getSendableReasoningInfo = (
 	overridesOfModel: OverridesOfModel | undefined,
 ): SendableReasoningInfo => {
 
-	const { reasoningSlider: reasoningBudgetSlider } = getModelCapabilities(providerName, modelName, overridesOfModel).reasoningCapabilities || {}
+	const { reasoningSlider: reasoningBudgetSlider, supportsReasoning } = getModelCapabilities(providerName, modelName, overridesOfModel).reasoningCapabilities || {}
 	const isReasoningEnabled = getIsReasoningEnabledState(featureName, providerName, modelName, modelSelectionOptions, overridesOfModel)
-	if (!isReasoningEnabled) return null
+	if (!isReasoningEnabled) {
+		if (supportsReasoning) return { type: 'disabled', isReasoningEnabled: false }
+		return null
+	}
 
 	// check for reasoning budget
 	const reasoningBudget = reasoningBudgetSlider?.type === 'budget_slider' ? modelSelectionOptions?.reasoningBudget ?? reasoningBudgetSlider?.default : undefined

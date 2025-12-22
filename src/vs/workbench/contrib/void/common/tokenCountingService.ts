@@ -231,6 +231,7 @@ export class TokenCountingService {
 			'gemini-1.5-flash': 1000000,
 			'gemini-3-pro-preview': 1000000,
 			'gemini-3-pro': 1000000,
+			'nemotron-3-nano': 1000000,
 			// xAI Grok
 			'grok-2': 131072,
 			'grok-3': 131072,
