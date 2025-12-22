@@ -16,6 +16,7 @@ import { IMainProcessService } from '../../../../platform/ipc/common/mainProcess
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IMCPService } from '../common/mcpService.js';
+import { ChatMode } from '../common/voidSettingsTypes.js';
 
 // console.log('[Void] Loading apiServiceBridge.ts');
 
@@ -820,32 +821,35 @@ export class ApiServiceBridge extends Disposable implements IApiServiceBridge {
 
 	private async getChatMode() {
 		const state = this.settingsService.state;
-		const mode = state.globalSettings?.chatMode || 'normal';
+		const mode = state.globalSettings?.chatMode || 'chat';
 
 		// Map internal mode names to display names for API consumers
 		const modeInfo = {
-			'normal': { mode: 'normal', displayName: 'Chat', description: 'Conversation only, no tools' },
-			'gather': { mode: 'gather', displayName: 'Plan', description: 'Research, plan & document' },
-			'agent': { mode: 'agent', displayName: 'Code', description: 'Edit files & run commands' },
+			'chat': { mode: 'chat', displayName: 'Chat', description: 'Conversation only, no tools' },
+			'plan': { mode: 'plan', displayName: 'Plan', description: 'Research, plan & document' },
+			'code': { mode: 'code', displayName: 'Code', description: 'Edit files & run commands' },
+			'learn': { mode: 'learn', displayName: 'Learn', description: 'Interactive learning & practice' },
 		};
 
 		return {
-			...modeInfo[mode as keyof typeof modeInfo] || modeInfo['normal'],
+			...modeInfo[mode as keyof typeof modeInfo] || modeInfo['chat'],
 			availableModes: [
-				{ mode: 'normal', displayName: 'Chat', description: 'Conversation only, no tools' },
-				{ mode: 'gather', displayName: 'Plan', description: 'Research, plan & document' },
-				{ mode: 'agent', displayName: 'Code', description: 'Edit files & run commands' },
+				{ mode: 'chat', displayName: 'Chat', description: 'Conversation only, no tools' },
+				{ mode: 'plan', displayName: 'Plan', description: 'Research, plan & document' },
+				{ mode: 'code', displayName: 'Code', description: 'Edit files & run commands' },
+				{ mode: 'learn', displayName: 'Learn', description: 'Interactive learning & practice' },
 			],
 		};
 	}
 
-	private async setChatMode(mode: 'normal' | 'gather' | 'agent') {
+	private async setChatMode(mode: ChatMode) {
 		this.settingsService.setGlobalSetting('chatMode', mode);
 
 		const modeInfo = {
-			'normal': { displayName: 'Chat', description: 'Conversation only, no tools' },
-			'gather': { displayName: 'Plan', description: 'Research, plan & document' },
-			'agent': { displayName: 'Code', description: 'Edit files & run commands' },
+			'chat': { displayName: 'Chat', description: 'Conversation only, no tools' },
+			'plan': { displayName: 'Plan', description: 'Research, plan & document' },
+			'code': { displayName: 'Code', description: 'Edit files & run commands' },
+			'learn': { displayName: 'Learn', description: 'Interactive learning & practice' },
 		};
 
 		return {

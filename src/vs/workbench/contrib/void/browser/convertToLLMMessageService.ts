@@ -31,12 +31,14 @@ type SimpleLLMMessage = {
 	id: string;
 	name: ToolName;
 	rawParams: RawToolParamsObj;
+	thought_signature?: string;
 } | {
 	role: 'user';
 	content: string;
 } | {
 	role: 'assistant';
 	content: string;
+	reasoning?: string;
 	anthropicReasoning: AnthropicReasoning[] | null;
 }
 
@@ -112,23 +114,32 @@ const prepareMessages_openai_tools = (messages: SimpleLLMMessage[]): OpenAILLMCh
 		if (currMsg.role === 'assistant') {
 			// Check if next message is a tool - if so, we need to add tool_calls
 			const nextMsg = messages[i + 1]
+
+			// Get signature and reasoning from anthropicReasoning if available
+			const signature = currMsg.anthropicReasoning?.[0]?.type === 'thinking' ? currMsg.anthropicReasoning[0].signature : undefined
+
 			if (nextMsg?.role === 'tool') {
 				newMessages.push({
 					role: 'assistant',
-					content: currMsg.content || '',
+					content: currMsg.anthropicReasoning || currMsg.content || '',
+					reasoning: currMsg.reasoning,
+					thought_signature: signature || nextMsg.thought_signature,
 					tool_calls: [{
 						type: 'function',
 						id: nextMsg.id,
 						function: {
 							name: nextMsg.name,
-							arguments: JSON.stringify(nextMsg.rawParams)
+							arguments: JSON.stringify(nextMsg.rawParams),
+							thought_signature: nextMsg.thought_signature,
 						}
 					}]
 				})
 			} else {
 				newMessages.push({
 					role: 'assistant',
-					content: currMsg.content,
+					content: currMsg.anthropicReasoning || currMsg.content || '',
+					reasoning: currMsg.reasoning,
+					thought_signature: signature,
 				})
 			}
 			continue
@@ -196,7 +207,7 @@ const prepareMessages_anthropic_tools = (messages: SimpleLLMMessage[], supportsA
 			// make it so the assistant called the tool
 			if (prevMsg?.role === 'assistant') {
 				if (typeof prevMsg.content === 'string') prevMsg.content = [{ type: 'text', text: prevMsg.content }]
-				prevMsg.content.push({ type: 'tool_use', id: currMsg.id, name: currMsg.name, input: currMsg.rawParams })
+				prevMsg.content.push({ type: 'tool_use', id: currMsg.id, name: currMsg.name, input: currMsg.rawParams, signature: currMsg.thought_signature })
 			}
 
 			// turn each tool into a user message with tool results at the end
@@ -229,12 +240,15 @@ const prepareGeminiMessages = (messages: AnthropicLLMChatMessage[]) => {
 					if (c.type === 'text') {
 						return { text: c.text }
 					}
+					else if (c.type === 'thinking') {
+						return { text: c.thinking, thought: true }
+					}
 					else if (c.type === 'tool_use') {
 						latestToolName = c.name
-						return { functionCall: { id: c.id, name: c.name, args: c.input } }
+						return { functionCall: { id: c.id, name: c.name, args: c.input, thought_signature: c.signature } }
 					}
 					else return null
-				}).filter(m => !!m)
+				}).filter(m => !!m) as GeminiModelPart[]
 				return { role: 'model', parts, }
 			}
 		}
@@ -574,7 +588,7 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 		const activeURI = this.editorService.activeEditor?.resource?.fsPath;
 
 		const directoryStr = await this.directoryStrService.getAllDirectoriesStr({
-			cutOffMessage: chatMode === 'agent' || chatMode === 'gather' ?
+			cutOffMessage: chatMode === 'code' || chatMode === 'plan' ?
 				`...Directories string cut off, use tools to read more...`
 				: `...Directories string cut off, ask user for more if necessary...`
 		})
@@ -584,7 +598,7 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 		const persistentTerminalIDs = this.terminalToolService.listPersistentTerminalIds()
 
 		// Get student level for student mode
-		const studentLevel = chatMode === 'student' ? this.voidSettingsService.state.globalSettings.studentLevel : undefined
+		const studentLevel = chatMode === 'learn' ? this.voidSettingsService.state.globalSettings.studentLevel : undefined
 
 		// Get morph settings
 		let enableMorphFastContext = this.voidSettingsService.state.globalSettings.enableMorphFastContext
@@ -614,6 +628,7 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 				simpleLLMMessages.push({
 					role: m.role,
 					content: m.displayContent,
+					reasoning: m.reasoning,
 					anthropicReasoning: m.anthropicReasoning,
 				})
 			}
@@ -624,6 +639,7 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 					name: m.name,
 					id: m.id,
 					rawParams: m.rawParams,
+					thought_signature: m.thought_signature,
 				})
 			}
 			else if (m.role === 'user') {
@@ -665,7 +681,7 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 			aiInstructions,
 			supportsSystemMessage,
 			specialToolFormat: ensuredSpecialToolFormat,
-			supportsAnthropicReasoning: providerName === 'anthropic',
+			supportsAnthropicReasoning: providerName === 'anthropic' || providerName === 'gemini' || ensuredSpecialToolFormat === 'gemini-style',
 			contextWindow,
 			reservedOutputTokenSpace,
 			providerName,
@@ -707,7 +723,7 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 			aiInstructions,
 			supportsSystemMessage,
 			specialToolFormat: ensuredSpecialToolFormat,
-			supportsAnthropicReasoning: providerName === 'anthropic',
+			supportsAnthropicReasoning: providerName === 'anthropic' || providerName === 'gemini' || ensuredSpecialToolFormat === 'gemini-style',
 			contextWindow,
 			reservedOutputTokenSpace,
 			providerName,

@@ -1290,7 +1290,7 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 																<div>
 																	<label className="text-xs font-medium text-void-fg-3 uppercase tracking-wide mb-2 block">Default Mode</label>
 																	<VoidCustomDropdownBox
-																		options={['normal', 'gather', 'agent', 'student']}
+																		options={['chat', 'plan', 'code', 'learn']}
 																		selectedOption={settingsState.globalSettings.chatMode}
 																		onChangeOption={(newVal) => voidSettingsService.setGlobalSetting('chatMode', newVal as any)}
 																		getOptionDisplayName={(val) => val.charAt(0).toUpperCase() + val.slice(1)}
@@ -1301,7 +1301,7 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 																	/>
 																</div>
 
-																{settingsState.globalSettings.chatMode === 'student' && (
+																{settingsState.globalSettings.chatMode === 'learn' && (
 																	<div>
 																		<label className="text-xs font-medium text-void-fg-3 uppercase tracking-wide mb-2 block">Student Level</label>
 																		<VoidCustomDropdownBox

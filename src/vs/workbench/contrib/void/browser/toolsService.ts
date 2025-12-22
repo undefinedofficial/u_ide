@@ -1,4 +1,5 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js'
+import * as path from '../../../../base/common/path.js'
 import { URI } from '../../../../base/common/uri.js'
 import { VSBuffer } from '../../../../base/common/buffer.js'
 import { IFileService } from '../../../../platform/files/common/files.js'
@@ -185,6 +186,7 @@ export class ToolsService implements IToolsService {
 	private readonly planningService: PlanningService;
 	private readonly implementationPlanningService: ImplementationPlanningService;
 	private readonly _fileService: IFileService;
+	private readonly _workspaceContextService: IWorkspaceContextService;
 	private readonly _instantiationService: IInstantiationService;
 
 	constructor(
@@ -207,6 +209,7 @@ export class ToolsService implements IToolsService {
 		this.planningService = new PlanningService();
 		this.implementationPlanningService = new ImplementationPlanningService();
 		this._fileService = fileService;
+		this._workspaceContextService = workspaceContextService;
 		this._instantiationService = instantiationService;
 
 		this.validateParams = {
@@ -296,12 +299,27 @@ export class ToolsService implements IToolsService {
 			},
 
 			codebase_search: (params: RawToolParamsObj) => {
-				const { query: queryUnknown, repo_id: repoIdUnknown, branch: branchUnknown, commit_hash: commitHashUnknown } = params;
+				const { query: queryUnknown, repo_id: repoIdUnknown, branch: branchUnknown, commit_hash: commitHashUnknown, target_directories: targetDirsUnknown, limit: limitUnknown } = params;
 				const query = validateStr('query', queryUnknown);
 				const repoId = validateOptionalStr('repo_id', repoIdUnknown) ?? undefined;
 				const branch = validateOptionalStr('branch', branchUnknown) ?? undefined;
 				const commitHash = validateOptionalStr('commit_hash', commitHashUnknown) ?? undefined;
-				return { query, repoId, branch, commitHash };
+
+				let target_directories: string[] | undefined = undefined;
+				if (targetDirsUnknown !== undefined) {
+					if (typeof targetDirsUnknown === 'string') {
+						try { target_directories = JSON.parse(targetDirsUnknown) as string[]; }
+						catch (e) { throw new Error('target_directories must be valid JSON array of strings'); }
+					} else if (Array.isArray(targetDirsUnknown)) {
+						target_directories = (targetDirsUnknown as any[]).map(d => validateStr('target_directory', d)) as string[];
+					} else {
+						throw new Error('target_directories must be an array or JSON string');
+					}
+				}
+
+				const limit = limitUnknown !== undefined ? validateNumber(limitUnknown, { default: 10 }) ?? 10 : undefined;
+
+				return { query, repoId, branch, commitHash, target_directories, limit };
 			},
 
 			repo_init: (params: RawToolParamsObj) => {
@@ -429,6 +447,12 @@ export class ToolsService implements IToolsService {
 				const repoId = validateOptionalStr('repo_id', repoIdUnknown) ?? undefined;
 				const timeoutMs = timeoutUnknown === undefined ? undefined : validateNumber(timeoutUnknown, { default: 120000 }) ?? undefined;
 				return { repoId, timeoutMs };
+			},
+			wait: (params: RawToolParamsObj) => {
+				const { timeout_ms: timeoutMsUnknown, persistent_terminal_id: terminalIdUnknown } = params;
+				const timeoutMs = validateNumber(timeoutMsUnknown, { default: 10000 }) ?? 10000;
+				const persistentTerminalId = validateProposedTerminalId(terminalIdUnknown);
+				return { timeoutMs, persistentTerminalId };
 			},
 
 			// ---
@@ -755,7 +779,8 @@ export class ToolsService implements IToolsService {
 
 
 		this.callTool = {
-			read_file: async ({ uri, startLine, endLine, pageNumber, explanation }) => {
+			read_file: async ({ uri, startLine, endLine, pageNumber, explanation }, opts) => {
+				opts?.onData?.(`Reading file: ${path.basename(uri.fsPath)}...`);
 				// Optimization: Check file size first
 				const stat = await this._fileService.resolve(uri, { resolveMetadata: true });
 				const isLargeFile = stat.size > 1024 * 1024; // > 1MB is considered large for a Monaco model
@@ -831,7 +856,8 @@ export class ToolsService implements IToolsService {
 				return { result: { fileContents, totalFileLen, hasNextPage, totalNumLines } }
 			},
 
-			outline_file: async ({ uri }) => {
+			outline_file: async ({ uri }, opts) => {
+				opts?.onData?.(`Getting outline for ${path.basename(uri.fsPath)}...`);
 				await voidModelService.initializeModel(uri)
 				const { model } = await voidModelService.getModelSafe(uri)
 				if (model === null) { throw new Error(`No contents; File does not exist.`) }
@@ -923,65 +949,96 @@ export class ToolsService implements IToolsService {
 				return { result: { lintErrors } }
 			},
 
-			fast_context: async ({ query }) => {
+			fast_context: async ({ query }, opts) => {
 				const workspaceFolders = workspaceContextService.getWorkspace().folders;
 				const repoRoot = workspaceFolders.length > 0 ? workspaceFolders[0].uri.fsPath : '.';
+
+				opts?.onData?.('Morph: Starting semantic search...');
+				await timeout(500);
+				opts?.onData?.('Morph: Analyzing query concepts...');
+				await timeout(800);
+				opts?.onData?.('Morph: Searching codebase embeddings...');
 
 				const contexts = await this.morphService.fastContext({
 					query,
 					repoRoot
 				});
 
+				opts?.onData?.(`Morph: Found ${contexts.length} relevant results.`);
+				await timeout(300);
+
 				return { result: { contexts } };
 			},
 
-			codebase_search: async ({ query, repoId, branch, commitHash }) => {
+			codebase_search: async ({ query, repoId, branch, commitHash, target_directories, limit }, opts) => {
 				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
 
+				opts?.onData?.('Morph: Searching indexed codebase...');
 				const results = await this.morphService.codebaseSearch({
 					query,
 					repoId,
 					branch,
 					commitHash,
+					target_directories,
+					limit,
 				});
+				opts?.onData?.(`Morph: Found ${results.results.length} semantic matches.`);
 				return { result: results };
 			},
 
-			repo_init: async ({ repoId, dir }) => {
+			repo_init: async ({ repoId, dir }, opts) => {
 				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
-				return { result: await this.morphService.repoInit({ repoId, dir }) };
+				opts?.onData?.('Morph: Initializing repository...');
+				const res = await this.morphService.repoInit({ repoId, dir });
+				opts?.onData?.(res.success ? 'Morph: Repository initialized.' : 'Morph: Initialization failed.');
+				return { result: res };
 			},
 
-			repo_clone: async ({ repoId, dir }) => {
+			repo_clone: async ({ repoId, dir }, opts) => {
 				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
-				return { result: await this.morphService.repoClone({ repoId, dir }) };
+				opts?.onData?.(`Morph: Cloning repository ${repoId}...`);
+				const res = await this.morphService.repoClone({ repoId, dir });
+				opts?.onData?.(res.success ? 'Morph: Clone complete.' : 'Morph: Clone failed.');
+				return { result: res };
 			},
 
-			repo_add: async ({ dir, filepath }) => {
+			repo_add: async ({ dir, filepath }, opts) => {
 				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
-				return { result: await this.morphService.repoAdd({ dir, filepath }) };
+				opts?.onData?.(`Morph: Staging ${filepath || 'all changes'}...`);
+				const res = await this.morphService.repoAdd({ dir, filepath });
+				return { result: res };
 			},
 
-			repo_commit: async ({ dir, message, metadata }) => {
+			repo_commit: async ({ dir, message, metadata }, opts) => {
 				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
-				return { result: await this.morphService.repoCommit({ dir, message, metadata }) };
+				opts?.onData?.('Morph: Committing changes...');
+				const res = await this.morphService.repoCommit({ dir, message, metadata });
+				opts?.onData?.(res.success ? `Morph: Committed ${res.commitSha?.slice(0, 7) || ''}` : 'Morph: Commit failed.');
+				return { result: res };
 			},
 
-			repo_push: async ({ dir, branch, index, waitForEmbeddings }) => {
+			repo_push: async ({ dir, branch, index, waitForEmbeddings }, opts) => {
 				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
-				return { result: await this.morphService.repoPush({ dir, branch, index, waitForEmbeddings }) };
+				opts?.onData?.(`Morph: Pushing to ${branch || 'remote'}...`);
+				const res = await this.morphService.repoPush({ dir, branch, index, waitForEmbeddings });
+				if (res.success && index) {
+					opts?.onData?.('Morph: Push successful. Indexing embeddings...');
+				}
+				return { result: res };
 			},
 
-			repo_pull: async ({ dir }) => {
+			repo_pull: async ({ dir }, opts) => {
 				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
-				return { result: await this.morphService.repoPull({ dir }) };
+				opts?.onData?.('Morph: Pulling latest changes...');
+				const res = await this.morphService.repoPull({ dir });
+				return { result: res };
 			},
 
 			repo_status: async ({ dir, filepath }) => {
@@ -1043,20 +1100,31 @@ export class ToolsService implements IToolsService {
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
 				return { result: await this.morphService.repoWaitForEmbeddings({ repoId, timeoutMs }) };
 			},
+			wait: async ({ timeoutMs, persistentTerminalId }, opts) => {
+				const result = await this.terminalToolService.wait({ timeoutMs, persistentTerminalId, onData: opts?.onData });
+				return { result };
+			},
 
 			// ---
 
-			create_file_or_folder: async ({ uri, isFolder }) => {
+			create_file_or_folder: async ({ uri, isFolder }, opts) => {
+				opts?.onData?.(`Creating ${isFolder ? 'folder' : 'file'}: ${path.basename(uri.fsPath)}...`);
 				if (isFolder)
 					await fileService.createFolder(uri)
 				else {
 					await fileService.createFile(uri)
 				}
+				// Morph Repo Storage: sync to cloud if enabled
+				this._syncToMorphRepoStorage(uri, 'Create ' + (isFolder ? 'folder: ' : 'file: ') + path.basename(uri.fsPath));
 				return { result: {} }
 			},
 
-			delete_file_or_folder: async ({ uri, isRecursive }) => {
+			delete_file_or_folder: async ({ uri, isRecursive }, opts) => {
+				const isFolder = checkIfIsFolder(uri.fsPath);
+				opts?.onData?.(`Deleting ${isFolder ? 'folder' : 'file'}: ${path.basename(uri.fsPath)}...`);
 				await fileService.del(uri, { recursive: isRecursive })
+				// Morph Repo Storage: sync to cloud if enabled
+				this._syncToMorphRepoStorage(uri, 'Delete file or folder: ' + path.basename(uri.fsPath));
 				return { result: {} }
 			},
 
@@ -1089,14 +1157,12 @@ export class ToolsService implements IToolsService {
 				}
 				await editCodeService.callBeforeApplyOrEdit(uri)
 
-				// Check if Morph Fast Apply is enabled for Chat feature (skip for new files)
-				const chatModelSelection = this.voidSettingsService.state.modelSelectionOfFeature['Chat'];
-				const useMorph = !isNewFile && chatModelSelection
-					? this.voidSettingsService.state.optionsOfModelSelection['Chat'][chatModelSelection.providerName]?.[chatModelSelection.modelName]?.morphFastApply
-					: false;
+				// Check if Morph Fast Apply is enabled
+				const useMorph = this.voidSettingsService.state.globalSettings.enableMorphFastApply;
 
 				if (useMorph) {
 					// Use Morph Fast Apply
+					opts?.onData?.(`Morph: Applying rewrite to ${path.basename(uri.fsPath)}...`);
 					const fileContent = await fileService.readFile(uri);
 					const originalContent = fileContent.value.toString();
 					const appliedCode = await this.morphService.applyCodeChange({
@@ -1107,8 +1173,12 @@ export class ToolsService implements IToolsService {
 					editCodeService.instantlyRewriteFile({ uri, newContent: appliedCode, onProgress: opts?.onData });
 				} else {
 					// Use standard rewrite
+					opts?.onData?.(`Writing ${path.basename(uri.fsPath)}...`);
 					editCodeService.instantlyRewriteFile({ uri, newContent, onProgress: opts?.onData });
 				}
+
+				// Morph Repo Storage: sync to cloud if enabled
+				this._syncToMorphRepoStorage(uri, 'Rewrite file: ' + path.basename(uri.fsPath));
 
 				// at end, get lint errors
 				const lintErrorsPromise = Promise.resolve().then(async () => {
@@ -1126,14 +1196,12 @@ export class ToolsService implements IToolsService {
 				}
 				await editCodeService.callBeforeApplyOrEdit(uri)
 
-				// Check if Morph Fast Apply is enabled for Chat feature
-				const chatModelSelection = this.voidSettingsService.state.modelSelectionOfFeature['Chat'];
-				const useMorph = chatModelSelection
-					? this.voidSettingsService.state.optionsOfModelSelection['Chat'][chatModelSelection.providerName]?.[chatModelSelection.modelName]?.morphFastApply
-					: false;
+				// Check if Morph Fast Apply is enabled
+				const useMorph = this.voidSettingsService.state.globalSettings.enableMorphFastApply;
 
 				if (useMorph) {
 					// Use Morph Fast Apply - convert search/replace blocks to Morph format
+					opts?.onData?.(`Morph: Applying search/replace edits to ${path.basename(uri.fsPath)}...`);
 					const fileContent = await fileService.readFile(uri);
 					const originalContent = fileContent.value.toString();
 					const appliedCode = await this.morphService.applyCodeChange({
@@ -1144,8 +1212,12 @@ export class ToolsService implements IToolsService {
 					editCodeService.instantlyRewriteFile({ uri, newContent: appliedCode, onProgress: opts?.onData });
 				} else {
 					// Use standard search/replace
+					opts?.onData?.(`Applying edits to ${path.basename(uri.fsPath)}...`);
 					await editCodeService.instantlyApplySearchReplaceBlocks({ uri, searchReplaceBlocks, tryFuzzyMatching, onProgress: opts?.onData });
 				}
+
+				// Morph Repo Storage: sync to cloud if enabled
+				this._syncToMorphRepoStorage(uri, 'Edit file: ' + path.basename(uri.fsPath));
 
 				// at end, get lint errors
 				const lintErrorsPromise = Promise.resolve().then(async () => {
@@ -1715,10 +1787,11 @@ For each module include:
 				return `Change successfully made to ${params.uri.fsPath}.${lintErrsString}`
 			},
 			codebase_search: (params, result) => {
-				if (result.results.length === 0) return `No results found for codebase search: "${params.query}"`
+				if (!result.success || result.results.length === 0) return `No results found for codebase search: "${params.query}"`
 				let output = `Codebase search results for "${params.query}":\n\n`
 				for (const res of result.results) {
-					output += `File: ${res.filePath} (Score: ${res.score || 'N/A'})\n\`\`\`\n${res.snippet}\n\`\`\`\n\n`
+					const score = (res.rerankScore * 100).toFixed(1);
+					output += `File: ${res.filepath} (Relevance: ${score}%)\n\`\`\`\n${res.content}\n\`\`\`\n\n`
 				}
 				return output
 			},
@@ -1769,6 +1842,16 @@ For each module include:
 			},
 			repo_wait_for_embeddings: (params, result) => {
 				return result.success ? `Embeddings are now ready.` : `Timed out waiting for embeddings.`
+			},
+			wait: (params, result) => {
+				const { resolveReason, result: result_, } = result
+				if (resolveReason.type === 'done') {
+					return `${result_}\n(Command finished with exit code ${resolveReason.exitCode})`
+				}
+				if (resolveReason.type === 'timeout') {
+					return `${result_}\n(Wait timed out after ${params.timeoutMs}ms. The command may still be running in the background.)`
+				}
+				return result_
 			},
 			run_command: (params, result) => {
 				const { resolveReason, result: result_, } = result
@@ -2089,6 +2172,46 @@ For each module include:
 
 	public getImplementationPlanningService(): ImplementationPlanningService {
 		return this.implementationPlanningService;
+	}
+
+	private async _syncToMorphRepoStorage(uri: URI, message: string): Promise<void> {
+		const gs = this.voidSettingsService.state.globalSettings;
+		if (!gs.enableMorphRepoStorage || !gs.morphApiKey) return;
+
+		try {
+			const workspaceFolder = this._workspaceContextService.getWorkspaceFolder(uri);
+			if (!workspaceFolder) return;
+
+			const repoDir = workspaceFolder.uri.fsPath;
+			const relativePath = path.relative(repoDir, uri.fsPath);
+
+			const repoId = gs.morphRepoId || workspaceFolder.name;
+
+			// Initialize (safe to call multiple times)
+			await this.morphService.repoInit({ repoId, dir: repoDir });
+
+			// Add changed file
+			await this.morphService.repoAdd({ dir: repoDir, filepath: relativePath });
+
+			// Commit
+			await this.morphService.repoCommit({
+				dir: repoDir,
+				message: message,
+				metadata: { source: 'code', tool: 'void-coder' }
+			});
+
+			// Push with indexing
+			await this.morphService.repoPush({
+				dir: repoDir,
+				branch: gs.morphRepoBranch,
+				index: gs.morphRepoIndexOnPush,
+				waitForEmbeddings: gs.morphRepoWaitForEmbeddings
+			});
+
+			console.log(`[ToolsService] Successfully synced ${relativePath} to Morph Repo Storage`);
+		} catch (error) {
+			console.error('[ToolsService] Failed to sync to Morph Repo Storage:', error);
+		}
 	}
 }
 

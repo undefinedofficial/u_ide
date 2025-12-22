@@ -837,6 +837,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			case 'get_dir_tree': return `Analyzing project structure...`;
 			case 'search_pathnames_only': return `Locating files matching: "${params.query}"`;
 			case 'create_plan': return `Architecting implementation plan...`;
+			case 'fast_context': return `Morph: Searching for "${params.query}"...`;
 			default: return `Executing ${toolName}...`;
 		}
 	}
@@ -847,7 +848,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		toolName: ToolName,
 		toolId: string,
 		mcpServerName: string | undefined,
-		opts: { preapproved: true, unvalidatedToolParams: RawToolParamsObj, validatedParams: ToolCallParams<ToolName> } | { preapproved: false, unvalidatedToolParams: RawToolParamsObj },
+		opts: { preapproved: true, unvalidatedToolParams: RawToolParamsObj, validatedParams: ToolCallParams<ToolName>, thought_signature?: string } | { preapproved: false, unvalidatedToolParams: RawToolParamsObj, thought_signature?: string },
 	): Promise<{ awaitingUserApproval?: boolean, interrupted?: boolean }> => {
 
 		// ... internal vars ...
@@ -869,7 +870,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			}
 			catch (error) {
 				const errorMessage = getErrorMessage(error)
-				this._addMessageToThread(threadId, { role: 'tool', type: 'invalid_params', rawParams: opts.unvalidatedToolParams, result: null, name: toolName, content: errorMessage, id: toolId, mcpServerName })
+				this._addMessageToThread(threadId, { role: 'tool', type: 'invalid_params', rawParams: opts.unvalidatedToolParams, result: null, name: toolName, content: errorMessage, id: toolId, mcpServerName, thought_signature: opts.thought_signature })
 				return {}
 			}
 
@@ -888,7 +889,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			const approvalType = isBuiltInTool ? approvalTypeOfBuiltinToolName[toolName] : 'MCP tools'
 			if (approvalType) {
 				const autoApprove = this._settingsService.state.globalSettings.autoApprove[approvalType]
-				this._addMessageToThread(threadId, { role: 'tool', type: 'tool_request', content: '(Awaiting user permission...)', result: null, name: toolName, params: toolParams, id: toolId, rawParams: opts.unvalidatedToolParams, mcpServerName })
+				this._addMessageToThread(threadId, { role: 'tool', type: 'tool_request', content: '(Awaiting user permission...)', result: null, name: toolName, params: toolParams, id: toolId, rawParams: opts.unvalidatedToolParams, mcpServerName, thought_signature: opts.thought_signature })
 				if (!autoApprove) {
 					return { awaitingUserApproval: true }
 				}
@@ -900,7 +901,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 		// Use predictive progress message
 		const progressMessage = this.getPredictiveProgressMessage(toolName, toolParams);
-		const runningTool = { role: 'tool', type: 'running_now', name: toolName, params: toolParams, content: progressMessage, result: null, id: toolId, rawParams: opts.unvalidatedToolParams, mcpServerName } as const
+		const runningTool = { role: 'tool', type: 'running_now', name: toolName, params: toolParams, content: progressMessage, result: null, id: toolId, rawParams: opts.unvalidatedToolParams, mcpServerName, thought_signature: opts.thought_signature } as const
 		this._updateLatestTool(threadId, runningTool)
 
 		let interrupted = false
@@ -955,7 +956,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			if (interrupted) { return { interrupted: true } } // the tool result is added where we interrupt, not here
 
 			const errorMessage = getErrorMessage(error)
-			this._updateLatestTool(threadId, { role: 'tool', type: 'tool_error', params: toolParams, result: errorMessage, name: toolName, content: errorMessage, id: toolId, rawParams: opts.unvalidatedToolParams, mcpServerName })
+			this._updateLatestTool(threadId, { role: 'tool', type: 'tool_error', params: toolParams, result: errorMessage, name: toolName, content: errorMessage, id: toolId, rawParams: opts.unvalidatedToolParams, mcpServerName, thought_signature: opts.thought_signature })
 			return {}
 		}
 
@@ -978,7 +979,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		} catch (error) {
 			const errorMessage = this.toolErrMsgs.errWhenStringifying(error)
 			const fullErrorStr = `${errorMessage}\n\nNOTE: If you've tried this before, consider a different approach.`;
-			this._updateLatestTool(threadId, { role: 'tool', type: 'tool_error', params: toolParams, result: errorMessage, name: toolName, content: fullErrorStr, id: toolId, rawParams: opts.unvalidatedToolParams, mcpServerName })
+			this._updateLatestTool(threadId, { role: 'tool', type: 'tool_error', params: toolParams, result: errorMessage, name: toolName, content: fullErrorStr, id: toolId, rawParams: opts.unvalidatedToolParams, mcpServerName, thought_signature: opts.thought_signature })
 
 			// Update history
 			if (!this.toolCallHistory[threadId]) this.toolCallHistory[threadId] = [];
@@ -991,7 +992,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		}
 
 		// 5. add to history and keep going
-		this._updateLatestTool(threadId, { role: 'tool', type: 'success', params: toolParams, result: toolResult, name: toolName, content: toolResultStr, id: toolId, rawParams: opts.unvalidatedToolParams, mcpServerName })
+		this._updateLatestTool(threadId, { role: 'tool', type: 'success', params: toolParams, result: toolResult, name: toolName, content: toolResultStr, id: toolId, rawParams: opts.unvalidatedToolParams, mcpServerName, thought_signature: opts.thought_signature })
 
 		// Update history
 		if (!this.toolCallHistory[threadId]) this.toolCallHistory[threadId] = [];
@@ -1034,7 +1035,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 		// before enter loop, call tool
 		if (callThisToolFirst) {
-			const { interrupted } = await this._runToolCall(threadId, callThisToolFirst.name, callThisToolFirst.id, callThisToolFirst.mcpServerName, { preapproved: true, unvalidatedToolParams: callThisToolFirst.rawParams, validatedParams: callThisToolFirst.params })
+			const { interrupted } = await this._runToolCall(threadId, callThisToolFirst.name, callThisToolFirst.id, callThisToolFirst.mcpServerName, { preapproved: true, unvalidatedToolParams: callThisToolFirst.rawParams, validatedParams: callThisToolFirst.params, thought_signature: callThisToolFirst.thought_signature })
 			if (interrupted) {
 				this._setStreamState(threadId, undefined)
 				this._addUserCheckpoint({ threadId })
@@ -1061,7 +1062,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 			// Safety check: prevent infinite loops in agent mode
 			const maxAgentIterations = this._settingsService.state.globalSettings.maxAgentIterations || 50
-			if (chatMode === 'agent' && nMessagesSent > maxAgentIterations) {
+			if (chatMode === 'code' && nMessagesSent > maxAgentIterations) {
 				console.warn(`[chatThreadService] Agent mode exceeded maximum iterations (${maxAgentIterations}), stopping loop`)
 				this._setStreamState(threadId, {
 					isRunning: undefined,
@@ -1310,7 +1311,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 					else {
 						console.error(`[chatThreadService] LLM returned empty response after ${CHAT_RETRIES} attempts, giving up`)
 						
-						if (chatMode === 'agent') {
+						if (chatMode === 'code') {
 							// In agent mode, instead of just breaking, try adding a "poke" message to break the cycle
 							// Only do this once to avoid infinite poking
 							const messages = this.state.allThreads[threadId]?.messages || []
@@ -1358,7 +1359,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 					const mcpTool = mcpTools?.find(t => t.name === toolCall.name)
 					console.log(`[chatThreadService] Found MCP tool:`, mcpTool ? `${mcpTool.name} on server ${mcpTool.mcpServerName}` : 'NOT FOUND')
 
-					const { awaitingUserApproval, interrupted } = await this._runToolCall(threadId, toolCall.name, toolCall.id, mcpTool?.mcpServerName, { preapproved: false, unvalidatedToolParams: toolCall.rawParams })
+					const { awaitingUserApproval, interrupted } = await this._runToolCall(threadId, toolCall.name, toolCall.id, mcpTool?.mcpServerName, { preapproved: false, unvalidatedToolParams: toolCall.rawParams, thought_signature: toolCall.thought_signature })
 					if (interrupted) {
 						this._setStreamState(threadId, undefined)
 						return
@@ -1374,7 +1375,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 				// Following Claude Code / Continue pattern: If no tool call, task is complete.
 				// The LLM knows when it needs to use tools - if it responds with just text, it's done.
 				else if (!isEmptyResponse && textContent.length > 0 && textContent !== '(empty message)') {
-					if (chatMode === 'agent') {
+					if (chatMode === 'code') {
 						// No tool call = task complete. This is how Claude Code, Continue, and other agents work.
 						// The LLM will call tools when it needs to take action. Text-only means it's finished.
 						console.log(`[chatThreadService] Agent mode: Text-only response (no tool call) - task complete`)

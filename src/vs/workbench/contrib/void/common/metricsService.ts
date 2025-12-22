@@ -31,7 +31,7 @@ export interface LLMGenerationEvent {
 	messageCount?: number;        // Number of messages in conversation
 	hasTools?: boolean;           // Whether tools were provided
 	toolCount?: number;           // Number of tools available
-	chatMode?: string;            // 'normal', 'agent', 'gather', etc.
+	chatMode?: string;            // 'chat', 'code', 'plan', etc.
 
 	// Response details
 	hasToolCall?: boolean;        // Whether response included a tool call

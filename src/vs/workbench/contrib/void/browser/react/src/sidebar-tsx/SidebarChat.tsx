@@ -517,58 +517,18 @@ const ReasoningOptionSlider = ({ featureName }: { featureName: FeatureName }) =>
 }
 
 
-const MorphOptions = ({ featureName }: { featureName: FeatureName }) => {
-	const accessor = useAccessor()
-	const voidSettingsService = accessor.get('IVoidSettingsService')
-	const voidSettingsState = useSettingsState()
-
-	const modelSelection = voidSettingsState.modelSelectionOfFeature[featureName]
-	if (!modelSelection) return null
-
-	const { modelName, providerName } = modelSelection
-	const modelSelectionOptions = voidSettingsState.optionsOfModelSelection[featureName][providerName]?.[modelName]
-
-	const enableMorphFastApply = voidSettingsState.globalSettings.enableMorphFastApply
-
-	if (!enableMorphFastApply) return null
-
-	return (
-		<div className='flex items-center gap-x-2 px-2 py-1 rounded -mx-2 -my-1'>
-			<div
-				className='flex items-center gap-x-1 cursor-pointer group hover:bg-void-bg-3 px-1.5 py-0.5 rounded transition-colors duration-200'
-				onClick={(e) => {
-					e.stopPropagation()
-					voidSettingsService.setOptionsOfModelSelection(featureName, providerName, modelName, {
-						morphFastApply: !modelSelectionOptions?.morphFastApply
-					})
-				}}
-			>
-				<span className='text-void-fg-3 text-[10px] select-none uppercase tracking-tight'>Fast Apply</span>
-				<VoidSwitch
-					size='xxs'
-					value={!!modelSelectionOptions?.morphFastApply}
-					onChange={(newVal) => {
-						voidSettingsService.setOptionsOfModelSelection(featureName, providerName, modelName, { morphFastApply: newVal })
-					}}
-				/>
-			</div>
-		</div>
-	)
-}
-
-
 const nameOfChatMode: Record<ChatMode, string> = {
-	'normal': 'Chat',
-	'gather': 'Plan',
-	'agent': 'Code',
-	'student': 'Learn',
+	'chat': 'Chat',
+	'plan': 'Plan',
+	'code': 'Code',
+	'learn': 'Learn',
 }
 
 const detailOfChatMode: Record<ChatMode, string> = {
-	'normal': 'Conversation only, no tools',
-	'gather': 'Research, plan & document',
-	'agent': 'Edit files & run commands',
-	'student': '📚 Learn to code with a tutor',
+	'chat': 'Conversation only, no tools',
+	'plan': 'Research, plan & document',
+	'code': 'Edit files & run commands',
+	'learn': '📚 Learn to code with a tutor',
 }
 
 const nameOfStudentLevel = {
@@ -661,11 +621,11 @@ const ChatModeDropdown = ({ className }: { className: string }) => {
 
 	const [showStudentOnboarding, setShowStudentOnboarding] = useState(false)
 
-	const options: ChatMode[] = useMemo(() => ['normal', 'gather', 'agent', 'student'], [])
+	const options: ChatMode[] = useMemo(() => ['chat', 'plan', 'code', 'learn'], [])
 
 	const onChangeOption = useCallback((newVal: ChatMode) => {
 		// Show onboarding when switching to student mode for the first time
-		if (newVal === 'student' && settingsState.globalSettings.chatMode !== 'student') {
+		if (newVal === 'learn' && settingsState.globalSettings.chatMode !== 'learn') {
 			setShowStudentOnboarding(true)
 		}
 		voidSettingsService.setGlobalSetting('chatMode', newVal)
@@ -801,7 +761,6 @@ export const VoidChatArea: React.FC<VoidChatAreaProps> = ({
 				{showModelDropdown && (
 					<div className='flex flex-col gap-y-1'>
 						<ReasoningOptionSlider featureName={featureName} />
-						<MorphOptions featureName={featureName} />
 
 						<div className='flex items-center flex-wrap gap-x-2 gap-y-1 text-nowrap'>
 							{featureName === 'Chat' && (
@@ -1466,6 +1425,7 @@ const ToolHeaderWrapper = ({
 
 const EditTool = ({ toolMessage, threadId, messageIdx, content }: Parameters<ResultWrapper<'edit_file' | 'rewrite_file'>>[0] & { content: string }) => {
 	const accessor = useAccessor()
+	const streamState = useChatThreadsStreamState(threadId)
 	const isError = false
 	const isRejected = toolMessage.type === 'rejected'
 
@@ -1531,7 +1491,18 @@ const EditTool = ({ toolMessage, threadId, messageIdx, content }: Parameters<Res
 			);
 		}
 
+		// Show activity if available
+		const activity = toolMessage.type === 'running_now' && streamState?.isRunning === 'tool' && streamState.toolInfo.id === toolMessage.id
+			? streamState.toolInfo.content
+			: undefined;
+
 		componentParams.children = <ToolChildrenWrapper>
+			{activity && (
+				<div className="flex items-center gap-2 py-2 mb-2 border-b border-void-border-2/30">
+					<Loader2 className="w-3 h-3 animate-spin text-void-accent" />
+					<span className="text-xs italic text-void-fg-3">{activity}</span>
+				</div>
+			)}
 			<EditToolChildren
 				uri={params.uri}
 				code={content}
@@ -2071,7 +2042,67 @@ const titleOfBuiltinToolName = {
 	'search_in_file': { done: 'Search in file', proposed: 'Search in file', running: 'Searching file' },
 	'read_lint_errors': { done: 'Read lint errors', proposed: 'Read lint errors', running: 'Reading lint errors' },
 	'fast_context': { done: 'Fast context', proposed: 'Fast context', running: 'Gathering fast context' },
-	'codebase_search': { done: 'Semantic search', proposed: 'Semantic search', running: 'Searching codebase' },
+		'codebase_search': {
+			resultWrapper: ({ toolMessage, threadId }) => {
+				const accessor = useAccessor()
+				const streamState = useChatThreadsStreamState(threadId)
+	
+				const title = getTitle(toolMessage)
+				const { desc1, desc1Info } = toolNameToDesc(toolMessage.name as BuiltinToolName, toolMessage.params, accessor)
+	
+				const isRejected = toolMessage.type === 'rejected'
+				const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError: false, icon: null, isRejected }
+	
+				if (toolMessage.type === 'running_now') {
+					const activity = streamState?.isRunning === 'tool' && streamState.toolInfo.id === toolMessage.id
+						? streamState.toolInfo.content
+						: 'Searching codebase...';
+	
+					componentParams.children = (
+						<ToolChildrenWrapper>
+							<div className="flex items-center gap-2 py-1">
+								<Loader2 className="w-3 h-3 animate-spin text-void-accent" />
+								<span className="text-xs italic text-void-fg-3">{activity}</span>
+							</div>
+						</ToolChildrenWrapper>
+					)
+					componentParams.isOpen = true;
+				}
+				else if (toolMessage.type === 'success') {
+					const { result } = toolMessage
+					const results = result?.results ?? []
+					componentParams.numResults = results.length
+					componentParams.children = (
+						<ToolChildrenWrapper>
+							<div className='flex flex-col gap-2'>
+								{results.length === 0 && (
+									<SmallProseWrapper>No results found for this query.</SmallProseWrapper>
+								)}
+								{results.map((res, i) => (
+									<div key={i} className='rounded border border-void-border-2 bg-void-bg-2/60 px-3 py-2 space-y-1'>
+										<div className='flex items-center justify-between gap-2 text-sm text-void-fg-2'>
+											<span className='font-medium truncate'>{res.filepath}</span>
+											<span className='text-[10px] font-bold text-void-accent bg-void-accent/10 px-1.5 py-0.5 rounded'>
+												{(res.rerankScore * 100).toFixed(1)}% match
+											</span>
+										</div>
+										<CodeChildren>
+											<pre className='font-mono whitespace-pre-wrap'>{res.content}</pre>
+										</CodeChildren>
+									</div>
+								))}
+							</div>
+						</ToolChildrenWrapper>
+					)
+				} else if (toolMessage.type === 'tool_error') {
+					componentParams.bottomChildren = <BottomChildren title='Error'>
+						<CodeChildren>{toolMessage.result}</CodeChildren>
+					</BottomChildren>
+				}
+	
+				return <ToolHeaderWrapper {...componentParams} />
+			},
+		},
 	'repo_init': { done: 'Repo initialized', proposed: 'Init repo', running: 'Initializing repo' },
 	'repo_clone': { done: 'Repo cloned', proposed: 'Clone repo', running: 'Cloning repo' },
 	'repo_add': { done: 'Staged changes', proposed: 'Stage changes', running: 'Staging changes' },
@@ -2730,6 +2761,9 @@ const CommandTool = ({ toolMessage, type, threadId }: { threadId: string } & ({
 } | {
 	toolMessage: Exclude<ToolMessage<'run_persistent_command'>, { type: 'invalid_params' }>
 	type: | 'run_persistent_command'
+} | {
+	toolMessage: Exclude<ToolMessage<'wait'>, { type: 'invalid_params' }>
+	type: 'wait'
 })) => {
 	const accessor = useAccessor()
 
@@ -2795,9 +2829,10 @@ const CommandTool = ({ toolMessage, type, threadId }: { threadId: string } & ({
 
 		let msg: string
 		if (type === 'run_command') msg = toolsService.stringOfResult['run_command'](toolMessage.params, result)
-		else msg = toolsService.stringOfResult['run_persistent_command'](toolMessage.params, result)
+		else if (type === 'run_persistent_command') msg = toolsService.stringOfResult['run_persistent_command'](toolMessage.params, result)
+		else msg = toolsService.stringOfResult['wait'](toolMessage.params, result)
 
-		if (type === 'run_persistent_command') {
+		if (type === 'run_persistent_command' || type === 'wait') {
 			componentParams.info = persistentTerminalNameOfId(toolMessage.params.persistentTerminalId)
 		}
 
@@ -2912,8 +2947,9 @@ const MCPToolWrapper = ({ toolMessage }: WrapperProps<string>) => {
 type ResultWrapper<T extends ToolName> = (props: WrapperProps<T>) => React.ReactNode
 
 // Default wrapper for tools that just show their result as markdown
-const DefaultToolResultWrapper: ResultWrapper<BuiltinToolName> = ({ toolMessage }) => {
+const DefaultToolResultWrapper: ResultWrapper<BuiltinToolName> = ({ toolMessage, threadId }) => {
 	const accessor = useAccessor()
+	const streamState = useChatThreadsStreamState(threadId)
 
 	const title = getTitle(toolMessage)
 	const { desc1, desc1Info } = toolNameToDesc(toolMessage.name as BuiltinToolName, toolMessage.params, accessor)
@@ -2921,7 +2957,23 @@ const DefaultToolResultWrapper: ResultWrapper<BuiltinToolName> = ({ toolMessage 
 	const isRejected = toolMessage.type === 'rejected'
 	const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError: false, icon: null, isRejected }
 
-	if (toolMessage.type === 'success') {
+	if (toolMessage.type === 'running_now') {
+		const activity = streamState?.isRunning === 'tool' && streamState.toolInfo.id === toolMessage.id
+			? streamState.toolInfo.content
+			: undefined;
+
+		if (activity) {
+			componentParams.children = (
+				<ToolChildrenWrapper>
+					<div className="flex items-center gap-2 py-1">
+						<Loader2 className="w-3 h-3 animate-spin text-void-accent" />
+						<span className="text-xs italic text-void-fg-3">{activity}</span>
+					</div>
+				</ToolChildrenWrapper>
+			)
+			componentParams.isOpen = true;
+		}
+	} else if (toolMessage.type === 'success') {
 		const result = toolMessage.result as any
 		const resultStr = result?.template || JSON.stringify(result, null, 2)
 		componentParams.children = <ToolChildrenWrapper>
@@ -2945,8 +2997,9 @@ const DefaultToolResultWrapper: ResultWrapper<BuiltinToolName> = ({ toolMessage 
 
 const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: ResultWrapper<T>, } } = {
 	'read_file': {
-		resultWrapper: ({ toolMessage }) => {
+		resultWrapper: ({ toolMessage, threadId }) => {
 			const accessor = useAccessor()
+			const streamState = useChatThreadsStreamState(threadId)
 			const commandService = accessor.get('ICommandService')
 
 			const title = getTitle(toolMessage)
@@ -2960,7 +3013,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError, icon, isRejected, }
 
 			let range: [number, number] | undefined = undefined
-			if (toolMessage.params.startLine !== null || toolMessage.params.endLine !== null) {
+			if (toolMessage.params && (toolMessage.params.startLine !== null || toolMessage.params.endLine !== null)) {
 				const start = toolMessage.params.startLine === null ? `1` : `${toolMessage.params.startLine}`
 				const end = toolMessage.params.endLine === null ? `` : `${toolMessage.params.endLine}`
 				const addStr = `(${start}-${end})`
@@ -2985,13 +3038,31 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 					</CodeChildren>
 				</BottomChildren>
 			}
+			else if (toolMessage.type === 'running_now') {
+				const activity = streamState?.isRunning === 'tool' && streamState.toolInfo.id === toolMessage.id
+					? streamState.toolInfo.content
+					: undefined;
+
+				if (activity) {
+					componentParams.children = (
+						<ToolChildrenWrapper>
+							<div className="flex items-center gap-2 py-1">
+								<Loader2 className="w-3 h-3 animate-spin text-void-accent" />
+								<span className="text-xs italic text-void-fg-3">{activity}</span>
+							</div>
+						</ToolChildrenWrapper>
+					)
+					componentParams.isOpen = true;
+				}
+			}
 
 			return <ToolHeaderWrapper {...componentParams} />
 		},
 	},
 	'outline_file': {
-		resultWrapper: ({ toolMessage }) => {
+		resultWrapper: ({ toolMessage, threadId }) => {
 			const accessor = useAccessor()
+			const streamState = useChatThreadsStreamState(threadId)
 			const commandService = accessor.get('ICommandService')
 
 			const title = getTitle(toolMessage)
@@ -3015,6 +3086,23 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 						{result}
 					</CodeChildren>
 				</BottomChildren>
+			}
+			else if (toolMessage.type === 'running_now') {
+				const activity = streamState?.isRunning === 'tool' && streamState.toolInfo.id === toolMessage.id
+					? streamState.toolInfo.content
+					: undefined;
+
+				if (activity) {
+					componentParams.children = (
+						<ToolChildrenWrapper>
+							<div className="flex items-center gap-2 py-1">
+								<Loader2 className="w-3 h-3 animate-spin text-void-accent" />
+								<span className="text-xs italic text-void-fg-3">{activity}</span>
+							</div>
+						</ToolChildrenWrapper>
+					)
+					componentParams.isOpen = true;
+				}
 			}
 
 			return <ToolHeaderWrapper {...componentParams} />
@@ -3066,8 +3154,9 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 		}
 	},
 	'fast_context': {
-		resultWrapper: ({ toolMessage }) => {
+		resultWrapper: ({ toolMessage, threadId }) => {
 			const accessor = useAccessor()
+			const streamState = useChatThreadsStreamState(threadId)
 
 			const title = getTitle(toolMessage)
 			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name as BuiltinToolName, toolMessage.params, accessor)
@@ -3075,7 +3164,23 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			const isRejected = toolMessage.type === 'rejected'
 			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError: false, icon: null, isRejected }
 
-			if (toolMessage.type === 'success') {
+			// Show activity while running
+			if (toolMessage.type === 'running_now') {
+				const activity = streamState?.isRunning === 'tool' && streamState.toolInfo.toolName === 'fast_context'
+					? streamState.toolInfo.content
+					: 'Gathering fast context...';
+
+				componentParams.children = (
+					<ToolChildrenWrapper>
+						<div className="flex items-center gap-2 py-1">
+							<Loader2 className="w-3 h-3 animate-spin text-void-accent" />
+							<span className="text-xs italic text-void-fg-3">{activity}</span>
+						</div>
+					</ToolChildrenWrapper>
+				)
+				componentParams.isOpen = true;
+			}
+			else if (toolMessage.type === 'success') {
 				const { result } = toolMessage
 				const contexts = result?.contexts ?? []
 				componentParams.numResults = contexts.length
@@ -3344,8 +3449,9 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	// ---
 
 	'create_file_or_folder': {
-		resultWrapper: ({ toolMessage }) => {
+		resultWrapper: ({ toolMessage, threadId }) => {
 			const accessor = useAccessor()
+			const streamState = useChatThreadsStreamState(threadId)
 			const commandService = accessor.get('ICommandService')
 			const isError = false
 			const isRejected = toolMessage.type === 'rejected'
@@ -3376,7 +3482,21 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 				</BottomChildren>
 			}
 			else if (toolMessage.type === 'running_now') {
-				// nothing more is needed
+				const activity = streamState?.isRunning === 'tool' && streamState.toolInfo.id === toolMessage.id
+					? streamState.toolInfo.content
+					: undefined;
+
+				if (activity) {
+					componentParams.children = (
+						<ToolChildrenWrapper>
+							<div className="flex items-center gap-2 py-1">
+								<Loader2 className="w-3 h-3 animate-spin text-void-accent" />
+								<span className="text-xs italic text-void-fg-3">{activity}</span>
+							</div>
+						</ToolChildrenWrapper>
+					)
+					componentParams.isOpen = true;
+				}
 			}
 			else if (toolMessage.type === 'tool_request') {
 				// nothing more is needed
@@ -3386,8 +3506,9 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 		}
 	},
 	'delete_file_or_folder': {
-		resultWrapper: ({ toolMessage }) => {
+		resultWrapper: ({ toolMessage, threadId }) => {
 			const accessor = useAccessor()
+			const streamState = useChatThreadsStreamState(threadId)
 			const commandService = accessor.get('ICommandService')
 			const isFolder = toolMessage.params?.isFolder ?? false
 			const isError = false
@@ -3418,8 +3539,21 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 				</BottomChildren>
 			}
 			else if (toolMessage.type === 'running_now') {
-				const { result } = toolMessage
-				componentParams.onClick = () => { voidOpenFileFn(params.uri, accessor) }
+				const activity = streamState?.isRunning === 'tool' && streamState.toolInfo.id === toolMessage.id
+					? streamState.toolInfo.content
+					: undefined;
+
+				if (activity) {
+					componentParams.children = (
+						<ToolChildrenWrapper>
+							<div className="flex items-center gap-2 py-1">
+								<Loader2 className="w-3 h-3 animate-spin text-void-accent" />
+								<span className="text-xs italic text-void-fg-3">{activity}</span>
+							</div>
+						</ToolChildrenWrapper>
+					)
+					componentParams.isOpen = true;
+				}
 			}
 			else if (toolMessage.type === 'tool_request') {
 				const { result } = toolMessage
@@ -3528,6 +3662,11 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 
 			return <ToolHeaderWrapper {...componentParams} />
 		},
+	},
+	'wait': {
+		resultWrapper: (params) => {
+			return <CommandTool {...params} type='wait' />
+		}
 	},
 	'run_code': {
 		resultWrapper: ({ toolMessage }) => {
@@ -5079,7 +5218,7 @@ export const SidebarChat = () => {
 			<CommandBarInChat />
 		</div>
 		{/* Student mode quick actions */}
-		{settingsState.globalSettings.chatMode === 'student' && previousMessages.length > 0 && !isRunning && (
+		{settingsState.globalSettings.chatMode === 'learn' && previousMessages.length > 0 && !isRunning && (
 			<div className='px-4 flex gap-2'>
 				<button
 					onClick={handleImStuck}
@@ -5105,10 +5244,10 @@ export const SidebarChat = () => {
 
 	// Different taglines for different modes
 	const modeTaglines: Record<ChatMode, React.ReactNode> = {
-		'normal': <>Kick off a new project. Make changes<br />across your entire codebase.</>,
-		'gather': <>Research your codebase. Create detailed<br />implementation plans for review.</>,
-		'agent': <>Kick off a new project. Make changes<br />across your entire codebase.</>,
-		'student': <>Ask questions, learn concepts, and practice<br />coding with your personal tutor.</>
+		'chat': <>Engage in pure conversation. Ask questions,<br />explore ideas, and get high-level advice.</>,
+		'plan': <>Research your codebase. Create detailed<br />implementation plans for review.</>,
+		'code': <>Kick off a new project. Make changes<br />across your entire codebase.</>,
+		'learn': <>Ask questions, learn concepts, and practice<br />coding with your personal tutor.</>
 	}
 
 	const landingPageContent = <div
@@ -5119,7 +5258,7 @@ export const SidebarChat = () => {
 		<div className='flex-1 flex flex-col items-center justify-center px-8 pb-8'>
 			<ErrorBoundary>
 				{/* Logo - different for student mode */}
-				{currentChatMode === 'student' ? (
+				{currentChatMode === 'learn' ? (
 					<div className='text-6xl mb-6'>🎓</div>
 				) : (
 					<div className='@@void-void-icon mb-8' style={{ width: '96px', height: '96px', opacity: 0.9 }} />
@@ -5128,17 +5267,17 @@ export const SidebarChat = () => {
 				{/* Title with mode */}
 				<div className="text-center space-y-3">
 					<h1 className='text-void-fg-1 text-3xl font-bold mb-2'>
-						{currentChatMode === 'student' ? 'A-Coder Tutor' : 'A-Coder'}
+						{currentChatMode === 'learn' ? 'A-Coder Tutor' : 'A-Coder'}
 					</h1>
 					<div className="flex items-center justify-center gap-2">
 						<span className={`px-3 py-1 text-sm font-medium rounded-full ${
-							currentChatMode === 'student'
+							currentChatMode === 'learn'
 								? 'bg-purple-500/20 text-purple-400'
 								: 'bg-void-accent/20 text-void-accent'
 						}`}>
 							{chatModeName}
 						</span>
-						{currentChatMode === 'student' && (
+						{currentChatMode === 'learn' && (
 							<span className="px-3 py-1 text-sm font-medium bg-void-bg-2 text-void-fg-3 rounded-full">
 								{nameOfStudentLevel[studentLevel]}
 							</span>
@@ -5152,7 +5291,7 @@ export const SidebarChat = () => {
 				</p>
 
 				{/* Student mode quick tips */}
-				{currentChatMode === 'student' && (
+				{currentChatMode === 'learn' && (
 					<div className="mt-6 p-4 bg-void-bg-2 rounded-xl max-w-sm text-sm">
 						<div className="font-medium text-void-fg-2 mb-2">💡 Try asking:</div>
 						<ul className="text-void-fg-3 space-y-1">
@@ -5203,7 +5342,7 @@ export const SidebarChat = () => {
 		<ErrorBoundary>
 			<div className='flex-shrink-0 px-4 py-2 flex justify-between items-center border-b border-void-border-1'>
 				{/* Student mode progress indicator */}
-				{currentChatMode === 'student' && (completedExerciseCount > 0 || activeExerciseCount > 0) ? (
+				{currentChatMode === 'learn' && (completedExerciseCount > 0 || activeExerciseCount > 0) ? (
 					<div className='flex items-center gap-3 text-xs'>
 						<div className='flex items-center gap-1.5 text-purple-400'>
 							<span>🎯</span>

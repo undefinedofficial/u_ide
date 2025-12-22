@@ -196,7 +196,10 @@ export class TokenCountingService {
 	 */
 	public getContextWindowSize(modelName: string): number {
 		// Strip provider prefix if present (e.g., "ollama:minimax-m2:cloud" → "minimax-m2:cloud")
-		// Also handle OpenRouter format (e.g., "openRouter:x-ai/grok-4.1-fast" → "grok-4.1-fast")
+		// Also handle OpenRouter format (e.g., "openRouter:z-ai/glm-4.6:exacto" → "glm-4.6:exacto")
+		const lowerModelName = modelName.toLowerCase();
+		const isOpenRouter = lowerModelName.startsWith('openrouter:');
+
 		let cleanName = modelName;
 		if (modelName.includes(':') && modelName.split(':').length > 2) {
 			cleanName = modelName.split(':').slice(1).join(':');
@@ -220,15 +223,21 @@ export class TokenCountingService {
 			'gpt-4-32k': 32768,
 			'gpt-3.5-turbo': 16385,
 			'gpt-3.5-turbo-16k': 16385,
+			'o1-preview': 128000,
+			'o1-mini': 128000,
+			'o3-mini': 200000,
 			// Anthropic
 			'claude-3-opus': 200000,
 			'claude-3-sonnet': 200000,
 			'claude-3-haiku': 200000,
 			'claude-3.5-sonnet': 200000,
+			'claude-3.5-haiku': 200000,
+			'claude-3.7-sonnet': 200000,
 			// Google
 			'gemini-pro': 32768,
 			'gemini-1.5-pro': 1000000,
 			'gemini-1.5-flash': 1000000,
+			'gemini-2.0-flash': 1000000,
 			'gemini-3-pro-preview': 1000000,
 			'gemini-3-pro': 1000000,
 			'nemotron-3-nano': 1000000,
@@ -242,6 +251,9 @@ export class TokenCountingService {
 			'grok-4-fast': 2000000,
 			'grok-4.1-fast': 2000000,
 			'grok-4.1-fast:free': 2000000,
+			// DeepSeek
+			'deepseek-v3': 128000,
+			'deepseek-r1': 128000,
 			// Ollama Cloud models
 			'deepseek-v3.1:671b-cloud': 128000,
 			'gpt-oss:20b-cloud': 128000,
@@ -251,11 +263,12 @@ export class TokenCountingService {
 			'kimi-k2-thinking:cloud': 256000, // Alias for kimi-k2-thinking:1t-cloud
 			'qwen3-coder:480b-cloud': 128000,
 			'minimax-m2:cloud': 128000,
-			'glm-4.6:cloud': 128000,
+			'glm-4.6': 128000,
 			// Ollama models (common ones)
-			'llama3': 8192,
+			'llama3.3': 128000,
 			'llama3.1': 128000,
 			'llama3.2': 128000,
+			'llama3': 8192,
 			'llama2': 4096,
 			'mistral': 8192,
 			'mixtral': 32768,
@@ -276,11 +289,24 @@ export class TokenCountingService {
 			return contextWindows[lowerName];
 		}
 
-		// Try partial match
-		for (const [key, value] of Object.entries(contextWindows)) {
+		// Try to match by stripping everything after the first colon in lowerName
+		const baseName = lowerName.split(':')[0];
+		if (baseName && contextWindows[baseName]) {
+			return contextWindows[baseName];
+		}
+
+		// Try partial match, prefer longer keys for better specificity
+		const sortedKeys = Object.keys(contextWindows).sort((a, b) => b.length - a.length);
+		for (const key of sortedKeys) {
 			if (lowerName.includes(key)) {
-				return value;
+				return contextWindows[key];
 			}
+		}
+
+		// Default for OpenRouter models (most are 128k+)
+		if (isOpenRouter) {
+			console.warn(`[TokenCountingService] Unknown OpenRouter model ${modelName}, defaulting to 128000`);
+			return 128000;
 		}
 
 		// For Ollama and local models, default to 8k (more generous than 4k)

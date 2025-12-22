@@ -343,8 +343,8 @@ export class ApiRoutes {
 		this.router.register('PUT', '/api/v1/settings/mode', async (req, res, params) => {
 			try {
 				const { mode } = params.body || {};
-				if (!mode || !['normal', 'gather', 'agent'].includes(mode)) {
-					this.router.sendError(res, 400, 'Invalid mode. Must be one of: normal, gather, agent');
+				if (!mode || !['chat', 'plan', 'code', 'learn'].includes(mode)) {
+					this.router.sendError(res, 400, 'Invalid mode. Must be one of: chat, plan, code, learn');
 					return;
 				}
 				const result = await this.callRenderer('setChatMode', { mode });

@@ -14,7 +14,7 @@ import { Tool as GeminiTool, FunctionDeclaration, GoogleGenAI, ThinkingConfig, S
 import { GoogleAuth } from 'google-auth-library'
 /* eslint-enable */
 
-import { AnthropicLLMChatMessage, GeminiLLMChatMessage, LLMChatMessage, LLMFIMMessage, ModelListParams, OllamaModelResponse, OnError, OnFinalMessage, OnText, RawToolCallObj, RawToolParamsObj } from '../../common/sendLLMMessageTypes.js';
+import { AnthropicLLMChatMessage, AnthropicReasoning, GeminiLLMChatMessage, LLMChatMessage, LLMFIMMessage, ModelListParams, OllamaModelResponse, OnError, OnFinalMessage, OnText, RawToolCallObj, RawToolParamsObj } from '../../common/sendLLMMessageTypes.js';
 import { ChatMode, displayInfoOfProviderName, GlobalSettings, ModelSelectionOptions, OverridesOfModel, ProviderName, SettingsOfProvider } from '../../common/voidSettingsTypes.js';
 import { getSendableReasoningInfo, getModelCapabilities, getProviderCapabilities, defaultProviderSettings, getReservedOutputTokenSpace } from '../../common/modelCapabilities.js';
 import { extractReasoningWrapper } from './extractGrammar.js';
@@ -289,7 +289,7 @@ const findJsonObjectEnd = (str: string): number => {
 }
 
 // convert LLM tool call to our tool format
-const rawToolCallObjOfParamsStr = (name: string, toolParamsStr: string, id: string): RawToolCallObj | null => {
+const rawToolCallObjOfParamsStr = (name: string, toolParamsStr: string, id: string, thought_signature?: string): RawToolCallObj | null => {
 	if (!toolParamsStr) {
 		console.log(`[sendLLMMessage] ⚠️ Tool call "${name}" has empty parameters string`)
 		return null
@@ -331,7 +331,7 @@ const rawToolCallObjOfParamsStr = (name: string, toolParamsStr: string, id: stri
 
 	const rawParams: RawToolParamsObj = input
 	console.log(`[sendLLMMessage] ✓ Successfully parsed tool call "${name}" with ${Object.keys(rawParams).length} parameters`)
-	return { id, name, rawParams, doneParams: Object.keys(rawParams), isDone: true }
+	return { id, name, rawParams, doneParams: Object.keys(rawParams), isDone: true, thought_signature }
 }
 
 
@@ -432,6 +432,7 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 	let toolName = ''
 	let toolId = ''
 	let toolParamsStr = ''
+	let thoughtSignature = ''
 
 	console.log(`[sendLLMMessage] Reasoning extraction config:`, {
 		needsManualReasoningParse,
@@ -513,6 +514,14 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 		// Set tool ID if provided
 		if (toolCall.id && !toolId) {
 			toolId = toolCall.id
+		}
+
+		// Capture thought_signature (used by Gemini 2.0 via OpenRouter)
+		if (fn.thought_signature) {
+			thoughtSignature = fn.thought_signature
+		}
+		if (toolCall.thought_signature) {
+			thoughtSignature = toolCall.thought_signature
 		}
 	}
 
@@ -696,16 +705,18 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 				console.log(`[sendLLMMessage] ℹ️ Tool call detected with empty content - this is expected behavior`)
 				console.log(`[sendLLMMessage] Tool: ${toolName}, Params length: ${toolParamsStr.length}`)
 
-				const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId)
+				const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId, thoughtSignature)
 				const toolCallObj = toolCall ? { toolCall } : {}
+				const anthropicReasoning: AnthropicReasoning[] | null = fullReasoningSoFar ? [{ type: 'thinking', thinking: fullReasoningSoFar, signature: thoughtSignature }] : null
 				console.log(`[sendLLMMessage] Final message - text length: ${fullTextSoFar.length}, reasoning length: ${fullReasoningSoFar.length}, toolName: ${toolName}, hasToolCall: ${!!toolCall}`)
-				onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning: null, ...toolCallObj });
+				onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning, ...toolCallObj });
 			}
 			else {
-				const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId)
+				const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId, thoughtSignature)
 				const toolCallObj = toolCall ? { toolCall } : {}
+				const anthropicReasoning: AnthropicReasoning[] | null = fullReasoningSoFar ? [{ type: 'thinking', thinking: fullReasoningSoFar, signature: thoughtSignature }] : null
 				console.log(`[sendLLMMessage] Final message - text length: ${fullTextSoFar.length}, reasoning length: ${fullReasoningSoFar.length}, toolName: ${toolName}, hasToolCall: ${!!toolCall}`)
-				onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning: null, ...toolCallObj });
+				onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning, ...toolCallObj });
 			}
 		})
 		// when error/fail - this catches errors of both .create() and .then(for await)
@@ -736,6 +747,7 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 						toolName = ''
 						toolParamsStr = ''
 						toolId = ''
+						thoughtSignature = ''
 
 						const { stripXMLBlocks } = await import('../../common/helpers/extractXMLTools.js')
 
@@ -800,9 +812,10 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 							}
 						}
 
-						const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId)
+						const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId, thoughtSignature)
 						const toolCallObj = toolCall ? { toolCall } : {}
-						onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning: null, ...toolCallObj })
+						const anthropicReasoning: AnthropicReasoning[] | null = fullReasoningSoFar ? [{ type: 'thinking', thinking: fullReasoningSoFar, signature: thoughtSignature }] : null
+						onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning, ...toolCallObj })
 					})
 					.catch(retryError => {
 						console.log(`[sendLLMMessage] ❌ Retry also failed:`, retryError?.message)
@@ -1276,6 +1289,7 @@ const sendGeminiChat = async ({
 	let toolName = ''
 	let toolParamsStr = ''
 	let toolId = ''
+	let thoughtSignature = ''
 
 
 	genAI.models.generateContentStream({
@@ -1296,6 +1310,16 @@ const sendGeminiChat = async ({
 				const newText = chunk.text ?? ''
 				fullTextSoFar += newText
 
+				// reasoning and thought signature
+				const candidates = (chunk as any).candidates
+				if (candidates && candidates[0] && candidates[0].content && candidates[0].content.parts) {
+					for (const part of candidates[0].content.parts) {
+						if (part.thought) {
+							fullReasoningSoFar += part.text ?? ''
+						}
+					}
+				}
+
 				// tool call
 				const functionCalls = chunk.functionCalls
 				if (functionCalls && functionCalls.length > 0) {
@@ -1303,9 +1327,10 @@ const sendGeminiChat = async ({
 					toolName = functionCall.name ?? ''
 					toolParamsStr = JSON.stringify(functionCall.args ?? {})
 					toolId = functionCall.id ?? ''
+					if ((functionCall as any).thought_signature) {
+						thoughtSignature = (functionCall as any).thought_signature
+					}
 				}
-
-				// (do not handle reasoning yet)
 
 				// call onText
 				onText({
@@ -1320,9 +1345,10 @@ const sendGeminiChat = async ({
 				onError({ message: 'A-Coder: Response from model was empty.', fullError: null })
 			} else {
 				if (!toolId) toolId = generateUuid() // ids are empty, but other providers might expect an id
-				const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId)
+				const toolCall = rawToolCallObjOfParamsStr(toolName, toolParamsStr, toolId, thoughtSignature)
 				const toolCallObj = toolCall ? { toolCall } : {}
-				onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning: null, ...toolCallObj });
+				const anthropicReasoning: AnthropicReasoning[] | null = fullReasoningSoFar ? [{ type: 'thinking', thinking: fullReasoningSoFar, signature: thoughtSignature }] : null
+				onFinalMessage({ fullText: fullTextSoFar, fullReasoning: fullReasoningSoFar, anthropicReasoning, ...toolCallObj });
 			}
 		})
 		.catch(error => {

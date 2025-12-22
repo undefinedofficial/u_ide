@@ -35,6 +35,8 @@ export interface ITerminalToolService {
 	createPersistentTerminal(opts: { cwd: string | null }): Promise<string>
 	killPersistentTerminal(terminalId: string): Promise<void>
 
+	wait(params: { timeoutMs: number, persistentTerminalId: string, onData?: (data: string) => void }): Promise<{ result: string, resolveReason: TerminalResolveReason }>;
+
 	getPersistentTerminal(terminalId: string): ITerminalInstance | undefined
 	getTemporaryTerminal(terminalId: string): ITerminalInstance | undefined
 }
@@ -175,6 +177,60 @@ export class TerminalToolService extends Disposable implements ITerminalToolServ
 		terminal.dispose()
 		delete this.persistentTerminalInstanceOfId[terminalId]
 		return
+	}
+
+	async wait(params: { timeoutMs: number, persistentTerminalId: string, onData?: (data: string) => void }) {
+		const { timeoutMs, persistentTerminalId, onData } = params;
+		const terminal = this.persistentTerminalInstanceOfId[persistentTerminalId];
+		if (!terminal) throw new Error(`Wait Terminal: Terminal with ID ${persistentTerminalId} does not exist.`);
+
+		const cmdCap = await this._waitForCommandDetectionCapability(terminal);
+		const disposables: IDisposable[] = [];
+
+		let result: string = '';
+		let resolveReason: TerminalResolveReason | undefined;
+
+		const waitUntilDone = new Promise<void>(resolve => {
+			if (onData) {
+				const d = terminal.onData(data => {
+					onData(removeAnsiEscapeCodes(data));
+				});
+				disposables.push(d);
+			}
+
+			if (!cmdCap) return;
+			const l = cmdCap.onCommandFinished(cmd => {
+				if (resolveReason) return;
+				resolveReason = { type: 'done', exitCode: cmd.exitCode ?? 0 };
+				result = cmd.getOutput() ?? '';
+				l.dispose();
+				resolve();
+			});
+			disposables.push(l);
+		});
+
+		const waitUntilTimeout = new Promise<void>(res => {
+			setTimeout(() => {
+				if (resolveReason) return;
+				resolveReason = { type: 'timeout' };
+				res();
+			}, timeoutMs);
+		});
+
+		await Promise.any([waitUntilDone, waitUntilTimeout])
+			.finally(() => disposables.forEach(d => d.dispose()));
+
+		if (resolveReason?.type === 'timeout') {
+			result = await this.readTerminal(persistentTerminalId);
+		}
+
+		result = removeAnsiEscapeCodes(result);
+		if (result.length > MAX_TERMINAL_CHARS) {
+			const half = MAX_TERMINAL_CHARS / 2;
+			result = result.slice(0, half) + '\n...\n' + result.slice(result.length - half, Infinity);
+		}
+
+		return { result, resolveReason: resolveReason! };
 	}
 
 	persistentTerminalExists(terminalId: string): boolean {

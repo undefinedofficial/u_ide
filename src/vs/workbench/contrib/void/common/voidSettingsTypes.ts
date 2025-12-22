@@ -438,7 +438,7 @@ export const isFeatureNameDisabled = (featureName: FeatureName, settingsState: V
 
 
 
-export type ChatMode = 'agent' | 'gather' | 'normal' | 'student'
+export type ChatMode = 'code' | 'plan' | 'chat' | 'learn'
 
 export type StudentLevel = 'beginner' | 'intermediate' | 'advanced'
 
@@ -484,7 +484,7 @@ export const defaultGlobalSettings: GlobalSettings = {
 	syncApplyToChat: true,
 	syncSCMToChat: true,
 	enableFastApply: true,
-	chatMode: 'agent',
+	chatMode: 'code',
 	studentLevel: 'beginner',
 	autoApprove: {},
 	showInlineSuggestions: true,
@@ -529,7 +529,6 @@ export type ModelSelectionOptions = {
 	reasoningEnabled?: boolean;
 	reasoningBudget?: number;
 	reasoningEffort?: string;
-	morphFastApply?: boolean; // Use Morph Fast Apply for edit_file and rewrite_file tools
 	morphFastContext?: boolean; // Use Morph Fast Context for context gathering
 }
 

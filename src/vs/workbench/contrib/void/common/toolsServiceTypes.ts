@@ -53,7 +53,14 @@ export type BuiltinToolCallParams = {
 	'search_in_file': { uri: URI, query: string, isRegex: boolean },
 	'read_lint_errors': { uri: URI },
 	'fast_context': { query: string },
-	'codebase_search': { query: string, repoId?: string, branch?: string, commitHash?: string },
+	'codebase_search': {
+		query: string,
+		repoId?: string,
+		branch?: string,
+		commitHash?: string,
+		target_directories?: string[],
+		limit?: number
+	},
 	'repo_init': { repoId?: string, dir?: string },
 	'repo_clone': { repoId: string, dir: string },
 	'repo_add': { dir?: string, filepath?: string },
@@ -70,6 +77,7 @@ export type BuiltinToolCallParams = {
 	'repo_resolve_ref': { dir?: string, ref: string },
 	'repo_get_commit_metadata': { repoId?: string, commitHash: string },
 	'repo_wait_for_embeddings': { repoId?: string, timeoutMs?: number },
+	'wait': { timeoutMs: number, persistentTerminalId: string },
 	// ---
 	'rewrite_file': { uri: URI, newContent: string },
 	'edit_file': { uri: URI, searchReplaceBlocks: string, tryFuzzyMatching?: boolean },
@@ -127,7 +135,18 @@ export type BuiltinToolResultType = {
 	'search_in_file': { lines: number[]; },
 	'read_lint_errors': { lintErrors: LintErrorItem[] | null },
 	'fast_context': { contexts: Array<{ file: string, content: string }> },
-	'codebase_search': { results: Array<{ filePath: string, snippet: string, score?: number }> },
+	'codebase_search': {
+		success: boolean,
+		results: Array<{
+			filepath: string,
+			content: string,
+			rerankScore: number,
+			language: string,
+			startLine: number,
+			endLine: number
+		}>,
+		stats: { searchTimeMs: number }
+	},
 	'repo_init': { success: boolean },
 	'repo_clone': { success: boolean },
 	'repo_add': { success: boolean },
@@ -144,6 +163,7 @@ export type BuiltinToolResultType = {
 	'repo_resolve_ref': string,
 	'repo_get_commit_metadata': any,
 	'repo_wait_for_embeddings': { success: boolean },
+	'wait': { result: string; resolveReason: TerminalResolveReason; },
 	// ---
 	'rewrite_file': Promise<{ lintErrors: LintErrorItem[] | null }>,
 	'edit_file': Promise<{ lintErrors: LintErrorItem[] | null }>,

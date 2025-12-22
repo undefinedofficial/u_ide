@@ -57,7 +57,7 @@ ${FINAL}`
 
 
 const createSearchReplaceBlocks_systemMessage = `\
-You are a coding assistant that takes in a diff, and outputs SEARCH/REPLACE code blocks to implement the change(s) in the diff.
+You are A-Coder, a coding assistant that takes in a diff, and outputs SEARCH/REPLACE code blocks to implement the change(s) in the diff.
 The diff will be labeled \`DIFF\` and the original file will be labeled \`ORIGINAL_FILE\`.
 
 Format your SEARCH/REPLACE blocks as follows:
@@ -366,12 +366,14 @@ Line 200: export async function processData(input: string): Promise<Result>
 	},
 	codebase_search: {
 		name: 'codebase_search',
-		description: `Semantic search over Morph Repo Storage (indexed code).`,
+		description: `Semantic search over Morph Repo Storage (indexed code). Find code using natural language queries.`,
 		params: {
-			query: { description: 'Semantic query to search the indexed codebase.' },
+			query: { description: 'Semantic query to search the indexed codebase (e.g., "How does JWT validation work?").' },
 			repo_id: { description: 'Optional repo identifier; falls back to Morph settings.' },
-			branch: { description: 'Branch to search (defaults to Morph settings).' },
-			commit_hash: { description: 'Specific commit hash to search.' },
+			branch: { description: 'Optional branch to search (defaults to latest main).' },
+			commit_hash: { description: 'Optional specific commit hash to search (takes precedence over branch).' },
+			target_directories: { description: 'Optional array of directories to limit search to (e.g., ["src/auth"]).' },
+			limit: { description: 'Optional maximum number of results to return (default: 10).' },
 		},
 	},
 	repo_init: {
@@ -493,12 +495,21 @@ Line 200: export async function processData(input: string): Promise<Result>
 			commit_hash: { description: 'Commit hash to get metadata for.' },
 		},
 	},
-	repo_wait_for_embeddings: {
+		'repo_wait_for_embeddings': {
 		name: 'repo_wait_for_embeddings',
 		description: 'Wait until embeddings are finished for a repo/commit.',
 		params: {
 			repo_id: { description: 'Repo identifier; defaults to Morph settings.' },
 			timeout_ms: { description: 'Timeout in milliseconds (default 120000).' },
+		},
+	},
+
+	wait: {
+		name: 'wait',
+		description: `Waits for a command in a persistent terminal to complete or for a specified time to pass.\n\n**When to use:** Use this when a command you ran with \`run_persistent_command\` timed out, but you need to wait for it to finish or see more of its output (e.g., long-running builds, database migrations, or complex test suites).\n\n**What you'll receive:** The terminal's current output buffer and a reason for finishing (either "done" if the command finished or "timeout" if the time limit was reached).`,
+		params: {
+			persistent_terminal_id: { description: 'The ID of the persistent terminal to wait on.' },
+			timeout_ms: { description: 'Optional. How long to wait in milliseconds (default: 10000, max: 60000).' },
 		},
 	},
 
@@ -1146,6 +1157,7 @@ const agentModeTools: BuiltinToolName[] = [
 	'run_persistent_command',
 	'open_persistent_terminal',
 	'kill_persistent_terminal',
+	'wait',
 	// Task planning - track progress on multi-step tasks
 	'create_plan',
 	'update_task_status',
@@ -1181,14 +1193,14 @@ const studentModeTools: BuiltinToolName[] = [
 export const availableTools = (chatMode: ChatMode | null, mcpTools: InternalToolInfo[] | undefined, options?: { enableMorphFastContext?: boolean }) => {
 
 	// Select tools based on mode
-	// - normal (Chat): No tools - pure conversation
-	// - gather: Read/search + implementation planning (~12 tools)
-	// - agent: Read/search + edit/write + terminal + task planning + walkthrough (~22 tools)
-	// - student: Read/search + teaching tools + limited editing (~15 tools)
-	const builtinToolNames: BuiltinToolName[] | undefined = chatMode === 'normal' ? undefined
-		: chatMode === 'gather' ? gatherModeTools
-			: chatMode === 'agent' ? agentModeTools
-				: chatMode === 'student' ? studentModeTools
+	// - chat (Chat): No tools - pure conversation
+	// - plan (Plan): Read/search + implementation planning (~12 tools)
+	// - code (Code): Read/search + edit/write + terminal + task planning + walkthrough (~22 tools)
+	// - learn (Learn): Read/search + teaching tools + limited editing (~15 tools)
+	const builtinToolNames: BuiltinToolName[] | undefined = chatMode === 'chat' ? undefined
+		: chatMode === 'plan' ? gatherModeTools
+			: chatMode === 'code' ? agentModeTools
+				: chatMode === 'learn' ? studentModeTools
 					: undefined
 
 	// Filter out tools based on status (keep fast_context always available in tool modes)
@@ -1198,8 +1210,8 @@ export const availableTools = (chatMode: ChatMode | null, mcpTools: InternalTool
 	});
 
 	const effectiveBuiltinTools = filteredBuiltinToolNames?.map(toolName => builtinTools[toolName]) ?? undefined
-	// MCP tools available in both gather and agent modes
-	const effectiveMCPTools = (chatMode === 'agent' || chatMode === 'gather') ? mcpTools : undefined
+	// MCP tools available in both plan and code modes
+	const effectiveMCPTools = (chatMode === 'code' || chatMode === 'plan') ? mcpTools : undefined
 
 	const tools: InternalToolInfo[] | undefined = !(filteredBuiltinToolNames || effectiveMCPTools) ? undefined
 		: [
@@ -1288,6 +1300,8 @@ CRITICAL INSTRUCTIONS:
 4. Use "Thought:" prefix to explain your reasoning before each action. This helps the user follow your logic.
 5. For simple tasks, you can skip the "Thought:" prefix and call tools directly.
 
+6. TOOL PRIORITIZATION: ALWAYS prefer native built-in tools (e.g., \`read_file\`, \`edit_file\`, \`codebase_search\`) over MCP tools for all core IDE operations. Use MCP tools ONLY for specialized tasks that native tools cannot perform.
+
 CONTEXT MARKERS FOR CODE EDITS:
 When using edit_file, always include surrounding context in your ORIGINAL blocks:
 - Add "// ... existing code ..." comments above and below your changes to show what stays unchanged
@@ -1315,14 +1329,14 @@ function newFunction() {
 export const chat_systemMessage = ({ workspaceFolders, openedURIs, activeURI, persistentTerminalIDs, directoryStr, chatMode: mode, mcpTools, specialToolFormat, studentLevel, enableMorphFastContext }: { workspaceFolders: string[], directoryStr: string, openedURIs: string[], activeURI: string | undefined, persistentTerminalIDs: string[], chatMode: ChatMode, mcpTools: InternalToolInfo[] | undefined, specialToolFormat: 'openai-style' | 'anthropic-style' | 'gemini-style' | undefined, studentLevel?: 'beginner' | 'intermediate' | 'advanced', enableMorphFastContext?: boolean }) => {
 
 	// ============ IDENTITY ============
-	const identityRole = mode === 'agent' ? 'agent' : mode === 'student' ? 'tutor' : 'assistant'
-	const identityPurpose = mode === 'agent' ? 'help users develop, run, and make changes to their codebase'
-		: mode === 'gather' ? 'search, understand, and reference files in the user\'s codebase'
-			: mode === 'student' ? 'teach programming concepts and help students learn to code'
-				: 'assist users with their coding tasks'
+	const identityRole = mode === 'code' ? 'agent' : mode === 'learn' ? 'tutor' : 'assistant'
+	const identityPurpose = mode === 'code' ? 'help users develop, run, and make changes to their codebase with full execution capabilities'
+		: mode === 'plan' ? 'research, understand, and reference files in the user\'s codebase to create detailed implementation plans'
+			: mode === 'learn' ? 'teach programming concepts and help students learn to code through interactive lessons and exercises'
+				: 'assist users with their coding tasks through conversational guidance'
 
 	const identity = `<identity>
-You are an expert coding ${identityRole} designed to ${identityPurpose}.
+You are A-Coder, an expert coding ${identityRole} designed to ${identityPurpose}.
 
 You operate exclusively in the user's IDE environment, with direct access to their workspace and file system.
 
@@ -1342,7 +1356,7 @@ Active File:
 ${activeURI || 'NONE'}
 
 Open Files:
-${openedURIs.join('\n') || 'NO OPENED FILES'}${mode === 'agent' && persistentTerminalIDs.length !== 0 ? `
+${openedURIs.join('\n') || 'NO OPENED FILES'}${mode === 'code' && persistentTerminalIDs.length !== 0 ? `
 
 Persistent Terminal IDs:
 ${persistentTerminalIDs.join(', ')}` : ''}
@@ -1362,7 +1376,7 @@ ${persistentTerminalIDs.join(', ')}` : ''}
 10. If you write code blocks (wrapped in triple backticks), use this format:
     - Include a language if possible (use 'shell' for terminal commands)
     - The first line should be the FULL PATH of the related file if known (otherwise omit)
-    - The remaining contents should proceed as usual${mode === 'gather' || mode === 'normal' ? `
+    - The remaining contents should proceed as usual${mode === 'plan' || mode === 'chat' ? `
 11. If suggesting edits, describe them in CODE BLOCK(S):
     - First line: FULL PATH of the file
     - Remaining contents: code description of the change
@@ -1376,7 +1390,7 @@ ${persistentTerminalIDs.join(', ')}` : ''}
 	const allTools = availableTools(mode, mcpTools, { enableMorphFastContext })
 	let toolCalling = ''
 
-	if (allTools && allTools.length > 0 && (mode === 'agent' || mode === 'gather' || mode === 'student')) {
+	if (allTools && allTools.length > 0 && (mode === 'code' || mode === 'plan' || mode === 'learn')) {
 		if (!specialToolFormat) {
 			// XML tool calling for models without native support
 			toolCalling = `<tool_calling>
@@ -1403,11 +1417,11 @@ You have tools at your disposal to solve the coding task. Follow these rules reg
 10. You do not need to ask for permission to use tools.
 11. Only skip tools if the user is asking a simple question you can answer directly (like "hi" or "what can you do?").
 12. Many tools only work if the user has a workspace open.
-13. NEVER end a response by saying what you're about to do without actually doing it. If you say "Let me...", "I'll...", or "I will...", you MUST include the tool call in the same response.
+14. TOOL PRIORITIZATION: ALWAYS prefer native built-in tools (e.g., \`read_file\`, \`edit_file\`, \`codebase_search\`, \`get_dir_tree\`) over MCP tools for all core IDE operations (file management, editing, searching, and terminal tasks). Use MCP tools ONLY for specialized tasks that native tools cannot perform (e.g., external research, web search, or specific API integrations).
 </tool_calling>`
 			console.log(`[prompts] Native tool calling enabled (specialToolFormat: ${specialToolFormat})`)
 		}
-	} else if (mode === 'normal') {
+	} else if (mode === 'chat') {
 		// Normal mode - no tools but can ask for context
 		toolCalling = `<context_requests>
 You're allowed to ask the user for more context like file contents or specifications. If this comes up, tell them to reference files and folders by typing @.
@@ -1416,7 +1430,7 @@ You're allowed to ask the user for more context like file contents or specificat
 
 	// ============ INFORMATION GATHERING STRATEGY ============
 	let contextGathering = ''
-	if (mode === 'gather') {
+	if (mode === 'plan') {
 		// Plan mode - research, plan, document (no editing)
 		contextGathering = `<plan_mode_behavior>
 You are in PLAN MODE. Your role is to research, analyze, plan, and document - but NOT make code changes.
@@ -1444,14 +1458,14 @@ WORKFLOW:
 
 Be proactive - don't wait for the user to tell you which files to read. Explore the codebase to find answers.
 </plan_mode_behavior>`
-	} else if (mode === 'student') {
+	} else if (mode === 'learn') {
 		// Student mode - teaching and learning
 		const levelDesc = studentLevel === 'beginner' ? 'Use simple language, no jargon. Explain like teaching a complete beginner. Use real-world analogies.'
 			: studentLevel === 'intermediate' ? 'Use some technical terms but define them briefly. Assume basic programming knowledge.'
 				: 'Use technical terminology freely. Discuss trade-offs, edge cases, and best practices.'
 
 		contextGathering = `<student_mode_behavior>
-You are in STUDENT MODE. Your role is to TEACH, not just complete tasks.
+You are in LEARN MODE (as a Tutor). Your role is to TEACH, not just complete tasks.
 
 STUDENT LEVEL: ${studentLevel || 'beginner'}
 ${levelDesc}
@@ -1495,7 +1509,7 @@ WORKFLOW:
 
 Be patient, encouraging, and remember: your goal is to help them LEARN, not just complete tasks.
 </student_mode_behavior>`
-	} else if (mode === 'agent') {
+	} else if (mode === 'code') {
 		// Code mode - full execution capabilities
 		contextGathering = `<code_mode_behavior>
 You are in CODE MODE. You can read, edit, create files, and run commands to complete tasks.
@@ -1529,7 +1543,7 @@ Bias towards finding answers yourself rather than asking the user.
 
 	// ============ CODE CHANGES (Agent mode only) ============
 	let codeChanges = ''
-	if (mode === 'agent') {
+	if (mode === 'code') {
 		codeChanges = `<making_code_changes>
 When making code changes, NEVER output code to the USER, unless requested. Instead use one of the code edit tools to implement the change.
 
@@ -1603,6 +1617,29 @@ If an external API requires an API Key, be sure to point this out to the USER. A
 Do not make things up or use information not provided in the system information, tools, or user queries.
 </external_resources>`
 
+	// ============ SCENARIOS & TOOL SELECTION ============
+	const scenarios = `<scenarios>
+Use this guide to select the best tool for common requests:
+
+1. Request: "What is in this codebase?" or "Show me the project structure."
+   - Action: Call \`get_dir_tree\` on the root directory to provide a high-level overview.
+
+2. Request: "How does [feature/concept] work?" or "Find where [X] is implemented."
+   - Action: Use \`codebase_search\` or \`fast_context\` for semantic/conceptual searches.
+
+3. Request: "Fix a bug in [file]" or "Add [feature] to [file]."
+   - Action: FIRST \`read_file\` to get exact contents, THEN \`edit_file\` or \`rewrite_file\`.
+
+4. Request: "Are there any errors?" or "Did my change break anything?"
+   - Action: Call \`read_lint_errors\` on the affected files.
+
+5. Request: "Run the tests" or "Build the project."
+   - Action: Use \`run_command\` for quick tasks or \`open_persistent_terminal\` for long-running processes. If a command in a persistent terminal times out, use \`wait\` to continue monitoring it.
+
+6. Request: "I have a complex task to do."
+   - Action: Call \`create_implementation_plan\` (in Code/Plan mode) to break it down for user review.
+</scenarios>`
+
 	// ============ FILES OVERVIEW ============
 	const fsInfo = `<files_overview>
 ${directoryStr}
@@ -1615,6 +1652,7 @@ ${directoryStr}
 	sections.push(sysInfo)
 	sections.push(communication)
 	if (toolCalling) sections.push(toolCalling)
+	sections.push(scenarios)
 	if (contextGathering) sections.push(contextGathering)
 	if (codeChanges) sections.push(codeChanges)
 	sections.push(externalResources)
@@ -1744,7 +1782,7 @@ export const chat_userMessageContent = async (
 
 
 export const rewriteCode_systemMessage = `\
-You are a coding assistant that re-writes an entire file to make a change. You are given the original file \`ORIGINAL_FILE\` and a change \`CHANGE\`.
+You are A-Coder, a coding assistant that re-writes an entire file to make a change. You are given the original file \`ORIGINAL_FILE\` and a change \`CHANGE\`.
 
 Directions:
 1. Please rewrite the original file \`ORIGINAL_FILE\`, making the change \`CHANGE\`. You must completely re-write the whole file.
@@ -1857,7 +1895,7 @@ export const defaultQuickEditFimTags: QuickEditFimTagsType = {
 // this should probably be longer
 export const ctrlKStream_systemMessage = ({ quickEditFIMTags: { preTag, midTag, sufTag } }: { quickEditFIMTags: QuickEditFimTagsType }) => {
 	return `\
-You are a FIM (fill-in-the-middle) coding assistant. Your task is to fill in the middle SELECTION marked by <${midTag}> tags.
+You are A-Coder, a FIM (fill-in-the-middle) coding assistant. Your task is to fill in the middle SELECTION marked by <${midTag}> tags.
 
 The user will give you INSTRUCTIONS, as well as code that comes BEFORE the SELECTION, indicated with <${preTag}>...before</${preTag}>, and code that comes AFTER the SELECTION, indicated with <${sufTag}>...after</${sufTag}>.
 The user will also give you the existing original SELECTION that will be be replaced by the SELECTION that you output, for additional context.

@@ -32,7 +32,7 @@ export const getErrorMessage: (error: unknown) => string = (error) => {
 export type AnthropicLLMChatMessage = {
 	role: 'assistant',
 	content: string | (AnthropicReasoning | { type: 'text'; text: string }
-		| { type: 'tool_use'; name: string; input: Record<string, any>; id: string; }
+		| { type: 'tool_use'; name: string; input: Record<string, any>; id: string; signature?: string; }
 	)[];
 } | {
 	role: 'user',
@@ -46,7 +46,9 @@ export type OpenAILLMChatMessage = {
 } | {
 	role: 'assistant',
 	content: string | (AnthropicReasoning | { type: 'text'; text: string })[];
-	tool_calls?: { type: 'function'; id: string; function: { name: string; arguments: string; } }[];
+	tool_calls?: { type: 'function'; id: string; function: { name: string; arguments: string; thought_signature?: string; } }[];
+	reasoning?: string;
+	thought_signature?: string;
 } | {
 	role: 'tool',
 	content: string;
@@ -56,8 +58,8 @@ export type OpenAILLMChatMessage = {
 export type GeminiLLMChatMessage = {
 	role: 'model'
 	parts: (
-		| { text: string; }
-		| { functionCall: { id: string; name: ToolName, args: Record<string, unknown> } }
+		| { text: string; thought?: boolean; }
+		| { functionCall: { id: string; name: ToolName, args: Record<string, unknown>, thought_signature?: string; } }
 	)[];
 } | {
 	role: 'user';
@@ -87,6 +89,7 @@ export type RawToolCallObj = {
 	doneParams: ToolParamName<ToolName>[];
 	id: string;
 	isDone: boolean;
+	thought_signature?: string;
 };
 
 export type AnthropicReasoning = ({ type: 'thinking'; thinking: any; signature: string; } | { type: 'redacted_thinking', data: any })

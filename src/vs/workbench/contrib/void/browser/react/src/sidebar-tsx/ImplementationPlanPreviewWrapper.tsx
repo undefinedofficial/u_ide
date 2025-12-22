@@ -169,7 +169,7 @@ const ImplementationPlanPreviewWrapper: React.FC<ImplementationPlanPreviewWrappe
 			// Switch to Code mode (agent) for execution
 			if (voidSettingsService?.setGlobalSetting) {
 				console.log('[ImplementationPlanPreview] Switching to agent mode')
-				voidSettingsService.setGlobalSetting('chatMode', 'agent')
+				voidSettingsService.setGlobalSetting('chatMode', 'code')
 			}
 
 			// Send approval message that instructs AI to create a task plan and execute
@@ -211,7 +211,7 @@ Please begin execution now.`
 
 			// Stay in Plan mode (gather) for revisions - don't switch to agent
 			if (voidSettingsService?.setGlobalSetting) {
-				await voidSettingsService.setGlobalSetting('chatMode', 'gather')
+				await voidSettingsService.setGlobalSetting('chatMode', 'plan')
 			}
 
 			// Send change request message to chat

@@ -67,12 +67,14 @@ export class MorphChannel implements IServerChannel {
 			}
 
 			case 'codebaseSearch': {
-				const { apiKey, query, repoId, branch, commitHash } = arg as {
+				const { apiKey, query, repoId, branch, commitHash, target_directories, limit } = arg as {
 					apiKey: string;
 					query: string;
-					repoId?: string;
+					repoId: string;
 					branch?: string;
 					commitHash?: string;
+					target_directories: string[];
+					limit: number;
 				};
 
 				const morph = this.getMorphClient(apiKey) as any;
@@ -85,6 +87,8 @@ export class MorphChannel implements IServerChannel {
 					repoId,
 					branch,
 					commitHash,
+					target_directories,
+					limit,
 				});
 				return results;
 			}

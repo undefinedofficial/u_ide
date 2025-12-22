@@ -91,7 +91,7 @@ export const TypingIndicator = ({
 	return (
 		<div className="py-2 h-8 flex items-center">
 			<span
-				className={`text-sm select-none text-shimmer transition-all duration-500 ease-in-out ${isTransitioning ? 'opacity-0 translate-y-1' : 'opacity-100 translate-y-0'}`}
+				className={`text-sm select-none text-shimmer animate-text-shimmer transition-all duration-500 ease-in-out ${isTransitioning ? 'opacity-0 translate-y-1' : 'opacity-100 translate-y-0'}`}
 			>
 				{displayMessage}
 			</span>

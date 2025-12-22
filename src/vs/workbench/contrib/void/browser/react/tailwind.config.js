@@ -20,7 +20,7 @@ module.exports = {
 							},
 						},
 						animation: {
-							'text-shimmer': 'text-shimmer 1.5s linear infinite',
+							'text-shimmer': 'text-shimmer 2.5s ease-out infinite',
 							'pulse-gentle': 'pulse-gentle 1.5s ease-in-out infinite',
 						},
 						typography: theme => ({				DEFAULT: {
@@ -211,10 +211,11 @@ module.exports = {
 		({ addUtilities }) => {
 			addUtilities({
 				'.text-shimmer': {
-					'background-image': 'linear-gradient(90deg, var(--void-fg-3) 0%, var(--void-fg-3) 35%, var(--void-fg-1) 50%, var(--void-fg-3) 65%, var(--void-fg-3) 100%)',
+					'background-image': 'linear-gradient(90deg, var(--void-fg-3) 0%, var(--void-fg-3) 40%, var(--void-fg-1) 50%, var(--void-fg-3) 60%, var(--void-fg-3) 100%)',
 					'background-size': '200% 100%',
 					'-webkit-background-clip': 'text',
 					'background-clip': 'text',
+					'display': 'inline-block',
 					'color': 'transparent',
 				},
 			})

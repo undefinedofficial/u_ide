@@ -768,7 +768,7 @@ export class LiteModeService extends Disposable implements ILiteModeService {
 
             // Switch from gather (plan) mode to agent (code) mode for execution
             if (settingsService) {
-                settingsService.setGlobalSetting('chatMode', 'agent');
+                settingsService.setGlobalSetting('chatMode', 'code');
                 console.log('Switched chat mode to agent for plan execution');
             }
 

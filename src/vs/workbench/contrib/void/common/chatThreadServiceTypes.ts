@@ -14,6 +14,7 @@ export type ToolMessage<T extends ToolName> = {
 	id: string;
 	rawParams: RawToolParamsObj;
 	mcpServerName: string | undefined; // the server name at the time of the call
+	thought_signature?: string;
 } & (
 		// in order of events:
 		| { type: 'invalid_params', result: null, name: T, }

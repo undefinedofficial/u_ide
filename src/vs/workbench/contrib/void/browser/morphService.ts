@@ -37,7 +37,25 @@ export interface IMorphService {
 	/**
 	 * Morph Repo Storage: codebase semantic search
 	 */
-	codebaseSearch(params: { query: string; repoId?: string; branch?: string; commitHash?: string }): Promise<{ results: Array<{ filePath: string; snippet: string; score?: number }> }>;
+	codebaseSearch(params: {
+		query: string;
+		repoId?: string;
+		branch?: string;
+		commitHash?: string;
+		target_directories?: string[];
+		limit?: number;
+	}): Promise<{
+		success: boolean;
+		results: Array<{
+			filepath: string;
+			content: string;
+			rerankScore: number;
+			language: string;
+			startLine: number;
+			endLine: number;
+		}>;
+		stats: { searchTimeMs: number };
+	}>;
 
 	/**
 	 * Morph Repo Storage: git operations
@@ -172,7 +190,14 @@ export class MorphService implements IMorphService {
 		};
 	}
 
-	async codebaseSearch(params: { query: string; repoId?: string; branch?: string; commitHash?: string }) {
+	async codebaseSearch(params: {
+		query: string;
+		repoId?: string;
+		branch?: string;
+		commitHash?: string;
+		target_directories?: string[];
+		limit?: number;
+	}) {
 		const apiKey = this._getApiKey();
 		const defaults = this._getRepoDefaults();
 		const channel = this._mainProcessService.getChannel('void-channel-morph');
@@ -182,7 +207,20 @@ export class MorphService implements IMorphService {
 			repoId: params.repoId ?? defaults.repoId,
 			branch: params.branch ?? defaults.branch,
 			commitHash: params.commitHash,
-		}) as { results: Array<{ filePath: string; snippet: string; score?: number }> };
+			target_directories: params.target_directories ?? [],
+			limit: params.limit ?? 10,
+		}) as {
+			success: boolean;
+			results: Array<{
+				filepath: string;
+				content: string;
+				rerankScore: number;
+				language: string;
+				startLine: number;
+				endLine: number;
+			}>;
+			stats: { searchTimeMs: number };
+		};
 		return results;
 	}
 
