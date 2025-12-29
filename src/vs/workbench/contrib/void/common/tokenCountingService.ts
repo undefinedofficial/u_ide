@@ -356,6 +356,58 @@ export class TokenCountingService {
 	}
 
 	/**
+	 * Get conservative buffer for very large context windows (1M+ tokens)
+	 * Large models like Gemini 1.5 have non-linear tokenization for very large inputs
+	 */
+	public getLargeContextBuffer(contextWindow: number): number {
+		// For models with 1M+ context, use a more conservative buffer
+		// to account for non-linear tokenization and encoding overhead
+		if (contextWindow >= 1000000) {
+			// 5% buffer for 1M+ context windows
+			return Math.floor(contextWindow * 0.05);
+		} else if (contextWindow >= 500000) {
+			// 3% buffer for 500k-1M context windows
+			return Math.floor(contextWindow * 0.03);
+		} else if (contextWindow >= 200000) {
+			// 2% buffer for 200k-500k context windows
+			return Math.floor(contextWindow * 0.02);
+		} else {
+			// 1% buffer for smaller context windows
+			return Math.floor(contextWindow * 0.01);
+		}
+	}
+
+	/**
+	 * Estimate tokens with improved accuracy for very large contexts
+	 * Accounts for non-linear tokenization in large context models
+	 */
+	public estimateTokensForLargeContext(text: string, modelName: string): number {
+		const contextWindow = this.getContextWindowSize(modelName);
+		
+		// For very large contexts, tokenization becomes less efficient
+		// This is an empirical observation for models with 1M+ context
+		if (contextWindow >= 1000000) {
+			// Large context models often have 3-3.5 chars/token for typical content
+			// Add overhead for special formatting and non-linear encoding
+			return Math.ceil(text.length / 3.2) + 50;
+		} else if (contextWindow >= 500000) {
+			return Math.ceil(text.length / 3.5) + 30;
+		} else {
+			// Standard estimate for smaller contexts
+			return Math.ceil(text.length / 4) + 10;
+		}
+	}
+
+	/**
+	 * Get effective context window accounting for large context buffers
+	 */
+	public getEffectiveContextWindow(modelName: string): number {
+		const contextWindow = this.getContextWindowSize(modelName);
+		const buffer = this.getLargeContextBuffer(contextWindow);
+		return contextWindow - buffer;
+	}
+
+	/**
 	 * Dispose (no-op for character-based estimation)
 	 */
 	public dispose(): void {

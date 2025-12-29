@@ -1422,73 +1422,72 @@ class EditCodeService extends Disposable implements IEditCodeService {
 	}
 
 
-	public async instantlyApplySearchReplaceBlocks({ uri, searchReplaceBlocks, tryFuzzyMatching, onProgress }: { uri: URI, searchReplaceBlocks: string, tryFuzzyMatching?: boolean, onProgress?: (data: string) => void }) {
-		console.log('[editCodeService] instantlyApplySearchReplaceBlocks called');
-		console.log('[editCodeService] Morph enabled:', this._settingsService.state.globalSettings.enableMorphFastApply);
-		console.log('[editCodeService] Morph API key present:', !!this._settingsService.state.globalSettings.morphApiKey);
-
-		// start diffzone
-		const res = this._startStreamingDiffZone({
-			uri,
-			streamRequestIdRef: { current: null },
-			startBehavior: 'keep-conflicts',
-			linkedCtrlKZone: null,
-			onWillUndo: () => { },
-		})
-		if (!res) return
-		const { diffZone, onFinishEdit } = res
-
-
-		const onDone = () => {
-			diffZone._streamState = { isStreaming: false, }
-			this._onDidChangeStreamingInDiffZone.fire({ uri, diffareaid: diffZone.diffareaid })
-			this._refreshStylesAndDiffsInURI(uri)
-			onFinishEdit()
-
-			// auto accept
-			if (this._settingsService.state.globalSettings.autoAcceptLLMChanges) {
-				this.acceptOrRejectAllDiffAreas({ uri, removeCtrlKs: false, behavior: 'accept' })
-			}
-		}
-
-
-		const onError = (e: { message: string; fullError: Error | null; }) => {
-			// this._notifyError(e)
-			onDone()
-			this._undoHistory(uri)
-			throw e.fullError || new Error(e.message)
-		}
-
-		try {
-			// Try Morph Fast Apply if enabled
-			if (this._settingsService.state.globalSettings.enableMorphFastApply &&
-				this._settingsService.state.globalSettings.morphApiKey) {
-				onProgress?.('Attempting to use Morph Fast Apply...');
-				console.log('[editCodeService] Attempting to use Morph Fast Apply...');
-				try {
-					await this._applyWithMorph(uri, searchReplaceBlocks);
-					onProgress?.('Successfully applied changes using Morph Fast Apply');
-					console.log('[editCodeService] Successfully applied changes using Morph Fast Apply');
-				} catch (morphError) {
-					// Fall back to standard apply if Morph fails
-					onProgress?.(`Morph Fast Apply failed, falling back to standard apply: ${morphError}`);
-					console.warn('[editCodeService] Morph Fast Apply failed, falling back to standard apply:', morphError);
-					await this._instantlyApplySRBlocks(uri, searchReplaceBlocks, tryFuzzyMatching, onProgress);
+		public async instantlyApplyOriginalUpdatedBlocks({ uri, originalUpdatedBlocks, tryFuzzyMatching, onProgress }: { uri: URI, originalUpdatedBlocks: string, tryFuzzyMatching?: boolean, onProgress?: (data: string) => void }) {
+			console.log('[editCodeService] instantlyApplyOriginalUpdatedBlocks called');
+			console.log('[editCodeService] Morph enabled:', this._settingsService.state.globalSettings.enableMorphFastApply);
+			console.log('[editCodeService] Morph API key present:', !!this._settingsService.state.globalSettings.morphApiKey);
+	
+			// start diffzone
+			const res = this._startStreamingDiffZone({
+				uri,
+				streamRequestIdRef: { current: null },
+				startBehavior: 'keep-conflicts',
+				linkedCtrlKZone: null,
+				onWillUndo: () => { },
+			})
+			if (!res) return
+			const { diffZone, onFinishEdit } = res
+	
+	
+			const onDone = () => {
+				diffZone._streamState = { isStreaming: false, }
+				this._onDidChangeStreamingInDiffZone.fire({ uri, diffareaid: diffZone.diffareaid })
+				this._refreshStylesAndDiffsInURI(uri)
+				onFinishEdit()
+	
+				// auto accept
+				if (this._settingsService.state.globalSettings.autoAcceptLLMChanges) {
+					this.acceptOrRejectAllDiffAreas({ uri, removeCtrlKs: false, behavior: 'accept' })
 				}
-			} else {
-				onProgress?.('Using standard search/replace apply...');
-				console.log('[editCodeService] Using standard apply (Morph disabled or no API key)');
-				// Standard apply logic
-				await this._instantlyApplySRBlocks(uri, searchReplaceBlocks, tryFuzzyMatching, onProgress);
 			}
+	
+	
+			const onError = (e: { message: string; fullError: Error | null; }) => {
+				// this._notifyError(e)
+			onDone()
+				this._undoHistory(uri)
+				throw e.fullError || new Error(e.message)
+			}
+	
+			try {
+				// Try Morph Fast Apply if enabled
+				if (this._settingsService.state.globalSettings.enableMorphFastApply &&
+					this._settingsService.state.globalSettings.morphApiKey) {
+					onProgress?.('Attempting to use Morph Fast Apply...');
+					console.log('[editCodeService] Attempting to use Morph Fast Apply...');
+					try {
+						await this._applyWithMorph(uri, originalUpdatedBlocks);
+						onProgress?.('Successfully applied changes using Morph Fast Apply');
+						console.log('[editCodeService] Successfully applied changes using Morph Fast Apply');
+					} catch (morphError) {
+						// Fall back to standard apply if Morph fails
+						onProgress?.(`Morph Fast Apply failed, falling back to standard apply: ${morphError}`);
+						console.warn('[editCodeService] Morph Fast Apply failed, falling back to standard apply:', morphError);
+						await this._instantlyApplySRBlocks(uri, originalUpdatedBlocks, tryFuzzyMatching, onProgress);
+					}
+				} else {
+					onProgress?.('Using standard ORIGINAL/UPDATED apply...');
+					console.log('[editCodeService] Using standard apply (Morph disabled or no API key)');
+					// Standard apply logic
+					await this._instantlyApplySRBlocks(uri, originalUpdatedBlocks, tryFuzzyMatching, onProgress);
+				}
+			}
+			catch (e) {
+				onError({ message: e + '', fullError: null })
+			}
+	
+			onDone()
 		}
-		catch (e) {
-			onError({ message: e + '', fullError: null })
-		}
-
-		onDone()
-	}
-
 
 	public instantlyRewriteFile({ uri, newContent, onProgress }: { uri: URI, newContent: string, onProgress?: (data: string) => void }) {
 		onProgress?.(`Starting rewrite of: ${uri.fsPath}...`);
@@ -1940,7 +1939,7 @@ ${problematicCode}
 
 1. **Use rewrite_file instead** - Avoids overlap issues entirely
 
-2. **Combine the blocks** - Merge overlapping edits into a single SEARCH/REPLACE block:
+2. **Combine the blocks** - Merge overlapping edits into a single ORIGINAL/UPDATED block:
    - Include all overlapping code in one ORIGINAL block
    - Provide the complete UPDATED version`
 				break
@@ -1952,16 +1951,16 @@ ${problematicCode}
 
 
 	private async _instantlyApplySRBlocks(uri: URI, blocksStr: string, tryFuzzyMatching: boolean = false, onProgress?: (data: string) => void) {
-		onProgress?.(`Extracting search/replace blocks...`);
+		onProgress?.(`Extracting ORIGINAL/UPDATED blocks...`);
 		const blocks = extractSearchReplaceBlocks(blocksStr)
-		if (blocks.length === 0) throw new Error(`No Search/Replace blocks were received!`)
+		if (blocks.length === 0) throw new Error(`No ORIGINAL/UPDATED blocks were received!`)
 
-		const logMsg = `[editCodeService] Applying ${blocks.length} search/replace blocks\n${blocks.map((b, i) => `Block ${i + 1}: orig=${b.orig.length} chars, final=${b.final.length} chars`).join('\n')}`
+		const logMsg = `[editCodeService] Applying ${blocks.length} ORIGINAL/UPDATED blocks\n${blocks.map((b, i) => `Block ${i + 1}: orig=${b.orig.length} chars, final=${b.final.length} chars`).join('\n')}`
 		console.log(logMsg)
 		console.error(logMsg) // Also log to stderr so it shows in terminal
 
 		const { model } = this._voidModelService.getModel(uri)
-		if (!model) throw new Error(`Error applying Search/Replace blocks: File does not exist.`)
+		if (!model) throw new Error(`Error applying ORIGINAL/UPDATED blocks: File does not exist.`)
 		const modelStr = model.getValue(EndOfLinePreference.LF)
 		// .split('\n').map(l => '\t' + l).join('\n') // for testing purposes only, remember to remove this
 		const modelStrLines = modelStr.split('\n')
@@ -2025,11 +2024,11 @@ ${problematicCode}
 		onProgress?.(`Successfully applied all blocks to: ${uri.fsPath}`);
 	}
 
-	private async _applyWithMorph(uri: URI, searchReplaceBlocks: string): Promise<void> {
-		// Extract the search/replace blocks
-		const blocks = extractSearchReplaceBlocks(searchReplaceBlocks);
+	private async _applyWithMorph(uri: URI, originalUpdatedBlocks: string): Promise<void> {
+		// Extract the ORIGINAL/UPDATED blocks
+		const blocks = extractSearchReplaceBlocks(originalUpdatedBlocks);
 		if (blocks.length === 0) {
-			throw new Error('No Search/Replace blocks were received!');
+			throw new Error('No ORIGINAL/UPDATED blocks were received!');
 		}
 
 		// Get the original file content
@@ -2251,7 +2250,7 @@ ${problematicCode}
 								console.log('block.orig:', block.orig)
 								console.log('---------')
 								const content = this._errContentOfInvalidStr(errorMessage, block.orig)
-								const retryMsg = 'All of your previous outputs have been ignored. Please re-output ALL SEARCH/REPLACE blocks starting from the first one, and avoid the error this time.'
+								const retryMsg = 'All of your previous outputs have been ignored. Please re-output ALL ORIGINAL/UPDATED blocks starting from the first one, and avoid the error this time.'
 								messages.push(
 									{ role: 'assistant', content: fullText }, // latest output
 									{ role: 'user', content: content + '\n' + retryMsg } // user explanation of what's wrong

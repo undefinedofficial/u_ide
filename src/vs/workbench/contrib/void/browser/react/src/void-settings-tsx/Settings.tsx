@@ -784,7 +784,7 @@ const FastApplyMethodDropdown = () => {
 		onChangeOption={onChangeOption}
 		getOptionDisplayName={(val) => val ? 'Fast Apply' : 'Slow Apply'}
 		getOptionDropdownName={(val) => val ? 'Fast Apply' : 'Slow Apply'}
-		getOptionDropdownDetail={(val) => val ? 'Output Search/Replace blocks' : 'Rewrite whole files'}
+		getOptionDropdownDetail={(val) => val ? 'Output ORIGINAL/UPDATED blocks' : 'Rewrite whole files'}
 		getOptionsEqual={(a, b) => a === b}
 	/>
 

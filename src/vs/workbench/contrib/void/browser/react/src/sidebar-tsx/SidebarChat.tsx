@@ -2068,67 +2068,7 @@ const titleOfBuiltinToolName = {
 	'search_in_file': { done: 'Search in file', proposed: 'Search in file', running: 'Searching file' },
 	'read_lint_errors': { done: 'Read lint errors', proposed: 'Read lint errors', running: 'Reading lint errors' },
 	'fast_context': { done: 'Fast context', proposed: 'Fast context', running: 'Gathering fast context' },
-		'codebase_search': {
-			resultWrapper: ({ toolMessage, threadId }) => {
-				const accessor = useAccessor()
-				const streamState = useChatThreadsStreamState(threadId)
-	
-				const title = getTitle(toolMessage)
-				const { desc1, desc1Info } = toolNameToDesc(toolMessage.name as BuiltinToolName, toolMessage.params, accessor)
-	
-				const isRejected = toolMessage.type === 'rejected'
-				const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError: false, icon: null, isRejected }
-	
-				if (toolMessage.type === 'running_now') {
-					const activity = streamState?.isRunning === 'tool' && streamState.toolInfo.id === toolMessage.id
-						? streamState.toolInfo.content
-						: 'Searching codebase...';
-	
-					componentParams.children = (
-						<ToolChildrenWrapper>
-							<div className="flex items-center gap-2 py-1">
-								<Loader2 className="w-3 h-3 animate-spin text-void-accent" />
-								<span className="text-xs italic text-void-fg-3">{activity}</span>
-							</div>
-						</ToolChildrenWrapper>
-					)
-					componentParams.isOpen = true;
-				}
-				else if (toolMessage.type === 'success') {
-					const { result } = toolMessage
-					const results = result?.results ?? []
-					componentParams.numResults = results.length
-					componentParams.children = (
-						<ToolChildrenWrapper>
-							<div className='flex flex-col gap-2'>
-								{results.length === 0 && (
-									<SmallProseWrapper>No results found for this query.</SmallProseWrapper>
-								)}
-								{results.map((res, i) => (
-									<div key={i} className='rounded border border-void-border-2 bg-void-bg-2/60 px-3 py-2 space-y-1'>
-										<div className='flex items-center justify-between gap-2 text-sm text-void-fg-2'>
-											<span className='font-medium truncate'>{res.filepath}</span>
-											<span className='text-[10px] font-bold text-void-accent bg-void-accent/10 px-1.5 py-0.5 rounded'>
-												{(res.rerankScore * 100).toFixed(1)}% match
-											</span>
-										</div>
-										<CodeChildren>
-											<pre className='font-mono whitespace-pre-wrap'>{res.content}</pre>
-										</CodeChildren>
-									</div>
-								))}
-							</div>
-						</ToolChildrenWrapper>
-					)
-				} else if (toolMessage.type === 'tool_error') {
-					componentParams.bottomChildren = <BottomChildren title='Error'>
-						<CodeChildren>{toolMessage.result}</CodeChildren>
-					</BottomChildren>
-				}
-	
-				return <ToolHeaderWrapper {...componentParams} />
-			},
-		},
+	'codebase_search': { done: 'Searched codebase', proposed: 'Search codebase', running: 'Searching codebase' },
 	'repo_init': { done: 'Repo initialized', proposed: 'Init repo', running: 'Initializing repo' },
 	'repo_clone': { done: 'Repo cloned', proposed: 'Clone repo', running: 'Cloning repo' },
 	'repo_add': { done: 'Staged changes', proposed: 'Stage changes', running: 'Staging changes' },
@@ -2145,6 +2085,7 @@ const titleOfBuiltinToolName = {
 	'repo_resolve_ref': { done: 'Resolved reference', proposed: 'Resolve reference', running: 'Resolving reference' },
 	'repo_get_commit_metadata': { done: 'Got commit metadata', proposed: 'Get commit metadata', running: 'Getting commit metadata' },
 	'repo_wait_for_embeddings': { done: 'Embeddings ready', proposed: 'Wait for embeddings', running: 'Waiting for embeddings' },
+	'wait': { done: 'Wait finished', proposed: 'Wait', running: loadingTitleWrapper('Waiting') },
 	'create_file_or_folder': { done: `Created`, proposed: `Create`, running: loadingTitleWrapper(`Creating`) },
 	'delete_file_or_folder': { done: `Deleted`, proposed: `Delete`, running: loadingTitleWrapper(`Deleting`) },
 	'edit_file': { done: `Edited file`, proposed: 'Edit file', running: loadingTitleWrapper('Editing file') },
@@ -2247,6 +2188,34 @@ const toolNameToDesc = (toolName: BuiltinToolName, _toolParams: BuiltinToolCallP
 			return {
 				desc1: toolParams.query,
 				desc1Info: 'Morph fast context',
+			}
+		},
+		'codebase_search': () => {
+			const toolParams = _toolParams as BuiltinToolCallParams['codebase_search']
+			return {
+				desc1: toolParams.query,
+			}
+		},
+		'repo_init': () => ({ desc1: 'Repo init' }),
+		'repo_clone': () => ({ desc1: 'Repo clone' }),
+		'repo_add': () => ({ desc1: 'Repo add' }),
+		'repo_commit': () => ({ desc1: 'Repo commit' }),
+		'repo_push': () => ({ desc1: 'Repo push' }),
+		'repo_pull': () => ({ desc1: 'Repo pull' }),
+		'repo_status': () => ({ desc1: 'Repo status' }),
+		'repo_status_matrix': () => ({ desc1: 'Repo status matrix' }),
+		'repo_log': () => ({ desc1: 'Repo log' }),
+		'repo_checkout': () => ({ desc1: 'Repo checkout' }),
+		'repo_branch': () => ({ desc1: 'Repo branch' }),
+		'repo_list_branches': () => ({ desc1: 'Repo list branches' }),
+		'repo_current_branch': () => ({ desc1: 'Repo current branch' }),
+		'repo_resolve_ref': () => ({ desc1: 'Repo resolve ref' }),
+		'repo_get_commit_metadata': () => ({ desc1: 'Repo get commit metadata' }),
+		'repo_wait_for_embeddings': () => ({ desc1: 'Repo wait for embeddings' }),
+		'wait': () => {
+			const toolParams = _toolParams as BuiltinToolCallParams['wait']
+			return {
+				desc1: `Wait for ${toolParams.timeoutMs}ms`,
 			}
 		},
 		'outline_file': () => {
@@ -2601,7 +2570,7 @@ export const ListableToolItem = ({ name, onClick, isSmall, className, showDot }:
 const EditToolChildren = ({ uri, code, type }: { uri: URI | undefined, code: string, type: 'diff' | 'rewrite' }) => {
 
 	const content = type === 'diff' ?
-		<VoidDiffEditor uri={uri} searchReplaceBlocks={code} />
+		<VoidDiffEditor uri={uri} originalUpdatedBlocks={code} />
 		: <ChatMarkdownRender string={`\`\`\`\n${code}\n\`\`\``} codeURI={uri} chatMessageLocation={undefined} />
 
 	return <div className='!select-text cursor-auto'>
@@ -3023,7 +2992,7 @@ const DefaultToolResultWrapper: ResultWrapper<BuiltinToolName> = ({ toolMessage,
 
 const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: ResultWrapper<T>, } } = {
 	'read_file': {
-		resultWrapper: ({ toolMessage, threadId }) => {
+		resultWrapper: ({ toolMessage, threadId }: WrapperProps<'read_file'>) => {
 			const accessor = useAccessor()
 			const streamState = useChatThreadsStreamState(threadId)
 			const commandService = accessor.get('ICommandService')
@@ -3086,7 +3055,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 		},
 	},
 	'outline_file': {
-		resultWrapper: ({ toolMessage, threadId }) => {
+		resultWrapper: ({ toolMessage, threadId }: WrapperProps<'outline_file'>) => {
 			const accessor = useAccessor()
 			const streamState = useChatThreadsStreamState(threadId)
 			const commandService = accessor.get('ICommandService')
@@ -3135,7 +3104,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 		},
 	},
 	    'get_dir_tree': {
-	        resultWrapper: ({ toolMessage }) => {
+	        resultWrapper: ({ toolMessage }: WrapperProps<'get_dir_tree'>) => {
 	            const accessor = useAccessor()
 	            const commandService = accessor.get('ICommandService')
 	
@@ -3180,7 +3149,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 		}
 	},
 	'fast_context': {
-		resultWrapper: ({ toolMessage, threadId }) => {
+		resultWrapper: ({ toolMessage, threadId }: WrapperProps<'fast_context'>) => {
 			const accessor = useAccessor()
 			const streamState = useChatThreadsStreamState(threadId)
 
@@ -3216,7 +3185,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 							{contexts.length === 0 && (
 								<SmallProseWrapper>No contexts found for this query.</SmallProseWrapper>
 							)}
-							{contexts.map((ctx, i) => (
+							{contexts.map((ctx: any, i: number) => (
 								<div key={i} className='rounded border border-void-border-2 bg-void-bg-2/60 px-3 py-2 space-y-1'>
 									<div className='flex items-center justify-between gap-2 text-sm text-void-fg-2'>
 										<span className='font-medium truncate'>{ctx.file}</span>
@@ -3238,8 +3207,85 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			return <ToolHeaderWrapper {...componentParams} />
 		},
 	},
+	'codebase_search': {
+		resultWrapper: ({ toolMessage, threadId }: WrapperProps<'codebase_search'>) => {
+			const accessor = useAccessor()
+			const streamState = useChatThreadsStreamState(threadId)
+
+			const title = getTitle(toolMessage)
+			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name as BuiltinToolName, toolMessage.params, accessor)
+
+			const isRejected = toolMessage.type === 'rejected'
+			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError: false, icon: null, isRejected }
+
+			if (toolMessage.type === 'running_now') {
+				const activity = streamState?.isRunning === 'tool' && streamState.toolInfo.id === toolMessage.id
+					? streamState.toolInfo.content
+					: 'Searching codebase...';
+
+				componentParams.children = (
+					<ToolChildrenWrapper>
+						<div className="flex items-center gap-2 py-1">
+							<Loader2 className="w-3 h-3 animate-spin text-void-accent" />
+							<span className="text-xs italic text-void-fg-3">{activity}</span>
+						</div>
+					</ToolChildrenWrapper>
+				)
+				componentParams.isOpen = true;
+			}
+			else if (toolMessage.type === 'success') {
+				const { result } = toolMessage
+				const results = result?.results ?? []
+				componentParams.numResults = results.length
+				componentParams.children = (
+					<ToolChildrenWrapper>
+						<div className='flex flex-col gap-2'>
+							{results.length === 0 && (
+								<SmallProseWrapper>No results found for this query.</SmallProseWrapper>
+							)}
+							{results.map((res: any, i: number) => (
+								<div key={i} className='rounded border border-void-border-2 bg-void-bg-2/60 px-3 py-2 space-y-1'>
+									<div className='flex items-center justify-between gap-2 text-sm text-void-fg-2'>
+										<span className='font-medium truncate'>{res.filepath}</span>
+										<span className='text-[10px] font-bold text-void-accent bg-void-accent/10 px-1.5 py-0.5 rounded'>
+											{(res.rerankScore * 100).toFixed(1)}% match
+										</span>
+									</div>
+									<CodeChildren>
+										<pre className='font-mono whitespace-pre-wrap'>{res.content}</pre>
+									</CodeChildren>
+								</div>
+							))}
+						</div>
+					</ToolChildrenWrapper>
+				)
+			} else if (toolMessage.type === 'tool_error') {
+				componentParams.bottomChildren = <BottomChildren title='Error'>
+					<CodeChildren>{toolMessage.result}</CodeChildren>
+				</BottomChildren>
+			}
+
+			return <ToolHeaderWrapper {...componentParams} />
+		},
+	},
+	'repo_init': { resultWrapper: DefaultToolResultWrapper },
+	'repo_clone': { resultWrapper: DefaultToolResultWrapper },
+	'repo_add': { resultWrapper: DefaultToolResultWrapper },
+	'repo_commit': { resultWrapper: DefaultToolResultWrapper },
+	'repo_push': { resultWrapper: DefaultToolResultWrapper },
+	'repo_pull': { resultWrapper: DefaultToolResultWrapper },
+	'repo_status': { resultWrapper: DefaultToolResultWrapper },
+	'repo_status_matrix': { resultWrapper: DefaultToolResultWrapper },
+	'repo_log': { resultWrapper: DefaultToolResultWrapper },
+	'repo_checkout': { resultWrapper: DefaultToolResultWrapper },
+	'repo_branch': { resultWrapper: DefaultToolResultWrapper },
+	'repo_list_branches': { resultWrapper: DefaultToolResultWrapper },
+	'repo_current_branch': { resultWrapper: DefaultToolResultWrapper },
+	'repo_resolve_ref': { resultWrapper: DefaultToolResultWrapper },
+	'repo_get_commit_metadata': { resultWrapper: DefaultToolResultWrapper },
+	'repo_wait_for_embeddings': { resultWrapper: DefaultToolResultWrapper },
 	'ls_dir': {
-		resultWrapper: ({ toolMessage }) => {
+		resultWrapper: ({ toolMessage }: WrapperProps<'ls_dir'>) => {
 			const accessor = useAccessor()
 			const commandService = accessor.get('ICommandService')
 			const explorerService = accessor.get('IExplorerService')
@@ -3290,7 +3336,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 		}
 	},
 	'search_pathnames_only': {
-		resultWrapper: ({ toolMessage }) => {
+		resultWrapper: ({ toolMessage }: WrapperProps<'search_pathnames_only'>) => {
 			const accessor = useAccessor()
 			const commandService = accessor.get('ICommandService')
 			const isError = false
@@ -3336,7 +3382,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 		}
 	},
 	'search_for_files': {
-		resultWrapper: ({ toolMessage }) => {
+		resultWrapper: ({ toolMessage }: WrapperProps<'search_for_files'>) => {
 			const accessor = useAccessor()
 			const commandService = accessor.get('ICommandService')
 			const isError = false
@@ -3388,7 +3434,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	},
 
 	'search_in_file': {
-		resultWrapper: ({ toolMessage }) => {
+		resultWrapper: ({ toolMessage }: WrapperProps<'search_in_file'>) => {
 			const accessor = useAccessor();
 			const toolsService = accessor.get('IToolsService');
 			const title = getTitle(toolMessage);
@@ -3432,7 +3478,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	},
 
 	'read_lint_errors': {
-		resultWrapper: ({ toolMessage }) => {
+		resultWrapper: ({ toolMessage }: WrapperProps<'read_lint_errors'>) => {
 			const accessor = useAccessor()
 			const commandService = accessor.get('ICommandService')
 
@@ -3590,31 +3636,31 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 		}
 	},
 	'rewrite_file': {
-		resultWrapper: (params) => {
+		resultWrapper: (params: WrapperProps<'rewrite_file'>) => {
 			return <EditTool {...params} content={params.toolMessage.params.newContent} />
 		}
 	},
 	'edit_file': {
-		resultWrapper: (params) => {
-			return <EditTool {...params} content={params.toolMessage.params.searchReplaceBlocks} />
+		resultWrapper: (params: WrapperProps<'edit_file'>) => {
+			return <EditTool {...params} content={params.toolMessage.params.originalUpdatedBlocks} />
 		}
 	},
 
 	// ---
 
 	'run_command': {
-		resultWrapper: (params) => {
+		resultWrapper: (params: WrapperProps<'run_command'>) => {
 			return <CommandTool {...params} type='run_command' />
 		}
 	},
 
 	'run_persistent_command': {
-		resultWrapper: (params) => {
+		resultWrapper: (params: WrapperProps<'run_persistent_command'>) => {
 			return <CommandTool {...params} type='run_persistent_command' />
 		}
 	},
 	'open_persistent_terminal': {
-		resultWrapper: ({ toolMessage, threadId }) => {
+		resultWrapper: ({ toolMessage, threadId }: WrapperProps<'open_persistent_terminal'>) => {
 			const accessor = useAccessor()
 			const terminalToolsService = accessor.get('ITerminalToolService')
 
@@ -3658,7 +3704,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 		},
 	},
 	'kill_persistent_terminal': {
-		resultWrapper: ({ toolMessage }) => {
+		resultWrapper: ({ toolMessage }: WrapperProps<'kill_persistent_terminal'>) => {
 			const accessor = useAccessor()
 			const commandService = accessor.get('ICommandService')
 			const terminalToolsService = accessor.get('ITerminalToolService')
@@ -3690,12 +3736,12 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 		},
 	},
 	'wait': {
-		resultWrapper: (params) => {
+		resultWrapper: (params: WrapperProps<'wait'>) => {
 			return <CommandTool {...params} type='wait' />
 		}
 	},
 	'run_code': {
-		resultWrapper: ({ toolMessage }) => {
+		resultWrapper: ({ toolMessage }: WrapperProps<'run_code'>) => {
 			const accessor = useAccessor()
 
 			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor)
@@ -3729,7 +3775,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 
 	// Planning tools
 	'create_plan': {
-		resultWrapper: (params) => {
+		resultWrapper: (params: WrapperProps<'create_plan'>) => {
 			const { toolMessage, messageIdx, threadId } = params
 			return (
 				<React.Suspense fallback={null}>
@@ -3744,7 +3790,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	},
 
 	'update_task_status': {
-		resultWrapper: (params) => {
+		resultWrapper: (params: WrapperProps<'update_task_status'>) => {
 			const { toolMessage, messageIdx, threadId } = params
 			return (
 				<React.Suspense fallback={null}>
@@ -3759,7 +3805,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	},
 
 	'add_tasks_to_plan': {
-		resultWrapper: (params) => {
+		resultWrapper: (params: WrapperProps<'add_tasks_to_plan'>) => {
 			const { toolMessage, messageIdx, threadId } = params
 			return (
 				<React.Suspense fallback={null}>
@@ -3774,7 +3820,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	},
 
 	'get_plan_status': {
-		resultWrapper: (params) => {
+		resultWrapper: (params: WrapperProps<'get_plan_status'>) => {
 			const { toolMessage, messageIdx, threadId } = params
 			return (
 				<React.Suspense fallback={null}>
@@ -3789,7 +3835,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	},
 
 	'update_walkthrough': {
-		resultWrapper: (params) => {
+		resultWrapper: (params: WrapperProps<'update_walkthrough'>) => {
 			const { toolMessage, messageIdx, threadId } = params
 			return (
 				<React.Suspense fallback={null}>
@@ -3805,7 +3851,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 
 	// --- Implementation Planning tools ---
 	'create_implementation_plan': {
-		resultWrapper: (params) => {
+		resultWrapper: (params: WrapperProps<'create_implementation_plan'>) => {
 			const { toolMessage, messageIdx, threadId } = params
 			return (
 				<React.Suspense fallback={null}>
@@ -3819,7 +3865,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 		}
 	},
 	'preview_implementation_plan': {
-		resultWrapper: (params) => {
+		resultWrapper: (params: WrapperProps<'preview_implementation_plan'>) => {
 			const { toolMessage, messageIdx, threadId } = params
 			return (
 				<React.Suspense fallback={null}>
@@ -3833,7 +3879,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 		}
 	},
 	'execute_implementation_plan': {
-		resultWrapper: (params) => {
+		resultWrapper: (params: WrapperProps<'execute_implementation_plan'>) => {
 			const { toolMessage, messageIdx, threadId } = params
 			return (
 				<React.Suspense fallback={null}>
@@ -3847,7 +3893,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 		}
 	},
 	'update_implementation_step': {
-		resultWrapper: (params) => {
+		resultWrapper: (params: WrapperProps<'update_implementation_step'>) => {
 			const { toolMessage, messageIdx, threadId } = params
 			return (
 				<React.Suspense fallback={null}>
@@ -3861,7 +3907,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 		}
 	},
 	'get_implementation_status': {
-		resultWrapper: (params) => {
+		resultWrapper: (params: WrapperProps<'get_implementation_status'>) => {
 			const { toolMessage, messageIdx, threadId } = params
 			return (
 				<React.Suspense fallback={null}>
@@ -3875,7 +3921,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 		}
 	},
 	'open_walkthrough_preview': {
-		resultWrapper: (params) => {
+		resultWrapper: (params: WrapperProps<'open_walkthrough_preview'>) => {
 			const { toolMessage, messageIdx, threadId } = params
 			return (
 				<React.Suspense fallback={null}>
@@ -4353,12 +4399,12 @@ const EditToolSoFar = ({ toolCallSoFar, }: { toolCallSoFar: RawToolCallObj }) =>
 
 	const uriDone = toolCallSoFar.doneParams.includes('uri')
 
-	// Calculate diff stats from search_replace_blocks (for edit_file)
+	// Calculate diff stats from original_updated_blocks (for edit_file)
 	let addedLines = 0;
 	let removedLines = 0;
-	const content = toolCallSoFar.rawParams.search_replace_blocks ?? toolCallSoFar.rawParams.new_content ?? toolCallSoFar.rawParams.newContent ?? '';
-	if (toolCallSoFar.rawParams.search_replace_blocks) {
-		const blocks = toolCallSoFar.rawParams.search_replace_blocks.split('<<<<<<< ORIGINAL').slice(1);
+	const content = toolCallSoFar.rawParams.original_updated_blocks ?? toolCallSoFar.rawParams.new_content ?? toolCallSoFar.rawParams.newContent ?? '';
+	if (toolCallSoFar.rawParams.original_updated_blocks) {
+		const blocks = toolCallSoFar.rawParams.original_updated_blocks.split('<<<<<<< ORIGINAL').slice(1);
 		blocks.forEach((block: string) => {
 			const parts = block.split('=======');
 			if (parts.length === 2) {

@@ -738,35 +738,69 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 			providerName,
 		})
 
-		// Apply context window compression if needed (use async for accuracy)
+		// Apply context window compression using rolling window approach
 		const fullModelName = `${providerName}:${modelName}`;
-		let tokenCount = await this.tokenCountingService.countMessagesTokensAsync(messages, fullModelName);
-		// Use the actual context window from model capabilities, not the hardcoded lookup
 		const contextWindowSize = contextWindow;
-		let usage = tokenCount / contextWindowSize;
+		
+		// Get reserved tokens calculation
+		const effectiveContext = contextWindowSize - (reservedOutputTokenSpace ?? 4096);
 
-		console.log(`[ConvertToLLMMessageService] Token usage: ${tokenCount}/${contextWindowSize} (${(usage * 100).toFixed(1)}%)`);
+		// Count tokens before compression (with better error handling)
+		let tokenCount: number;
+		try {
+			tokenCount = await this.tokenCountingService.countMessagesTokensAsync(messages, fullModelName);
+		} catch (error) {
+			// Fallback to estimate
+			tokenCount = Math.ceil(JSON.stringify(messages).length / 4);
+		}
 
-		// Compress if using more than 80% of context window
-		if (await this.compressionService.needsCompression(messages, fullModelName, 0.8)) {
-			console.log(`[ConvertToLLMMessageService] Context window usage high (${(usage * 100).toFixed(1)}%), applying compression...`);
+		const usage = tokenCount / effectiveContext;
+		console.log(`[ConvertToLLMMessageService] Token usage: ${tokenCount}/${effectiveContext} (${(usage * 100).toFixed(1)}%) for ${providerName}/${modelName}`);
+
+		// Compress if using more than 70% of effective context (more aggressive threshold)
+		// Lower threshold = compress earlier = more reliable prevention of overflow
+		const compressionThreshold = 0.70; // 70% instead of 80%
+		
+		let needsCompression = false;
+		try {
+			needsCompression = await this.compressionService.needsCompression(messages, fullModelName, compressionThreshold);
+		} catch (error) {
+			// If compression check fails, still compress if we're clearly over
+			needsCompression = usage > compressionThreshold;
+		}
+
+		if (needsCompression) {
+			console.log(`[ConvertToLLMMessageService] Context window usage high (${(usage * 100).toFixed(1)}%), applying rolling window compression...`);
 
 			const { compressedMessages, stats } = await this.compressionService.compressMessages(
 				messages,
 				fullModelName,
 				{
-					targetUsage: 0.75,
-					keepLastNMessages: 6,
+					targetUsage: 0.80, // Target 80% of effective context
+					keepLastNMessages: 10, // Keep more recent messages
 					enableSummarization: true,
-					maxToolResultLength: 2000
+					maxToolResultLength: 1500, // Truncate tool results more aggressively
+					reservedTokens: reservedOutputTokenSpace ?? 4096,
+					emergencyKeepLastN: 4,
 				}
 			);
 
-			console.log(`[ConvertToLLMMessageService] Compression complete: ${stats.originalMessageCount} → ${stats.finalMessageCount} messages, ${stats.originalTokens} → ${stats.finalTokens} tokens (${Math.round(stats.finalTokens / stats.originalTokens * 100)}%)`);
+			console.log(`[ConvertToLLMMessageService] Compression complete: ${stats.originalMessageCount} → ${stats.finalMessageCount} messages, ${stats.originalTokens} → ${stats.finalTokens} tokens (${stats.compressionRatio}% of original), removed ${stats.messagesRemoved}, summarized ${stats.messagesSummarized}`);
 
+			// Update token count after compression
+			try {
+				tokenCount = await this.tokenCountingService.countMessagesTokensAsync(compressedMessages, fullModelName);
+			} catch {
+				tokenCount = stats.finalTokens;
+			}
+			
 			messages = compressedMessages;
-			tokenCount = stats.finalTokens;
-			usage = tokenCount / contextWindowSize;
+		}
+		
+		// Final safety check - if still significantly over, log warning
+		const finalUsage = tokenCount / effectiveContext;
+		if (finalUsage > 0.95) {
+			console.warn(`[ConvertToLLMMessageService] WARNING: Still at ${(finalUsage * 100).toFixed(1)}% of context after compression. Consider reducing conversation length.`);
 		}
 
 		// Return messages with token usage info

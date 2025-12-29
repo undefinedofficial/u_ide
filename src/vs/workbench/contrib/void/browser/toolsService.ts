@@ -482,11 +482,11 @@ export class ToolsService implements IToolsService {
 			},
 
 			edit_file: (params: RawToolParamsObj) => {
-				const { uri: uriStr, search_replace_blocks: searchReplaceBlocksUnknown, try_fuzzy_matching: tryFuzzyMatchingUnknown } = params
+				const { uri: uriStr, original_updated_blocks: originalUpdatedBlocksUnknown, try_fuzzy_matching: tryFuzzyMatchingUnknown } = params
 				const uri = validateURI(uriStr)
-				const searchReplaceBlocks = validateStr('searchReplaceBlocks', searchReplaceBlocksUnknown)
+				const originalUpdatedBlocks = validateStr('originalUpdatedBlocks', originalUpdatedBlocksUnknown)
 				const tryFuzzyMatching = validateBoolean(tryFuzzyMatchingUnknown, { default: false })
-				return { uri, searchReplaceBlocks, tryFuzzyMatching }
+				return { uri, originalUpdatedBlocks, tryFuzzyMatching }
 			},
 
 			// ---
@@ -1189,7 +1189,7 @@ export class ToolsService implements IToolsService {
 				return { result: lintErrorsPromise }
 			},
 
-			edit_file: async ({ uri, searchReplaceBlocks, tryFuzzyMatching }, opts) => {
+			edit_file: async ({ uri, originalUpdatedBlocks: originalUpdatedBlocks, tryFuzzyMatching }, opts) => {
 				await voidModelService.initializeModel(uri)
 				if (this.commandBarService.getStreamState(uri) === 'streaming') {
 					throw new Error(`Another LLM is currently making changes to this file. Please stop streaming for now and ask the user to resume later.`)
@@ -1200,20 +1200,20 @@ export class ToolsService implements IToolsService {
 				const useMorph = this.voidSettingsService.state.globalSettings.enableMorphFastApply;
 
 				if (useMorph) {
-					// Use Morph Fast Apply - convert search/replace blocks to Morph format
-					opts?.onData?.(`Morph: Applying search/replace edits to ${path.basename(uri.fsPath)}...`);
+					// Use Morph Fast Apply - convert original/updated blocks to Morph format
+					opts?.onData?.(`Morph: Applying ORIGINAL/UPDATED edits to ${path.basename(uri.fsPath)}...`);
 					const fileContent = await fileService.readFile(uri);
 					const originalContent = fileContent.value.toString();
 					const appliedCode = await this.morphService.applyCodeChange({
 						instruction: 'Applying code edits',
 						originalCode: originalContent,
-						updatedCode: searchReplaceBlocks // Morph expects code with // ... existing code ... format
+						updatedCode: originalUpdatedBlocks // Morph expects code with // ... existing code ... format
 					});
 					editCodeService.instantlyRewriteFile({ uri, newContent: appliedCode, onProgress: opts?.onData });
 				} else {
-					// Use standard search/replace
+					// Use standard original/updated
 					opts?.onData?.(`Applying edits to ${path.basename(uri.fsPath)}...`);
-					await editCodeService.instantlyApplySearchReplaceBlocks({ uri, searchReplaceBlocks, tryFuzzyMatching, onProgress: opts?.onData });
+					await editCodeService.instantlyApplyOriginalUpdatedBlocks({ uri, originalUpdatedBlocks: originalUpdatedBlocks, tryFuzzyMatching, onProgress: opts?.onData });
 				}
 
 				// Morph Repo Storage: sync to cloud if enabled

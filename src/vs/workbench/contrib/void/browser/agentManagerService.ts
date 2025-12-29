@@ -136,13 +136,27 @@ export class AgentManagerService extends Disposable implements IAgentManagerServ
     }
 
     async openWalkthroughPreview(filePath: string, preview: string): Promise<void> {
-        await this.openAgentManager();
-        this._onDidOpenWalkthrough.fire({ filePath, preview });
+        if (this._isOpen) {
+            this._onDidOpenWalkthrough.fire({ filePath, preview });
+            if (this._auxiliaryWindow) {
+                this._auxiliaryWindow.window.focus();
+            }
+        } else {
+            // Fallback: Just open the file in the main editor if Agent Manager is not open
+            // This is a simple fallback, maybe we want a better one later
+            console.log('Agent Manager not open, skipping walkthrough preview fire');
+        }
     }
 
     async openContentPreview(title: string, content: string): Promise<void> {
-        await this.openAgentManager();
-        this._onDidOpenContent.fire({ title, content });
+        if (this._isOpen) {
+            this._onDidOpenContent.fire({ title, content });
+            if (this._auxiliaryWindow) {
+                this._auxiliaryWindow.window.focus();
+            }
+        } else {
+            console.log('Agent Manager not open, skipping content preview fire');
+        }
     }
 
     closeAgentManager(): void {

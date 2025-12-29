@@ -2016,15 +2016,15 @@ const SingleDiffEditor = ({ block, lang }: { block: ExtractedSearchReplaceBlock,
  * ToolDiffEditor mounts a native VSCode DiffEditorWidget to show a diff between original and modified code blocks.
  * Props:
  *   - uri: URI of the file (for language detection, etc)
- *   - searchReplaceBlocks: string in search/replace format (from LLM)
+ *   - originalUpdatedBlocks: string in ORIGINAL/UPDATED format (from LLM)
  *   - language?: string (optional, fallback to 'plaintext')
  */
-export const VoidDiffEditor = ({ uri, searchReplaceBlocks, language }: { uri?: any, searchReplaceBlocks: string, language?: string }) => {
+export const VoidDiffEditor = ({ uri, originalUpdatedBlocks, language }: { uri?: any, originalUpdatedBlocks: string, language?: string }) => {
 	const accessor = useAccessor();
 	const languageService = accessor.get('ILanguageService');
 
 	// Extract all blocks
-	const blocks = extractSearchReplaceBlocks(searchReplaceBlocks);
+	const blocks = extractSearchReplaceBlocks(originalUpdatedBlocks);
 
 	// Use detectLanguage for language detection if not provided
 	let lang = language;

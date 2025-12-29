@@ -80,7 +80,7 @@ export type BuiltinToolCallParams = {
 	'wait': { timeoutMs: number, persistentTerminalId: string },
 	// ---
 	'rewrite_file': { uri: URI, newContent: string },
-	'edit_file': { uri: URI, searchReplaceBlocks: string, tryFuzzyMatching?: boolean },
+	'edit_file': { uri: URI, originalUpdatedBlocks: string, tryFuzzyMatching?: boolean },
 	'create_file_or_folder': { uri: URI, isFolder: boolean },
 	'delete_file_or_folder': { uri: URI, isRecursive: boolean, isFolder: boolean },
 	// ---

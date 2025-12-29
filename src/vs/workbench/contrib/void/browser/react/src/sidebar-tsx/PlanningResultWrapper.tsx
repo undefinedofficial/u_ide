@@ -191,18 +191,24 @@ const PlanningResultWrapper: React.FC<PlanningResultWrapperProps> = ({
 		}
 
 		try {
-			// Format the plan as markdown for preview
-			let planMarkdown = `# \u{1F4CB} Task Plan\n\n`
-			if (goal) {
-				planMarkdown += `## Goal\n${goal}\n\n`
-			}
-			planMarkdown += `## Tasks (${completedCount}/${totalCount} complete)\n\n`
-			tasks.forEach((task, index) => {
-				const marker = task.status === 'complete' ? 'x' : task.status === 'in_progress' ? '~' : ' '
-				planMarkdown += `- [${marker}] ${task.text}\n`
-			})
+			const isManagerOpen = agentManagerService.isAgentManagerOpen();
 
-			await agentManagerService.openContentPreview('Task Plan', planMarkdown)
+			if (isManagerOpen) {
+				// Format the plan as markdown for preview
+				let planMarkdown = `# \u{1F4CB} Task Plan\n\n`
+				if (goal) {
+					planMarkdown += `## Goal\n${goal}\n\n`
+				}
+				planMarkdown += `## Tasks (${completedCount}/${totalCount} complete)\n\n`
+				tasks.forEach((task, index) => {
+					const marker = task.status === 'complete' ? 'x' : task.status === 'in_progress' ? '~' : ' '
+					planMarkdown += `- [${marker}] ${task.text}\n`
+				})
+
+				await agentManagerService.openContentPreview('Task Plan', planMarkdown)
+			} else {
+				console.log('Agent Manager is not open. Open it to see the visual preview.');
+			}
 		} catch (error) {
 			console.error('Failed to open plan preview:', error)
 		}

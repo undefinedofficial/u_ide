@@ -237,14 +237,22 @@ My requested changes:`
 		}
 
 		try {
-			// Format the plan as markdown for preview
-			const planMarkdown = formatPlanAsMarkdown()
+			const isManagerOpen = agentManagerService.isAgentManagerOpen();
 
-			// Use the content preview to display the implementation plan
-			await agentManagerService.openContentPreview(
-				`Implementation Plan: ${planInfo.planId || 'New Plan'}`,
-				planMarkdown
-			)
+			if (isManagerOpen) {
+				// Format the plan as markdown for preview
+				const planMarkdown = formatPlanAsMarkdown()
+
+				// Use the content preview to display the implementation plan
+				await agentManagerService.openContentPreview(
+					`Implementation Plan: ${planInfo.planId || 'New Plan'}`,
+					planMarkdown
+				)
+			} else {
+				// Fallback: tell user to open Agent Manager or just show a message
+				console.log('Agent Manager is not open. Open it to see the visual preview.');
+				// We could also open a markdown file, but let's keep it simple for now
+			}
 		} catch (error) {
 			console.error('Failed to open plan preview:', error)
 		}

@@ -85,6 +85,60 @@ const activeURIListeners: Set<(uri: URI | null) => void> = new Set();
 
 const mcpListeners: Set<() => void> = new Set()
 
+// Compression event state
+export interface CompressionEvent {
+	timestamp: number;
+	threadId: string;
+	originalMessages: number;
+	finalMessages: number;
+	originalTokens: number;
+	finalTokens: number;
+	compressionRatio: number;
+	messagesRemoved: number;
+	messagesSummarized: number;
+}
+
+let compressionEventState: CompressionEvent | null = null;
+const compressionEventListeners: Set<(event: CompressionEvent | null) => void> = new Set();
+
+export const updateCompressionEventState = (event: CompressionEvent | null) => {
+	compressionEventState = event;
+	compressionEventListeners.forEach(l => l(compressionEventState));
+};
+
+export const useCompressionEvent = () => {
+	const [s, ss] = useState<CompressionEvent | null>(compressionEventState)
+	useEffect(() => {
+		ss(compressionEventState)
+		compressionEventListeners.add(ss)
+		return () => { compressionEventListeners.delete(ss) }
+	}, [ss])
+	return s
+};
+
+export const triggerCompressionNotification = (stats: {
+	originalMessageCount: number;
+	finalMessageCount: number;
+	originalTokens: number;
+	finalTokens: number;
+	compressionRatio: number;
+	messagesRemoved: number;
+	messagesSummarized: number;
+}, threadId: string) => {
+	const event: CompressionEvent = {
+		timestamp: Date.now(),
+		threadId,
+		originalMessages: stats.originalMessageCount,
+		finalMessages: stats.finalMessageCount,
+		originalTokens: stats.originalTokens,
+		finalTokens: stats.finalTokens,
+		compressionRatio: stats.compressionRatio,
+		messagesRemoved: stats.messagesRemoved,
+		messagesSummarized: stats.messagesSummarized,
+	};
+	updateCompressionEventState(event);
+};
+
 
 let _isRegistered = false
 // must call this before you can use any of the hooks below

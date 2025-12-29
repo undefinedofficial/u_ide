@@ -258,10 +258,10 @@ export const ToolLoadingIndicator = ({
 
 				// Calculate diff stats for edit_file
 				let diffStats = null;
-				if (toolName === 'edit_file' && toolParams.searchReplaceBlocks) {
+				if (toolName === 'edit_file' && toolParams.originalUpdatedBlocks) {
 					let addedLines = 0;
 					let removedLines = 0;
-					const blocks = toolParams.searchReplaceBlocks.split('<<<<<<< ORIGINAL').slice(1);
+					const blocks = toolParams.originalUpdatedBlocks.split('<<<<<<< ORIGINAL').slice(1);
 					blocks.forEach((block: string) => {
 						const parts = block.split('=======');
 						if (parts.length === 2) {

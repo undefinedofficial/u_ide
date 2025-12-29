@@ -102,11 +102,19 @@ const WalkthroughResultWrapper: React.FC<WalkthroughResultWrapperProps> = ({
 		}
 
 		try {
-			// Open walkthrough in Lite preview tab instead of VS Code editor
-			await agentManagerService.openWalkthroughPreview(result.filePath, result.preview)
+			const isManagerOpen = agentManagerService.isAgentManagerOpen();
+
+			if (isManagerOpen) {
+				// Open walkthrough in Agent Manager preview tab
+				await agentManagerService.openWalkthroughPreview(result.filePath, result.preview)
+			} else {
+				// Fallback to regular open if Agent Manager is closed
+				const uri = URI.file(result.filePath)
+				await commandService.executeCommand('vscode.open', uri)
+			}
 		} catch (error) {
-			console.error('Failed to open walkthrough preview:', error)
-			// Fallback to regular open if Lite preview fails
+			console.error('Failed to open walkthrough:', error)
+			// Last resort fallback
 			try {
 				const uri = URI.file(result.filePath)
 				await commandService.executeCommand('vscode.open', uri)

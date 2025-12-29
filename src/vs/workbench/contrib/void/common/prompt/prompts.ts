@@ -44,36 +44,36 @@ const searchReplaceBlockTemplate = `\
 ${ORIGINAL}
 // ... original code goes here
 ${DIVIDER}
-// ... final code goes here
+// ... updated code goes here
 ${FINAL}
 
 ${ORIGINAL}
 // ... original code goes here
 ${DIVIDER}
-// ... final code goes here
+// ... updated code goes here
 ${FINAL}`
 
 
 
 
 const createSearchReplaceBlocks_systemMessage = `\
-You are A-Coder, a coding assistant that takes in a diff, and outputs SEARCH/REPLACE code blocks to implement the change(s) in the diff.
+You are A-Coder, a coding assistant that takes in a diff, and outputs ORIGINAL/UPDATED code blocks to implement the change(s) in the diff.
 The diff will be labeled \`DIFF\` and the original file will be labeled \`ORIGINAL_FILE\`.
 
-Format your SEARCH/REPLACE blocks as follows:
+Format your ORIGINAL/UPDATED blocks as follows:
 ${tripleTick[0]}
 ${searchReplaceBlockTemplate}
 ${tripleTick[1]}
 
-1. Your SEARCH/REPLACE block(s) must implement the diff EXACTLY. Do NOT leave anything out.
+1. Your ORIGINAL/UPDATED block(s) must implement the diff EXACTLY. Do NOT leave anything out.
 
-2. You are allowed to output multiple SEARCH/REPLACE blocks to implement the change.
+2. You are allowed to output multiple ORIGINAL/UPDATED blocks to implement the change.
 
 3. Assume any comments in the diff are PART OF THE CHANGE. Include them in the output.
 
-4. Your output should consist ONLY of SEARCH/REPLACE blocks. Do NOT output any text or explanations before or after this.
+4. Your output should consist ONLY of ORIGINAL/UPDATED blocks. Do NOT output any text or explanations before or after this.
 
-5. The ORIGINAL code in each SEARCH/REPLACE block must EXACTLY match lines in the original file. Do not add or remove any whitespace, comments, or modifications from the original code.
+5. The ORIGINAL code in each ORIGINAL/UPDATED block must EXACTLY match lines in the original file. Do not add or remove any whitespace, comments, or modifications from the original code.
 
 6. Each ORIGINAL text must be large enough to uniquely identify the change in the file. However, bias towards writing as little as possible.
 
@@ -106,13 +106,13 @@ ${tripleTick[1]}`
 
 
 const replaceTool_description = `\
-A string of SEARCH/REPLACE block(s) which will be applied to the given file.
-Your SEARCH/REPLACE blocks string must be formatted as follows:
+A string of ORIGINAL/UPDATED block(s) which will be applied to the given file.
+Your ORIGINAL/UPDATED blocks string must be formatted as follows:
 ${searchReplaceBlockTemplate}
 
 ## Guidelines:
 
-1. You may output multiple search replace blocks if needed.
+1. You may output multiple ORIGINAL/UPDATED blocks if needed.
 
 2. The ORIGINAL code should match the file as closely as possible. The system uses advanced matching:
    - Exact match (fastest, most reliable)
@@ -544,11 +544,11 @@ Line 200: export async function processData(input: string): Promise<Result>
 
 	edit_file: {
 		name: 'edit_file',
-		description: `Edit specific sections of a file using SEARCH/REPLACE blocks. Best for small, targeted changes (< 20 lines).
+		description: `Edit specific sections of a file using ORIGINAL/UPDATED blocks. Best for small, targeted changes (< 20 lines).
 
 **REQUIRED PARAMETERS:**
 - uri: The FULL file path to edit (e.g., "/Users/username/project/src/file.ts")
-- search_replace_blocks: SEARCH/REPLACE blocks with the changes
+- original_updated_blocks: ORIGINAL/UPDATED blocks with the changes
 
 **OPTIONAL PARAMETERS:**
 - try_fuzzy_matching: (Boolean) If true, uses fuzzy matching if exact matching fails. Useful when you don't have the exact content or whitespace. Use with caution.
@@ -563,11 +563,11 @@ Line 200: export async function processData(input: string): Promise<Result>
 If edit_file fails, follow these steps:
 1. **"Not found" error:** Read the file again - you may have stale content. Ensure your ORIGINAL block matches exactly, including all whitespace and indentation. Try setting try_fuzzy_matching to true.
 2. **"Not unique" error:** Add more surrounding context to your ORIGINAL block to make it unique in the file.
-3. **"Has overlap" error:** Combine your SEARCH/REPLACE blocks into a single larger block.
+3. **"Has overlap" error:** Combine your ORIGINAL/UPDATED blocks into a single larger block.
 4. **Still failing:** Use rewrite_file instead - it's more reliable for complex changes or when you don't have exact content.`,
 		params: {
 			...uriParam('file'),
-			search_replace_blocks: { description: replaceTool_description },
+			original_updated_blocks: { description: replaceTool_description },
 			try_fuzzy_matching: { description: 'Optional. If true, use fuzzy matching if exact match fails.' }
 		},
 	},
@@ -1308,7 +1308,7 @@ When using edit_file, always include surrounding context in your ORIGINAL blocks
 - Include enough context (3-5 lines) to make your ORIGINAL block unique in the file
 - Match the exact indentation and whitespace from the file
 Example:
-<parameter name="search_replace_blocks">
+<parameter name="original_updated_blocks">
 ORIGINAL
 // ... existing code ...
 function oldFunction() {

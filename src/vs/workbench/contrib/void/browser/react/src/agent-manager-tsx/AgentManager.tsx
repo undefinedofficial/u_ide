@@ -133,6 +133,111 @@ const WorkspacesView = () => {
     );
 };
 
+const DashboardView = ({ stats }: { stats: any }) => {
+    return (
+        <div className="p-6 md:p-8 flex flex-col gap-8 max-w-6xl mx-auto w-full overflow-y-auto custom-scrollbar h-full">
+            <div className="flex flex-col gap-2">
+                <h2 className="text-2xl font-bold text-void-fg-1 tracking-tight">System Overview</h2>
+                <p className="text-sm text-void-fg-3">Monitor your agent's performance and active operations.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-5 rounded-2xl bg-void-bg-2 border border-void-border-3 shadow-sm hover:shadow-md transition-all flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                        <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+                            <MessageSquare className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-bold text-green-500 uppercase">Live</span>
+                    </div>
+                    <div>
+                        <div className="text-2xl font-black text-void-fg-1">{stats.threadsCount}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-void-fg-4">Active Threads</div>
+                    </div>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-void-bg-2 border border-void-border-3 shadow-sm hover:shadow-md transition-all flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                        <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500">
+                            <Zap className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-bold text-void-fg-4 uppercase tracking-widest opacity-50">98% Efficient</span>
+                    </div>
+                    <div>
+                        <div className="text-2xl font-black text-void-fg-1">{stats.operationsCount}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-void-fg-4">Executions</div>
+                    </div>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-void-bg-2 border border-void-border-3 shadow-sm hover:shadow-md transition-all flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                        <div className="p-2 rounded-lg bg-green-500/10 text-green-500">
+                            <Activity className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-bold text-void-fg-4 uppercase tracking-widest opacity-50">Stable</span>
+                    </div>
+                    <div>
+                        <div className="text-2xl font-black text-void-fg-1">99.2%</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-void-fg-4">Success Rate</div>
+                    </div>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-void-bg-2 border border-void-border-3 shadow-sm hover:shadow-md transition-all flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                        <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
+                            <Cpu className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-bold text-void-fg-4 uppercase tracking-widest opacity-50">Low Latency</span>
+                    </div>
+                    <div>
+                        <div className="text-2xl font-black text-void-fg-1">142ms</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-void-fg-4">Avg. Response</div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 flex flex-col gap-4">
+                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-void-fg-3 px-1">Recent Activity</h3>
+                    <div className="rounded-2xl bg-void-bg-2 border border-void-border-3 overflow-hidden shadow-sm">
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="p-4 border-b border-void-border-3 last:border-0 hover:bg-void-bg-3/50 transition-colors flex items-center justify-between group">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-2 h-2 rounded-full bg-void-accent group-hover:scale-125 transition-transform" />
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-medium text-void-fg-1">Agent initiated edit on SidebarChat.tsx</span>
+                                        <span className="text-[10px] text-void-fg-4 font-mono opacity-60">2 mins ago • src/vs/workbench/contrib/void/browser/react/src/sidebar-tsx/SidebarChat.tsx</span>
+                                    </div>
+                                </div>
+                                <button className="p-2 rounded-lg hover:bg-void-bg-4 text-void-fg-4 hover:text-void-accent opacity-0 group-hover:opacity-100 transition-all">
+                                    <ExternalLink className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="flex flex-col gap-4">
+                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-void-fg-3 px-1">Quick Actions</h3>
+                    <div className="grid grid-cols-1 gap-3">
+                        <button className="flex items-center gap-3 p-4 rounded-xl bg-void-accent text-white font-bold text-sm shadow-lg shadow-void-accent/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
+                            <Zap className="w-4 h-4 fill-current" />
+                            Launch New Agent
+                        </button>
+                        <button className="flex items-center gap-3 p-4 rounded-xl bg-void-bg-2 border border-void-border-3 text-void-fg-1 font-bold text-sm hover:bg-void-bg-3 transition-all">
+                            <Shield className="w-4 h-4" />
+                            Audit Log
+                        </button>
+                        <button className="flex items-center gap-3 p-4 rounded-xl bg-void-bg-2 border border-void-border-3 text-void-fg-1 font-bold text-sm hover:bg-void-bg-3 transition-all">
+                            <Settings className="w-4 h-4" />
+                            Agent Settings
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 const NavButton = ({ active, onClick, icon: Icon, label, title }: { active: boolean, onClick: () => void, icon: any, label?: string, title: string }) => (
     <button
         onClick={onClick}
@@ -150,7 +255,7 @@ const NavButton = ({ active, onClick, icon: Icon, label, title }: { active: bool
 export const AgentManager = ({ className }: { className: string }) => {
     const isDark = useIsDark();
     const { width: windowWidth } = useWindowSize();
-    const [activeTab, setActiveTab] = useState<'chats' | 'workspaces'>('chats');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'chats' | 'workspaces'>('dashboard');
     const [showPreview, setShowPreview] = useState(true);
     const [showSidebar, setShowSidebar] = useState(true);
     const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -194,6 +299,11 @@ export const AgentManager = ({ className }: { className: string }) => {
     const currentThreadId = chatThreadsState.currentThreadId;
     const workspaceFolders = useWorkspaceFolders();
 
+    const stats = {
+        threadsCount: chatThreadsState.allThreads.length,
+        operationsCount: 124, // placeholder
+    }
+
     return (
         <div className={`@@void-scope ${isDark ? 'dark' : ''} fixed inset-0 flex flex-col bg-void-bg-1 text-void-fg-1 overflow-hidden font-sans`}>
             {/* Header */}
@@ -203,10 +313,10 @@ export const AgentManager = ({ className }: { className: string }) => {
                         <Zap className="text-white w-4 h-4 md:w-5 md:h-5 fill-current" />
                     </div>
                     <div className="hidden sm:block">
-                        <h1 className="font-bold text-xs md:text-sm tracking-tight text-void-fg-1">AGENT MANAGER</h1>
+                        <h1 className="font-bold text-xs md:text-sm tracking-tight text-void-fg-1">CONTROL CENTER</h1>
                         <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                            <span className="text-[10px] font-bold text-void-fg-4 uppercase tracking-widest opacity-70">Active</span>
+                            <span className="text-[10px] font-bold text-void-fg-4 uppercase tracking-widest opacity-70">Agent Status: Active</span>
                         </div>
                     </div>
                 </div>
@@ -216,7 +326,7 @@ export const AgentManager = ({ className }: { className: string }) => {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-void-fg-4 group-focus-within:text-void-accent transition-colors" />
                         <input
                             type="text"
-                            placeholder="Search..."
+                            placeholder="Search executions..."
                             className="bg-void-bg-3 border border-void-border-3 rounded-xl pl-10 pr-4 py-2 text-xs w-full focus:outline-none focus:border-void-accent focus:ring-4 focus:ring-void-accent/10 transition-all placeholder:opacity-50"
                         />
                     </div>
@@ -232,6 +342,13 @@ export const AgentManager = ({ className }: { className: string }) => {
                 <div className="hidden sm:flex w-16 md:w-20 border-r border-void-border-2 flex flex-col items-center py-6 bg-void-bg-2 flex-shrink-0 z-10 h-full">
                     <div className="flex-1 w-full flex flex-col gap-2">
                         <NavButton
+                            active={activeTab === 'dashboard'}
+                            onClick={() => { setActiveTab('dashboard'); }}
+                            icon={Activity}
+                            label="Home"
+                            title="Dashboard"
+                        />
+                        <NavButton
                             active={activeTab === 'chats'}
                             onClick={() => { setActiveTab('chats'); setShowSidebar(true); }}
                             icon={MessageSquare}
@@ -242,15 +359,12 @@ export const AgentManager = ({ className }: { className: string }) => {
                             active={activeTab === 'workspaces'}
                             onClick={() => { setActiveTab('workspaces'); setShowSidebar(true); }}
                             icon={Folder}
-                            label="Space"
+                            label="Files"
                             title="Workspaces"
                         />
                     </div>
 
                     <div className="w-full px-2 flex flex-col gap-4 items-center border-t border-void-border-3 pt-6 mt-4">
-                        <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-void-bg-3 flex items-center justify-center text-void-fg-4 hover:text-void-accent transition-colors cursor-pointer" title="System Health">
-                            <Activity className="w-4 h-4 md:w-5 md:h-5" />
-                        </div>
                         <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-void-bg-3 flex items-center justify-center text-void-fg-4 hover:text-void-accent transition-colors cursor-pointer" title="Security Model">
                             <Shield className="w-4 h-4 md:w-5 md:h-5" />
                         </div>
@@ -258,7 +372,7 @@ export const AgentManager = ({ className }: { className: string }) => {
                 </div>
 
                 {/* Middle Pane - List/Threads */}
-                {showSidebar && (
+                {(showSidebar && activeTab !== 'dashboard') && (
                     <div className="w-64 md:w-80 border-r border-void-border-2 flex flex-col bg-void-bg-2 flex-shrink-0 shadow-inner absolute inset-y-0 left-0 z-20 md:relative h-full">
                         <div className="p-4 md:p-5 border-b border-void-border-3 bg-void-bg-1/40 flex items-center justify-between">
                             <div className="flex items-center gap-2">
@@ -287,9 +401,9 @@ export const AgentManager = ({ className }: { className: string }) => {
                     </div>
                 )}
 
-                {/* Main Content - Active Chat */}
+                {/* Main Content - Active Chat or Dashboard */}
                 <div className="flex-1 flex flex-col bg-void-bg-1 min-w-0 relative h-full overflow-hidden">
-                    {!showSidebar && (
+                    {!showSidebar && activeTab !== 'dashboard' && (
                         <button
                             onClick={() => setShowSidebar(true)}
                             className="absolute top-4 left-4 z-10 p-2 bg-void-bg-2 border border-void-border-3 rounded-lg shadow-md hover:bg-void-bg-3 text-void-fg-3 transition-all"
@@ -300,7 +414,11 @@ export const AgentManager = ({ className }: { className: string }) => {
                     )}
                     <div className="flex-1 h-full overflow-hidden relative">
                         <ErrorBoundary>
-                            <SidebarChat />
+                            {activeTab === 'dashboard' ? (
+                                <DashboardView stats={stats} />
+                            ) : (
+                                <SidebarChat />
+                            )}
                         </ErrorBoundary>
                     </div>
                 </div>
