@@ -1917,30 +1917,48 @@ const SingleDiffEditor = ({ block, lang }: { block: ExtractedSearchReplaceBlock,
 	const instantiationService = accessor.get('IInstantiationService');
 	const languageService = accessor.get('ILanguageService');
 
-	const languageSelection = useMemo(() => languageService.createById(lang), [lang, languageService]);
-
-	// Create models for original and modified
-	const originalModel = useMemo(() =>
-		modelService.createModel(block.orig, languageSelection),
-		[block.orig, languageSelection, modelService]
-	);
-	const modifiedModel = useMemo(() =>
-		modelService.createModel(block.final, languageSelection),
-		[block.final, languageSelection, modelService]
-	);
-
 	// Imperatively mount the DiffEditorWidget
 	const divRef = useRef<HTMLDivElement | null>(null);
 	const editorRef = useRef<any>(null);
+	const modelsRef = useRef<{ original: ITextModel, modified: ITextModel } | null>(null);
+
+	// Create models once
+	useEffect(() => {
+		const languageSelection = languageService.createById(lang);
+		const originalModel = modelService.createModel('', languageSelection);
+		const modifiedModel = modelService.createModel('', languageSelection);
+		modelsRef.current = { original: originalModel, modified: modifiedModel };
+
+		return () => {
+			originalModel.dispose();
+			modifiedModel.dispose();
+			modelsRef.current = null;
+		};
+	}, [languageService, modelService, lang]);
+
+	// Update model content when block changes
+	useEffect(() => {
+		if (!modelsRef.current) return;
+		const { original, modified } = modelsRef.current;
+		
+		if (original.getValue() !== block.orig) {
+			original.setValue(block.orig);
+		}
+		if (modified.getValue() !== block.final) {
+			modified.setValue(block.final);
+		}
+	}, [block.orig, block.final]);
 
 	useEffect(() => {
-		if (!divRef.current) return;
+		if (!divRef.current || !modelsRef.current) return;
+		const { original, modified } = modelsRef.current;
+
 		// Create the diff editor instance
 		const editor = instantiationService.createInstance(
 			DiffEditorWidget,
 			divRef.current,
 			{
-				automaticLayout: true,
+				automaticLayout: false, // Handle layout manually for performance
 				readOnly: true,
 				renderSideBySide: true,
 				minimap: { enabled: false },
@@ -1965,43 +1983,46 @@ const SingleDiffEditor = ({ block, lang }: { block: ExtractedSearchReplaceBlock,
 				scrollBeyondLastLine: false,
 				renderGutterMenu: false,
 				renderIndicators: false,
+				diffCodeLens: false,
+				renderMarginRevertIcon: false,
 			},
 			{ originalEditor: { isSimpleWidget: true }, modifiedEditor: { isSimpleWidget: true } }
 		);
-		editor.setModel({ original: originalModel, modified: modifiedModel });
+		editor.setModel({ original, modified });
 
 		// Calculate the height based on content
+		let updateTimer: any = null;
 		const updateHeight = () => {
-			const contentHeight = Math.max(
-				originalModel.getLineCount() * 19, // approximate line height
-				modifiedModel.getLineCount() * 19
-			) + 19 * 2 + 1; // add padding
+			if (updateTimer) clearTimeout(updateTimer);
+			updateTimer = setTimeout(() => {
+				if (!modelsRef.current || !divRef.current || !editor) return;
+				const { original, modified } = modelsRef.current;
 
-			// Set reasonable min/max heights
-			const height = Math.min(Math.max(contentHeight, 100), 300);
-			if (divRef.current) {
+				const lineCount = Math.max(1, original.getLineCount(), modified.getLineCount());
+				const contentHeight = lineCount * 19 + 19 * 2 + 1;
+
+				// Set reasonable min/max heights
+				const height = Math.min(Math.max(contentHeight, 100), 300);
 				divRef.current.style.height = `${height}px`;
 				editor.layout();
-			}
+			}, 50); // Debounce by 50ms
 		};
 
 		updateHeight();
 		editorRef.current = editor;
 
 		// Update height when content changes
-		const disposable1 = originalModel.onDidChangeContent(() => updateHeight());
-		const disposable2 = modifiedModel.onDidChangeContent(() => updateHeight());
+		const disposable1 = original.onDidChangeContent(() => updateHeight());
+		const disposable2 = modified.onDidChangeContent(() => updateHeight());
 
 		return () => {
+			if (updateTimer) clearTimeout(updateTimer);
 			disposable1.dispose();
 			disposable2.dispose();
 			editor.dispose();
 			editorRef.current = null;
-			// Clean up models AFTER editor is disposed
-			originalModel.dispose();
-			modifiedModel.dispose();
 		};
-	}, [originalModel, modifiedModel, instantiationService]);
+	}, [instantiationService]); // Stable instantiationService
 
 	return (
 		<div className="w-full bg-void-bg-3 @@bg-editor-style-override" ref={divRef} />

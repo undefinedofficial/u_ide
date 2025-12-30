@@ -76,6 +76,8 @@ export class AgentManagerService extends Disposable implements IAgentManagerServ
             const reactWrapper = mainWindow.document.createElement('div');
             reactWrapper.style.height = '100%';
             reactWrapper.style.width = '100%';
+            reactWrapper.style.position = 'relative'; // Ensure absolute children are contained
+            reactWrapper.style.overflow = 'hidden'; // Prevent leaking content
 
             // HACK: Force the ownerDocument to be the main window's document.
             // React 18 uses container.ownerDocument to create new elements.
