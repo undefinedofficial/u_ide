@@ -56,23 +56,25 @@ const WalkthroughResultWrapper: React.FC<WalkthroughResultWrapperProps> = ({
 		checkForUpdates()
 	}, [threadId, toolMessage.id, chatThreadsService, chatThreadsService?.state?.allThreads?.[threadId]?.messages?.length])
 
-	const result = latestWalkthrough.result
+	const result = latestWalkthrough.result?.result || latestWalkthrough.result
 	const toolName = latestWalkthrough.name
 
 	if (!result || typeof result === 'string') {
 		return (
-			<div className="void-walkthrough-result w-full rounded-xl overflow-hidden border border-void-border-2 bg-void-bg-2 shadow-sm">
-				<div className="flex items-center gap-2 px-3 py-2">
-					<div
-						className="w-3 h-3 border-2 rounded-full border-void-accent"
-						style={{
-							borderTopColor: 'transparent',
-							animation: 'spin 0.8s linear infinite'
-						}}
-					/>
-					<span className="text-void-fg-3 text-sm">
-						{toolName === 'update_walkthrough' ? 'Updating walkthrough...' : 'Preparing walkthrough...'}
-					</span>
+			<div className="@@void-scope">
+				<div className="void-walkthrough-result w-full rounded-xl overflow-hidden border border-void-border-2 bg-void-bg-2 shadow-sm">
+					<div className="flex items-center gap-2 px-3 py-2">
+						<div
+							className="w-3 h-3 border-2 rounded-full border-void-accent"
+							style={{
+								borderTopColor: 'transparent',
+								animation: 'spin 0.8s linear infinite'
+							}}
+						/>
+						<span className="text-void-fg-3 text-sm">
+							{toolName === 'update_walkthrough' ? 'Updating walkthrough...' : 'Preparing walkthrough...'}
+						</span>
+					</div>
 				</div>
 			</div>
 		)
@@ -81,10 +83,12 @@ const WalkthroughResultWrapper: React.FC<WalkthroughResultWrapperProps> = ({
 	// Handle open_walkthrough_preview tool result
 	if (toolName === 'open_walkthrough_preview') {
 		return (
-			<div className="void-walkthrough-result border border-void-border-2 rounded-lg overflow-hidden bg-void-bg-2 p-3">
-				<div className="flex items-center gap-2 text-void-fg-1">
-					<span className="text-lg">👁️</span>
-					<div className="text-sm font-medium">{result.message || 'Walkthrough preview opened'}</div>
+			<div className="@@void-scope">
+				<div className="void-walkthrough-result border border-void-border-2 rounded-lg overflow-hidden bg-void-bg-2 p-3">
+					<div className="flex items-center gap-2 text-void-fg-1">
+						<span className="text-lg">👁️</span>
+						<div className="text-sm font-medium">{result.message || 'Walkthrough preview opened'}</div>
+					</div>
 				</div>
 			</div>
 		)
@@ -96,30 +100,25 @@ const WalkthroughResultWrapper: React.FC<WalkthroughResultWrapperProps> = ({
 	}
 
 	const openWalkthrough = async () => {
-		if (!commandService || !agentManagerService) {
-			console.error('Services not available:', { commandService: !!commandService, agentManagerService: !!agentManagerService })
+		if (!agentManagerService) {
+			console.error('agentManagerService not available')
 			return
 		}
 
 		try {
-			const isManagerOpen = agentManagerService.isAgentManagerOpen();
-
-			if (isManagerOpen) {
-				// Open walkthrough in Agent Manager preview tab
-				await agentManagerService.openWalkthroughPreview(result.filePath, result.preview)
-			} else {
-				// Fallback to regular open if Agent Manager is closed
-				const uri = URI.file(result.filePath)
-				await commandService.executeCommand('vscode.open', uri)
-			}
+			// Always call openWalkthroughPreview, the service will decide how to handle it
+			// (e.g., opening a React tab)
+			await agentManagerService.openWalkthroughPreview(result.filePath, result.preview)
 		} catch (error) {
 			console.error('Failed to open walkthrough:', error)
-			// Last resort fallback
-			try {
-				const uri = URI.file(result.filePath)
-				await commandService.executeCommand('vscode.open', uri)
-			} catch (fallbackError) {
-				console.error('Fallback also failed:', fallbackError)
+			// Last resort fallback to raw file open
+			if (commandService) {
+				try {
+					const uri = URI.file(result.filePath)
+					await commandService.executeCommand('vscode.open', uri)
+				} catch (fallbackError) {
+					console.error('Fallback also failed:', fallbackError)
+				}
 			}
 		}
 	}
@@ -142,14 +141,25 @@ const WalkthroughResultWrapper: React.FC<WalkthroughResultWrapperProps> = ({
 		}
 	}
 
-	return (
-		<div className="void-walkthrough-result border border-void-border-2 rounded-lg overflow-hidden">
-			{/* Header */}
-			<div className="bg-void-bg-2 px-3 py-2">
-				<div
-					className="flex items-center justify-between cursor-pointer hover:bg-void-bg-3 transition-colors rounded px-2 py-1"
-					onClick={() => setIsExpanded(!isExpanded)}
-				>
+		return (
+
+			<div className="@@void-scope">
+
+				<div className="void-walkthrough-result border border-void-border-2 rounded-lg overflow-hidden bg-void-bg-4 shadow-sm">
+
+					{/* Header */}
+
+					<div className="bg-void-bg-4/50 px-3 py-2">
+
+						<div
+
+							className="flex items-center justify-between cursor-pointer hover:bg-void-bg-4-hover transition-colors rounded px-2 py-1"
+
+							onClick={() => setIsExpanded(!isExpanded)}
+
+						>
+
+	
 					<div className="flex items-center gap-2 min-w-0 flex-1">
 						<svg
 							className={`w-4 h-4 text-void-fg-3 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''} flex-shrink-0`}
@@ -188,7 +198,7 @@ const WalkthroughResultWrapper: React.FC<WalkthroughResultWrapperProps> = ({
 			{isExpanded && (
 				<div className="p-3">
 					<div className="text-sm font-medium text-void-fg-2 mb-2">Preview:</div>
-					<div className="bg-void-bg-1 border border-void-border-2 rounded-md p-4 max-h-64 overflow-y-auto prose prose-sm prose-invert max-w-none">
+					<div className="bg-void-bg-4/40 border border-void-border-2 rounded-md p-4 max-h-64 overflow-y-auto prose prose-sm prose-invert max-w-none">
 						<ChatMarkdownRender
 							key={refreshKey}
 							string={result.preview}
@@ -206,6 +216,7 @@ const WalkthroughResultWrapper: React.FC<WalkthroughResultWrapperProps> = ({
 					This walkthrough has been updated. See latest version above.
 				</div>
 			)}
+			</div>
 		</div>
 	)
 }

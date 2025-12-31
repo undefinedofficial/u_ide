@@ -14,8 +14,11 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { VoidPreviewInput } from './voidPreviewPane.js';
 
 export class AgentManagerService extends Disposable implements IAgentManagerService {
+	readonly _serviceBrand: undefined;
     private _auxiliaryWindow: any = null;
     private _isOpen: boolean = false;
     private _isOpening: boolean = false;
@@ -34,6 +37,7 @@ export class AgentManagerService extends Disposable implements IAgentManagerServ
         @IMetricsService private readonly _metricsService: IMetricsService,
         @IInstantiationService private readonly _instantiationService: IInstantiationService,
         @IAuxiliaryWindowService private readonly _auxiliaryWindowService: IAuxiliaryWindowService,
+        @IEditorService private readonly _editorService: IEditorService,
     ) {
         super();
     }
@@ -78,6 +82,9 @@ export class AgentManagerService extends Disposable implements IAgentManagerServ
             reactWrapper.style.width = '100%';
             reactWrapper.style.position = 'relative'; // Ensure absolute children are contained
             reactWrapper.style.overflow = 'hidden'; // Prevent leaking content
+
+            // Add the scoping class to the container
+            reactWrapper.classList.add('@@void-scope');
 
             // HACK: Force the ownerDocument to be the main window's document.
             // React 18 uses container.ownerDocument to create new elements.
@@ -138,26 +145,45 @@ export class AgentManagerService extends Disposable implements IAgentManagerServ
     }
 
     async openWalkthroughPreview(filePath: string, preview: string): Promise<void> {
+        // Always open in React tab
+        const resource = URI.from({
+            scheme: 'void-preview',
+            path: filePath
+        });
+
+        const input = this._instantiationService.createInstance(VoidPreviewInput, 'Walkthrough: ' + filePath.split('/').pop(), preview, resource);
+        await this._editorService.openEditor(input, { pinned: true });
+
+        // Also fire event for Agent Manager if it's open
         if (this._isOpen) {
             this._onDidOpenWalkthrough.fire({ filePath, preview });
-            if (this._auxiliaryWindow) {
-                this._auxiliaryWindow.window.focus();
-            }
-        } else {
-            // Fallback: Just open the file in the main editor if Agent Manager is not open
-            // This is a simple fallback, maybe we want a better one later
-            console.log('Agent Manager not open, skipping walkthrough preview fire');
         }
     }
 
-    async openContentPreview(title: string, content: string): Promise<void> {
+    async openContentPreview(title: string, content: string, options?: { isImplementationPlan?: boolean, planId?: string, threadId?: string }): Promise<void> {
+        // Always open in React tab
+        const resource = URI.from({
+            scheme: 'void-preview',
+            path: title.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+        });
+
+        // Check if an editor with this resource is already open to avoid creating duplicate inputs that leak
+        const existingEditor = this._editorService.findEditors(resource).find(e => e instanceof VoidPreviewInput);
+        
+        let input: VoidPreviewInput;
+        if (existingEditor) {
+            input = existingEditor as VoidPreviewInput;
+            // Update the existing input's content/title if needed (assuming VoidPreviewInput supports this or rerender will handle it)
+            // For now, we just reuse it.
+        } else {
+            input = this._instantiationService.createInstance(VoidPreviewInput, title, content, resource, options);
+        }
+
+        await this._editorService.openEditor(input, { pinned: true });
+
+        // Also fire event for Agent Manager if it's open
         if (this._isOpen) {
             this._onDidOpenContent.fire({ title, content });
-            if (this._auxiliaryWindow) {
-                this._auxiliaryWindow.window.focus();
-            }
-        } else {
-            console.log('Agent Manager not open, skipping content preview fire');
         }
     }
 

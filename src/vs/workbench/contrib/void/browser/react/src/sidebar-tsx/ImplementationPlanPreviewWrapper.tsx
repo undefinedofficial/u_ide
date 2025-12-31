@@ -237,22 +237,20 @@ My requested changes:`
 		}
 
 		try {
-			const isManagerOpen = agentManagerService.isAgentManagerOpen();
+			// Format the plan as markdown for preview
+			const planMarkdown = formatPlanAsMarkdown()
 
-			if (isManagerOpen) {
-				// Format the plan as markdown for preview
-				const planMarkdown = formatPlanAsMarkdown()
-
-				// Use the content preview to display the implementation plan
-				await agentManagerService.openContentPreview(
-					`Implementation Plan: ${planInfo.planId || 'New Plan'}`,
-					planMarkdown
-				)
-			} else {
-				// Fallback: tell user to open Agent Manager or just show a message
-				console.log('Agent Manager is not open. Open it to see the visual preview.');
-				// We could also open a markdown file, but let's keep it simple for now
-			}
+			// Use the content preview to display the implementation plan
+			// The service will open a React render tab
+			await agentManagerService.openContentPreview(
+				`Implementation Plan: ${planInfo.planId || 'New Plan'}`,
+				planMarkdown,
+				{
+					isImplementationPlan: true,
+					planId: planInfo.planId,
+					threadId: threadId
+				}
+			)
 		} catch (error) {
 			console.error('Failed to open plan preview:', error)
 		}
@@ -325,13 +323,14 @@ My requested changes:`
 	}
 
 	return (
-		<div className="void-implementation-plan-preview border border-void-border-2 rounded-lg overflow-hidden">
-			{/* Header */}
-			<div
-				className="px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-void-bg-2 transition-colors"
-				onClick={() => setIsExpanded(!isExpanded)}
-			>
-				<div className="flex items-center gap-2 min-w-0 flex-1">
+		<div className="@@void-scope">
+			<div className="void-implementation-plan-preview border border-void-border-2 rounded-lg overflow-hidden shadow-sm bg-void-bg-4">
+				{/* Header */}
+				<div
+					className="px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-void-bg-4-hover transition-colors border-b border-void-border-2 bg-void-bg-4/50"
+					onClick={() => setIsExpanded(!isExpanded)}
+				>
+					<div className="flex items-center gap-2 min-w-0 flex-1">
 					<svg
 						className={`w-4 h-4 text-void-fg-3 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''} flex-shrink-0`}
 						fill="none"
@@ -388,7 +387,7 @@ My requested changes:`
 										const statusColor = status === 'completed' ? 'text-green-400' : status === 'in_progress' ? 'text-blue-400' : status === 'failed' ? 'text-red-400' : 'text-void-fg-3'
 
 										return (
-											<div key={index} className="flex items-start gap-3 p-2 bg-void-bg-1 rounded-md border border-void-border-2">
+											<div key={index} className="flex items-start gap-3 p-2 bg-void-bg-4/40 rounded-md border border-void-border-2">
 												<div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
 													<span className={statusColor}>{statusIcon}</span>
 												</div>
@@ -474,13 +473,14 @@ My requested changes:`
 									✏️ Request Changes
 								</button>
 							</div>
-							<div className="text-xs text-void-fg-4 mt-2">
+							<div className="text-xs text-void-fg-4 mt-2 italic opacity-70">
 								Approve to begin execution, or request changes to modify the plan.
 							</div>
 						</div>
 					)}
 				</div>
 			)}
+			</div>
 		</div>
 	)
 }

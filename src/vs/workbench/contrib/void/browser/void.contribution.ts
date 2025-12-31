@@ -26,6 +26,7 @@ import './autocompleteService.js'
 
 // settings pane
 import './voidSettingsPane.js'
+import './voidPreviewPane.js'
 
 // register css
 import './media/void.css'

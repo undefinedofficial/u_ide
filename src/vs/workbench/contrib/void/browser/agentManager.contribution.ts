@@ -10,6 +10,7 @@ import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 
 export interface IAgentManagerService {
+	readonly _serviceBrand: undefined;
 	readonly onDidOpenFile: Event<URI>;
 	readonly onDidOpenWalkthrough: Event<{ filePath: string, preview: string }>;
 	readonly onDidOpenContent: Event<{ title: string, content: string }>;
@@ -27,7 +28,7 @@ export interface IAgentManagerService {
 	/**
 	 * Opens Agent Manager with arbitrary markdown content (for implementation plans, etc.)
 	 */
-	openContentPreview(title: string, content: string): Promise<void>;
+	openContentPreview(title: string, content: string, options?: { isImplementationPlan?: boolean, planId?: string, threadId?: string }): Promise<void>;
 
 	/**
 	 * Closes the Agent Manager

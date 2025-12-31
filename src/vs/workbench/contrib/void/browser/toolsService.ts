@@ -25,8 +25,8 @@ import { generateUuid } from '../../../../base/common/uuid.js'
 import { IMorphService } from './morphService.js'
 import { ToonService } from '../common/toonService.js'
 import { PlanningService, TaskStatus as PlanTaskStatus } from '../common/planningService.js'
-import { ImplementationPlanningService, ImplementationPlan, StepStatus as ImplStepStatus } from '../common/implementationPlanningService.js'
-import { AgentManagerService } from './agentManagerService.js'
+import { ImplementationPlanningService, ImplementationPlan, ImplementationStep, StepStatus as ImplStepStatus } from '../common/implementationPlanningService.js'
+import { IAgentManagerService } from './agentManager.contribution.js'
 
 
 // tool use for AI
@@ -165,13 +165,13 @@ const stringifyLintErrors = (lintErrors: LintErrorItem[]) => {
 
 
 export interface IToolsService {
-	readonly _serviceBrand: undefined;
-	validateParams: ValidateBuiltinParams;
-	callTool: CallBuiltinTool;
-	stringOfResult: BuiltinToolResultToString;
-	getPlanningService(): PlanningService;
+        readonly _serviceBrand: undefined;
+        validateParams: ValidateBuiltinParams;
+        callTool: CallBuiltinTool;
+        stringOfResult: BuiltinToolResultToString;
+        getPlanningService(): PlanningService;
+        getImplementationPlanningService(): ImplementationPlanningService;
 }
-
 export const IToolsService = createDecorator<IToolsService>('ToolsService');
 
 export class ToolsService implements IToolsService {
@@ -182,36 +182,30 @@ export class ToolsService implements IToolsService {
 	public callTool: CallBuiltinTool;
 	public stringOfResult: BuiltinToolResultToString;
 
-	private readonly toonService: ToonService;
-	private readonly planningService: PlanningService;
-	private readonly implementationPlanningService: ImplementationPlanningService;
-	private readonly _fileService: IFileService;
-	private readonly _workspaceContextService: IWorkspaceContextService;
-	private readonly _instantiationService: IInstantiationService;
+	private readonly _toonService: ToonService;
+	private readonly _planningService: PlanningService;
+	private readonly _implementationPlanningService: ImplementationPlanningService;
 
 	constructor(
-		@IFileService fileService: IFileService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@ISearchService searchService: ISearchService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IVoidModelService voidModelService: IVoidModelService,
-		@IEditCodeService editCodeService: IEditCodeService,
-		@ITerminalToolService private readonly terminalToolService: ITerminalToolService,
-		@IVoidCommandBarService private readonly commandBarService: IVoidCommandBarService,
-		@IDirectoryStrService private readonly directoryStrService: IDirectoryStrService,
-		@IMarkerService private readonly markerService: IMarkerService,
-		@IVoidSettingsService private readonly voidSettingsService: IVoidSettingsService,
-		@IMainProcessService private readonly mainProcessService: IMainProcessService,
-		@IMorphService private readonly morphService: IMorphService,
+		@IFileService private readonly _fileService: IFileService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ISearchService private readonly _searchService: ISearchService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IVoidModelService private readonly _voidModelService: IVoidModelService,
+		@IEditCodeService private readonly _editCodeService: IEditCodeService,
+		@ITerminalToolService private readonly _terminalToolService: ITerminalToolService,
+		@IVoidCommandBarService private readonly _commandBarService: IVoidCommandBarService,
+		@IDirectoryStrService private readonly _directoryStrService: IDirectoryStrService,
+		@IMarkerService private readonly _markerService: IMarkerService,
+		@IVoidSettingsService private readonly _voidSettingsService: IVoidSettingsService,
+		@IMainProcessService private readonly _mainProcessService: IMainProcessService,
+		@IMorphService private readonly _morphService: IMorphService,
+		@IAgentManagerService private readonly _agentManagerService: IAgentManagerService,
 	) {
-		const queryBuilder = instantiationService.createInstance(QueryBuilder);
-		this.toonService = new ToonService();
-		this.planningService = new PlanningService();
-		this.implementationPlanningService = new ImplementationPlanningService();
-		this._fileService = fileService;
-		this._workspaceContextService = workspaceContextService;
-		this._instantiationService = instantiationService;
-
+		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
+		this._toonService = new ToonService();
+		this._planningService = new PlanningService();
+		this._implementationPlanningService = new ImplementationPlanningService();
 		this.validateParams = {
 			read_file: (params: RawToolParamsObj) => {
 				const { uri: uriStr, start_line: startLineUnknown, end_line: endLineUnknown, page_number: pageNumberUnknown, explanation: explanationUnknown } = params
@@ -311,8 +305,7 @@ export class ToolsService implements IToolsService {
 						try { target_directories = JSON.parse(targetDirsUnknown) as string[]; }
 						catch (e) { throw new Error('target_directories must be valid JSON array of strings'); }
 					} else if (Array.isArray(targetDirsUnknown)) {
-						target_directories = (targetDirsUnknown as any[]).map(d => validateStr('target_directory', d)) as string[];
-					} else {
+																	target_directories = (targetDirsUnknown as any[]).map((d: any) => validateStr('target_directory', d)) as string[];					} else {
 						throw new Error('target_directories must be an array or JSON string');
 					}
 				}
@@ -812,8 +805,8 @@ export class ToolsService implements IToolsService {
 				}
 
 				// Fallback to model for smaller files or specific line ranges
-				await voidModelService.initializeModel(uri)
-				const { model } = await voidModelService.getModelSafe(uri)
+				await this._voidModelService.initializeModel(uri)
+				const { model } = await this._voidModelService.getModelSafe(uri)
 				if (model === null) { throw new Error(`No contents; File does not exist.`) }
 
 				const totalNumLines = model.getLineCount()
@@ -858,8 +851,8 @@ export class ToolsService implements IToolsService {
 
 			outline_file: async ({ uri }, opts) => {
 				opts?.onData?.(`Getting outline for ${path.basename(uri.fsPath)}...`);
-				await voidModelService.initializeModel(uri)
-				const { model } = await voidModelService.getModelSafe(uri)
+				await this._voidModelService.initializeModel(uri)
+				const { model } = await this._voidModelService.getModelSafe(uri)
 				if (model === null) { throw new Error(`No contents; File does not exist.`) }
 
 				const totalNumLines = model.getLineCount()
@@ -874,23 +867,23 @@ export class ToolsService implements IToolsService {
 			},
 
 			ls_dir: async ({ uri, pageNumber }) => {
-				const dirResult = await computeDirectoryTree1Deep(fileService, uri, pageNumber)
+				const dirResult = await computeDirectoryTree1Deep(this._fileService, uri, pageNumber)
 				return { result: dirResult }
 			},
 
 			get_dir_tree: async ({ uri }) => {
-				const str = await this.directoryStrService.getDirectoryStrTool(uri)
+				const str = await this._directoryStrService.getDirectoryStrTool(uri)
 				return { result: { str } }
 			},
 
 			search_pathnames_only: async ({ query: queryStr, includePattern, pageNumber }) => {
 
-				const query = queryBuilder.file(workspaceContextService.getWorkspace().folders.map(f => f.uri), {
+				const query = queryBuilder.file(this._workspaceContextService.getWorkspace().folders.map((f: any) => f.uri), {
 					filePattern: queryStr,
 					includePattern: includePattern ?? undefined,
 					sortByScore: true, // makes results 10x better
 				})
-				const data = await searchService.fileSearch(query, CancellationToken.None)
+				const data = await this._searchService.fileSearch(query, CancellationToken.None)
 
 				const fromIdx = MAX_CHILDREN_URIs_PAGE * (pageNumber - 1)
 				const toIdx = MAX_CHILDREN_URIs_PAGE * pageNumber - 1
@@ -904,7 +897,7 @@ export class ToolsService implements IToolsService {
 
 			search_for_files: async ({ query: queryStr, isRegex, searchInFolder, pageNumber }) => {
 				const searchFolders = searchInFolder === null ?
-					workspaceContextService.getWorkspace().folders.map(f => f.uri)
+					this._workspaceContextService.getWorkspace().folders.map((f: any) => f.uri)
 					: [searchInFolder]
 
 				const query = queryBuilder.text({
@@ -912,7 +905,7 @@ export class ToolsService implements IToolsService {
 					isRegExp: isRegex,
 				}, searchFolders)
 
-				const data = await searchService.textSearch(query, CancellationToken.None)
+				const data = await this._searchService.textSearch(query, CancellationToken.None)
 
 				const fromIdx = MAX_CHILDREN_URIs_PAGE * (pageNumber - 1)
 				const toIdx = MAX_CHILDREN_URIs_PAGE * pageNumber - 1
@@ -924,8 +917,8 @@ export class ToolsService implements IToolsService {
 				return { result: { queryStr, uris, hasNextPage } }
 			},
 			search_in_file: async ({ uri, query, isRegex }) => {
-				await voidModelService.initializeModel(uri);
-				const { model } = await voidModelService.getModelSafe(uri);
+				await this._voidModelService.initializeModel(uri);
+				const { model } = await this._voidModelService.getModelSafe(uri);
 				if (model === null) { throw new Error(`No contents; File does not exist.`); }
 
 				const matches = model.findMatches(
@@ -950,7 +943,7 @@ export class ToolsService implements IToolsService {
 			},
 
 			fast_context: async ({ query }, opts) => {
-				const workspaceFolders = workspaceContextService.getWorkspace().folders;
+				const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
 				const repoRoot = workspaceFolders.length > 0 ? workspaceFolders[0].uri.fsPath : '.';
 
 				opts?.onData?.('Morph: Starting semantic search...');
@@ -959,7 +952,7 @@ export class ToolsService implements IToolsService {
 				await timeout(800);
 				opts?.onData?.('Morph: Searching codebase embeddings...');
 
-				const contexts = await this.morphService.fastContext({
+				const contexts = await this._morphService.fastContext({
 					query,
 					repoRoot
 				});
@@ -971,11 +964,11 @@ export class ToolsService implements IToolsService {
 			},
 
 			codebase_search: async ({ query, repoId, branch, commitHash, target_directories, limit }, opts) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
 
 				opts?.onData?.('Morph: Searching indexed codebase...');
-				const results = await this.morphService.codebaseSearch({
+				const results = await this._morphService.codebaseSearch({
 					query,
 					repoId,
 					branch,
@@ -988,45 +981,45 @@ export class ToolsService implements IToolsService {
 			},
 
 			repo_init: async ({ repoId, dir }, opts) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
 				opts?.onData?.('Morph: Initializing repository...');
-				const res = await this.morphService.repoInit({ repoId, dir });
+				const res = await this._morphService.repoInit({ repoId, dir });
 				opts?.onData?.(res.success ? 'Morph: Repository initialized.' : 'Morph: Initialization failed.');
 				return { result: res };
 			},
 
 			repo_clone: async ({ repoId, dir }, opts) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
 				opts?.onData?.(`Morph: Cloning repository ${repoId}...`);
-				const res = await this.morphService.repoClone({ repoId, dir });
+				const res = await this._morphService.repoClone({ repoId, dir });
 				opts?.onData?.(res.success ? 'Morph: Clone complete.' : 'Morph: Clone failed.');
 				return { result: res };
 			},
 
 			repo_add: async ({ dir, filepath }, opts) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
 				opts?.onData?.(`Morph: Staging ${filepath || 'all changes'}...`);
-				const res = await this.morphService.repoAdd({ dir, filepath });
+				const res = await this._morphService.repoAdd({ dir, filepath });
 				return { result: res };
 			},
 
 			repo_commit: async ({ dir, message, metadata }, opts) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
 				opts?.onData?.('Morph: Committing changes...');
-				const res = await this.morphService.repoCommit({ dir, message, metadata });
+				const res = await this._morphService.repoCommit({ dir, message, metadata });
 				opts?.onData?.(res.success ? `Morph: Committed ${res.commitSha?.slice(0, 7) || ''}` : 'Morph: Commit failed.');
 				return { result: res };
 			},
 
 			repo_push: async ({ dir, branch, index, waitForEmbeddings }, opts) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
 				opts?.onData?.(`Morph: Pushing to ${branch || 'remote'}...`);
-				const res = await this.morphService.repoPush({ dir, branch, index, waitForEmbeddings });
+				const res = await this._morphService.repoPush({ dir, branch, index, waitForEmbeddings });
 				if (res.success && index) {
 					opts?.onData?.('Morph: Push successful. Indexing embeddings...');
 				}
@@ -1034,74 +1027,74 @@ export class ToolsService implements IToolsService {
 			},
 
 			repo_pull: async ({ dir }, opts) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
 				opts?.onData?.('Morph: Pulling latest changes...');
-				const res = await this.morphService.repoPull({ dir });
+				const res = await this._morphService.repoPull({ dir });
 				return { result: res };
 			},
 
 			repo_status: async ({ dir, filepath }) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
-				return { result: await this.morphService.repoStatus({ dir, filepath }) };
+				return { result: await this._morphService.repoStatus({ dir, filepath }) };
 			},
 
 			repo_status_matrix: async ({ dir }) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
-				return { result: await this.morphService.repoStatusMatrix({ dir }) };
+				return { result: await this._morphService.repoStatusMatrix({ dir }) };
 			},
 
 			repo_log: async ({ dir, depth }) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
-				return { result: await this.morphService.repoLog({ dir, depth }) };
+				return { result: await this._morphService.repoLog({ dir, depth }) };
 			},
 
 			repo_checkout: async ({ dir, ref }) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
-				return { result: await this.morphService.repoCheckout({ dir, ref }) };
+				return { result: await this._morphService.repoCheckout({ dir, ref }) };
 			},
 
 			repo_branch: async ({ dir, name }) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
-				return { result: await this.morphService.repoBranch({ dir, name }) };
+				return { result: await this._morphService.repoBranch({ dir, name }) };
 			},
 
 			repo_list_branches: async ({ dir }) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
-				return { result: await this.morphService.repoListBranches({ dir }) };
+				return { result: await this._morphService.repoListBranches({ dir }) };
 			},
 
 			repo_current_branch: async ({ dir }) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
-				return { result: await this.morphService.repoCurrentBranch({ dir }) };
+				return { result: await this._morphService.repoCurrentBranch({ dir }) };
 			},
 
 			repo_resolve_ref: async ({ dir, ref }) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
-				return { result: await this.morphService.repoResolveRef({ dir, ref }) };
+				return { result: await this._morphService.repoResolveRef({ dir, ref }) };
 			},
 
 			repo_get_commit_metadata: async ({ repoId, commitHash }) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
-				return { result: await this.morphService.repoGetCommitMetadata({ repoId, commitHash }) };
+				return { result: await this._morphService.repoGetCommitMetadata({ repoId, commitHash }) };
 			},
 
 			repo_wait_for_embeddings: async ({ repoId, timeoutMs }) => {
-				const { enableMorphRepoStorage } = this.voidSettingsService.state.globalSettings;
+				const { enableMorphRepoStorage } = this._voidSettingsService.state.globalSettings;
 				if (!enableMorphRepoStorage) throw new Error('Morph Repo Storage is disabled in settings.');
-				return { result: await this.morphService.repoWaitForEmbeddings({ repoId, timeoutMs }) };
+				return { result: await this._morphService.repoWaitForEmbeddings({ repoId, timeoutMs }) };
 			},
 			wait: async ({ timeoutMs, persistentTerminalId }, opts) => {
-				const result = await this.terminalToolService.wait({ timeoutMs, persistentTerminalId, onData: opts?.onData });
+				const result = await this._terminalToolService.wait({ timeoutMs, persistentTerminalId, onData: opts?.onData });
 				return { result };
 			},
 
@@ -1110,9 +1103,9 @@ export class ToolsService implements IToolsService {
 			create_file_or_folder: async ({ uri, isFolder }, opts) => {
 				opts?.onData?.(`Creating ${isFolder ? 'folder' : 'file'}: ${path.basename(uri.fsPath)}...`);
 				if (isFolder)
-					await fileService.createFolder(uri)
+					await this._fileService.createFolder(uri)
 				else {
-					await fileService.createFile(uri)
+					await this._fileService.createFile(uri)
 				}
 				// Morph Repo Storage: sync to cloud if enabled
 				this._syncToMorphRepoStorage(uri, 'Create ' + (isFolder ? 'folder: ' : 'file: ') + path.basename(uri.fsPath));
@@ -1122,23 +1115,23 @@ export class ToolsService implements IToolsService {
 			delete_file_or_folder: async ({ uri, isRecursive }, opts) => {
 				const isFolder = checkIfIsFolder(uri.fsPath);
 				opts?.onData?.(`Deleting ${isFolder ? 'folder' : 'file'}: ${path.basename(uri.fsPath)}...`);
-				await fileService.del(uri, { recursive: isRecursive })
+				await this._fileService.del(uri, { recursive: isRecursive })
 				// Morph Repo Storage: sync to cloud if enabled
 				this._syncToMorphRepoStorage(uri, 'Delete file or folder: ' + path.basename(uri.fsPath));
 				return { result: {} }
 			},
 
 			rewrite_file: async ({ uri, newContent }, opts) => {
-				await voidModelService.initializeModel(uri)
+				await this._voidModelService.initializeModel(uri)
 
 				// Check if file exists, if not create it (if within workspace)
-				const { model } = await voidModelService.getModelSafe(uri)
+				const { model } = await this._voidModelService.getModelSafe(uri)
 				const isNewFile = model === null
 
 				if (isNewFile) {
 					// File doesn't exist - check if it's within the workspace
-					const workspaceFolders = workspaceContextService.getWorkspace().folders
-					const isInWorkspace = workspaceFolders.some(folder =>
+					const workspaceFolders = this._workspaceContextService.getWorkspace().folders
+					const isInWorkspace = workspaceFolders.some((folder: any) =>
 						uri.fsPath.startsWith(folder.uri.fsPath)
 					)
 
@@ -1147,34 +1140,34 @@ export class ToolsService implements IToolsService {
 					}
 
 					// Create the file (empty first, then we'll rewrite it)
-					await fileService.createFile(uri, VSBuffer.fromString(''))
+					await this._fileService.createFile(uri, VSBuffer.fromString(''))
 					// Re-initialize the model after creating
-					await voidModelService.initializeModel(uri)
+					await this._voidModelService.initializeModel(uri)
 				}
 
-				if (this.commandBarService.getStreamState(uri) === 'streaming') {
+				if (this._commandBarService.getStreamState(uri) === 'streaming') {
 					throw new Error(`Another LLM is currently making changes to this file. Please stop streaming for now and ask the user to resume later.`)
 				}
-				await editCodeService.callBeforeApplyOrEdit(uri)
+				await this._editCodeService.callBeforeApplyOrEdit(uri)
 
 				// Check if Morph Fast Apply is enabled
-				const useMorph = this.voidSettingsService.state.globalSettings.enableMorphFastApply;
+				const useMorph = this._voidSettingsService.state.globalSettings.enableMorphFastApply;
 
 				if (useMorph) {
 					// Use Morph Fast Apply
 					opts?.onData?.(`Morph: Applying rewrite to ${path.basename(uri.fsPath)}...`);
-					const fileContent = await fileService.readFile(uri);
+					const fileContent = await this._fileService.readFile(uri);
 					const originalContent = fileContent.value.toString();
-					const appliedCode = await this.morphService.applyCodeChange({
+					const appliedCode = await this._morphService.applyCodeChange({
 						instruction: 'Rewriting entire file with new content',
 						originalCode: originalContent,
 						updatedCode: newContent
 					});
-					editCodeService.instantlyRewriteFile({ uri, newContent: appliedCode, onProgress: opts?.onData });
+					this._editCodeService.instantlyRewriteFile({ uri, newContent: appliedCode, onProgress: opts?.onData });
 				} else {
 					// Use standard rewrite
 					opts?.onData?.(`Writing ${path.basename(uri.fsPath)}...`);
-					editCodeService.instantlyRewriteFile({ uri, newContent, onProgress: opts?.onData });
+					this._editCodeService.instantlyRewriteFile({ uri, newContent, onProgress: opts?.onData });
 				}
 
 				// Morph Repo Storage: sync to cloud if enabled
@@ -1190,30 +1183,30 @@ export class ToolsService implements IToolsService {
 			},
 
 			edit_file: async ({ uri, originalUpdatedBlocks: originalUpdatedBlocks, tryFuzzyMatching }, opts) => {
-				await voidModelService.initializeModel(uri)
-				if (this.commandBarService.getStreamState(uri) === 'streaming') {
+				await this._voidModelService.initializeModel(uri)
+				if (this._commandBarService.getStreamState(uri) === 'streaming') {
 					throw new Error(`Another LLM is currently making changes to this file. Please stop streaming for now and ask the user to resume later.`)
 				}
-				await editCodeService.callBeforeApplyOrEdit(uri)
+				await this._editCodeService.callBeforeApplyOrEdit(uri)
 
 				// Check if Morph Fast Apply is enabled
-				const useMorph = this.voidSettingsService.state.globalSettings.enableMorphFastApply;
+				const useMorph = this._voidSettingsService.state.globalSettings.enableMorphFastApply;
 
 				if (useMorph) {
 					// Use Morph Fast Apply - convert original/updated blocks to Morph format
 					opts?.onData?.(`Morph: Applying ORIGINAL/UPDATED edits to ${path.basename(uri.fsPath)}...`);
-					const fileContent = await fileService.readFile(uri);
+					const fileContent = await this._fileService.readFile(uri);
 					const originalContent = fileContent.value.toString();
-					const appliedCode = await this.morphService.applyCodeChange({
+					const appliedCode = await this._morphService.applyCodeChange({
 						instruction: 'Applying code edits',
 						originalCode: originalContent,
 						updatedCode: originalUpdatedBlocks // Morph expects code with // ... existing code ... format
 					});
-					editCodeService.instantlyRewriteFile({ uri, newContent: appliedCode, onProgress: opts?.onData });
+					this._editCodeService.instantlyRewriteFile({ uri, newContent: appliedCode, onProgress: opts?.onData });
 				} else {
 					// Use standard original/updated
 					opts?.onData?.(`Applying edits to ${path.basename(uri.fsPath)}...`);
-					await editCodeService.instantlyApplyOriginalUpdatedBlocks({ uri, originalUpdatedBlocks: originalUpdatedBlocks, tryFuzzyMatching, onProgress: opts?.onData });
+					await this._editCodeService.instantlyApplyOriginalUpdatedBlocks({ uri, originalUpdatedBlocks: originalUpdatedBlocks, tryFuzzyMatching, onProgress: opts?.onData });
 				}
 
 				// Morph Repo Storage: sync to cloud if enabled
@@ -1251,56 +1244,56 @@ export class ToolsService implements IToolsService {
 				}
 			},
 			run_command: async ({ command, cwd, terminalId }, opts) => {
-				const { resPromise, interrupt } = await this.terminalToolService.runCommand(command, { type: 'temporary', cwd, terminalId, onData: opts?.onData })
+				const { resPromise, interrupt } = await this._terminalToolService.runCommand(command, { type: 'temporary', cwd, terminalId, onData: opts?.onData })
 				return { result: resPromise, interruptTool: interrupt }
 			},
 			run_persistent_command: async ({ command, persistentTerminalId }, opts) => {
-				const { resPromise, interrupt } = await this.terminalToolService.runCommand(command, { type: 'persistent', persistentTerminalId, onData: opts?.onData })
+				const { resPromise, interrupt } = await this._terminalToolService.runCommand(command, { type: 'persistent', persistentTerminalId, onData: opts?.onData })
 				return { result: resPromise, interruptTool: interrupt }
 			},
 			open_persistent_terminal: async ({ cwd }) => {
-				const persistentTerminalId = await this.terminalToolService.createPersistentTerminal({ cwd })
+				const persistentTerminalId = await this._terminalToolService.createPersistentTerminal({ cwd })
 				return { result: { persistentTerminalId } }
 			},
 			kill_persistent_terminal: async ({ persistentTerminalId }) => {
 				// Close the background terminal by sending exit
-				await this.terminalToolService.killPersistentTerminal(persistentTerminalId)
+				await this._terminalToolService.killPersistentTerminal(persistentTerminalId)
 				return { result: {} }
 			},
 
 			// --- Planning tools ---
 
 			create_plan: async ({ goal, tasks }) => {
-				const plan = this.planningService.createPlan(goal, tasks);
-				const summary = this.planningService.formatPlanStatus(plan);
+				const plan = this._planningService.createPlan(goal, tasks);
+				const summary = this._planningService.formatPlanStatus(plan);
 				return { result: { planId: plan.id, summary } };
 			},
 
 			update_task_status: async ({ taskId, status, notes }) => {
-				const task = this.planningService.updateTaskStatus(taskId, status as PlanTaskStatus, notes ?? undefined);
-				const plan = this.planningService.getPlanStatus();
-				const summary = plan ? this.planningService.formatPlanStatus(plan) : 'No active plan';
+				const task = this._planningService.updateTaskStatus(taskId, status as PlanTaskStatus, notes ?? undefined);
+				const plan = this._planningService.getPlanStatus();
+				const summary = plan ? this._planningService.formatPlanStatus(plan) : 'No active plan';
 				return { result: { taskId: task.id, newStatus: task.status, summary } };
 			},
 
 			get_plan_status: async () => {
-				const plan = this.planningService.getPlanStatus();
+				const plan = this._planningService.getPlanStatus();
 				if (!plan) {
 					return { result: { planExists: false, summary: null } };
 				}
-				const summary = this.planningService.formatPlanStatus(plan);
+				const summary = this._planningService.formatPlanStatus(plan);
 				return { result: { planExists: true, summary } };
 			},
 
 			add_tasks_to_plan: async ({ tasks }) => {
-				const plan = this.planningService.addTasksToPlan(tasks);
-				const summary = this.planningService.formatPlanStatus(plan);
+				const plan = this._planningService.addTasksToPlan(tasks);
+				const summary = this._planningService.formatPlanStatus(plan);
 				return { result: { summary } };
 			},
 
 			update_walkthrough: async ({ content, mode, title, includePlanStatus }) => {
 				// Get workspace root
-				const workspaceRoot = workspaceContextService.getWorkspace().folders[0]?.uri
+				const workspaceRoot = this._workspaceContextService.getWorkspace().folders[0]?.uri
 				if (!workspaceRoot) {
 					throw new Error('No workspace folder found. Please open a folder in VS Code to use the walkthrough feature.')
 				}
@@ -1315,7 +1308,7 @@ export class ToolsService implements IToolsService {
 				// Check if file exists
 				let existingContent = ''
 				try {
-					const existingFile = await fileService.readFile(walkthroughUri)
+					const existingFile = await this._fileService.readFile(walkthroughUri)
 					existingContent = existingFile.value.toString()
 				} catch (error) {
 					// File doesn't exist, that's ok for create mode
@@ -1344,15 +1337,15 @@ export class ToolsService implements IToolsService {
 
 				// Include plan status if requested
 				if (includePlanStatus) {
-					const plan = this.planningService.getPlanStatus()
+					const plan = this._planningService.getPlanStatus()
 					if (plan) {
-						const planSection = this.planningService.formatPlanStatus(plan)
+						const planSection = this._planningService.formatPlanStatus(plan)
 						finalContent = finalContent + '\n\n## Current Plan Status\n' + planSection
 					}
 				}
 
 				// Write file
-				await fileService.writeFile(walkthroughUri, VSBuffer.fromString(finalContent))
+				await this._fileService.writeFile(walkthroughUri, VSBuffer.fromString(finalContent))
 
 				// Return preview (first 500 chars)
 				const preview = finalContent.substring(0, 500) + (finalContent.length > 500 ? '...' : '')
@@ -1374,15 +1367,12 @@ export class ToolsService implements IToolsService {
 				}
 
 				try {
-					// Get the Lite Mode service
-					const agentManagerService = this._instantiationService.createInstance(AgentManagerService);
-
 					// Read the file content to provide as preview
 					const fileContent = await this._fileService.readFile(URI.file(filePath));
 					const preview = fileContent.value.toString();
 
 					// Open the walkthrough preview
-					await agentManagerService.openWalkthroughPreview(filePath, preview);
+					await this._agentManagerService.openWalkthroughPreview(filePath, preview);
 
 					return {
 						result: {
@@ -1398,22 +1388,36 @@ export class ToolsService implements IToolsService {
 			// --- Implementation Planning tools ---
 
 			create_implementation_plan: async ({ goal, steps }) => {
-				const plan = this.implementationPlanningService.createImplementationPlan(goal, steps);
+				const plan = this._implementationPlanningService.createImplementationPlan(goal, steps);
 				const summary = this.formatImplementationPlanSummary(plan);
+
+				// Open in React tab
+				await this._agentManagerService.openContentPreview(
+					`Implementation Plan: ${plan.id}`,
+					summary
+				);
+
 				return { result: { planId: plan.id, summary } };
 			},
 
 			preview_implementation_plan: async () => {
-				const plan = this.implementationPlanningService.getCurrentPlan();
+				const plan = this._implementationPlanningService.getCurrentPlan();
 				if (!plan) {
 					return { result: { planId: '', goal: '', steps: [], summary: 'No active implementation plan. Create one using create_implementation_plan.' } };
 				}
 				const summary = this.formatImplementationPlanSummary(plan);
+
+				// Open in React tab
+				await this._agentManagerService.openContentPreview(
+					`Implementation Plan: ${plan.id}`,
+					summary
+				);
+
 				return { result: { planId: plan.id, goal: plan.goal, steps: plan.steps, summary } };
 			},
 
 			execute_implementation_plan: async ({ step_id }) => {
-				const plan = this.implementationPlanningService.getCurrentPlan();
+				const plan = this._implementationPlanningService.getCurrentPlan();
 				if (!plan) {
 					throw new Error('No active implementation plan. Create one using create_implementation_plan.');
 				}
@@ -1430,21 +1434,21 @@ export class ToolsService implements IToolsService {
 					}
 
 					// Mark step as in progress
-					this.implementationPlanningService.updateStepStatus(step_id, 'in_progress');
-					const updatedPlan = this.implementationPlanningService.getCurrentPlan()!;
+					this._implementationPlanningService.updateStepStatus(step_id, 'in_progress');
+					const updatedPlan = this._implementationPlanningService.getCurrentPlan()!;
 					const summary = this.formatImplementationPlanSummary(updatedPlan);
 
 					return { result: { stepId: step_id, status: 'in_progress', summary } };
 				} else {
 					// Execute next available step
-					const nextStep = this.implementationPlanningService.getNextExecutableStep();
+					const nextStep = this._implementationPlanningService.getNextExecutableStep();
 					if (!nextStep) {
 						throw new Error('No executable steps found. All steps are either complete, in progress, or have unmet dependencies.');
 					}
 
 					// Mark step as in progress
-					this.implementationPlanningService.updateStepStatus(nextStep.id, 'in_progress');
-					const updatedPlan = this.implementationPlanningService.getCurrentPlan()!;
+					this._implementationPlanningService.updateStepStatus(nextStep.id, 'in_progress');
+					const updatedPlan = this._implementationPlanningService.getCurrentPlan()!;
 					const summary = this.formatImplementationPlanSummary(updatedPlan);
 
 					return { result: { stepId: nextStep.id, status: 'in_progress', summary } };
@@ -1452,17 +1456,17 @@ export class ToolsService implements IToolsService {
 			},
 
 			update_implementation_step: async ({ step_id, status, notes }) => {
-				const step = this.implementationPlanningService.updateStepStatus(step_id, status as ImplStepStatus, notes ?? undefined);
+				const step = this._implementationPlanningService.updateStepStatus(step_id, status as ImplStepStatus, notes ?? undefined);
 				if (!step) {
 					throw new Error(`Failed to update step with ID "${step_id}"`);
 				}
-				const plan = this.implementationPlanningService.getCurrentPlan();
+				const plan = this._implementationPlanningService.getCurrentPlan();
 				const summary = plan ? this.formatImplementationPlanSummary(plan) : 'No active plan';
 				return { result: { stepId: step.id, newStatus: step.status, summary } };
 			},
 
 			get_implementation_status: async () => {
-				const plan = this.implementationPlanningService.getCurrentPlan();
+				const plan = this._implementationPlanningService.getCurrentPlan();
 				if (!plan) {
 					return { result: { planExists: false, summary: null } };
 				}
@@ -1726,15 +1730,15 @@ For each module include:
 				return result.str
 			},
 			search_pathnames_only: (params, result) => {
-				return result.uris.map(uri => uri.fsPath).join('\n') + nextPageStr(result.hasNextPage)
+				return result.uris.map((uri: any) => uri.fsPath).join('\n') + nextPageStr(result.hasNextPage)
 			},
 			search_for_files: (params, result) => {
-				return result.uris.map(uri => uri.fsPath).join('\n') + nextPageStr(result.hasNextPage)
+				return result.uris.map((uri: any) => uri.fsPath).join('\n') + nextPageStr(result.hasNextPage)
 			},
 			search_in_file: (params, result) => {
-				const { model } = voidModelService.getModel(params.uri)
+				const { model } = this._voidModelService.getModel(params.uri)
 				if (!model) return '<Error getting string of result>'
-				const lines = result.lines.map(n => {
+				const lines = result.lines.map((n: number) => {
 					const lineContent = model.getValueInRange({ startLineNumber: n, startColumn: 1, endLineNumber: n, endColumn: Number.MAX_SAFE_INTEGER }, EndOfLinePreference.LF)
 					return `Line ${n}:\n\`\`\`\n${lineContent}\n\`\`\``
 				}).join('\n\n');
@@ -1770,7 +1774,7 @@ For each module include:
 			},
 			edit_file: (params, result) => {
 				const lintErrsString = (
-					this.voidSettingsService.state.globalSettings.includeToolLintErrors ?
+					this._voidSettingsService.state.globalSettings.includeToolLintErrors ?
 						(result.lintErrors ? ` Lint errors found after change:\n${stringifyLintErrors(result.lintErrors)}.\nIf this is related to a change made while calling this tool, you might want to fix the error.`
 							: ` No lint errors found.`)
 						: '')
@@ -1779,7 +1783,7 @@ For each module include:
 			},
 			rewrite_file: (params, result) => {
 				const lintErrsString = (
-					this.voidSettingsService.state.globalSettings.includeToolLintErrors ?
+					this._voidSettingsService.state.globalSettings.includeToolLintErrors ?
 						(result.lintErrors ? ` Lint errors found after change:\n${stringifyLintErrors(result.lintErrors)}.\nIf this is related to a change made while calling this tool, you might want to fix the error.`
 							: ` No lint errors found.`)
 						: '')
@@ -1992,52 +1996,60 @@ For each module include:
 	// Helper method to format implementation plan summary
 	private formatImplementationPlanSummary(plan: ImplementationPlan): string {
 		const { steps } = plan;
-		const completed = steps.filter(s => s.status === 'complete').length;
+		const completed = steps.filter((s: ImplementationStep) => s.status === 'complete').length;
 		const total = steps.length;
 		const progress = Math.round((completed / total) * 100);
 
-		let output = `\u{1F4CB} Implementation Plan: \"${plan.goal}\"\n`;
-		output += `Progress: ${completed}/${total} steps (${progress}%)\n\n`;
+		let output = `# ${plan.goal}\n\n`;
+		
+		output += `> **Progress:** ${completed}/${total} steps complete (${progress}%)\n\n`;
+		
+		// Status summary bar (visual)
+		const progressBarWidth = 20;
+		const filledWidth = Math.round((completed / total) * progressBarWidth);
+		const bar = '█'.repeat(filledWidth) + '░'.repeat(progressBarWidth - filledWidth);
+		output += `\`${bar}\`\n\n`;
 
 		// Group steps by status
-		const stepsByStatus = this.implementationPlanningService.getStepsByStatus();
+		const stepsByStatus = this._implementationPlanningService.getStepsByStatus();
 
 		// Show in-progress steps first
 		if (stepsByStatus.in_progress.length > 0) {
-			output += `### 🔄 In Progress\n`;
+			output += `## 🔄 In Progress\n\n`;
 			for (const step of stepsByStatus.in_progress) {
 				const complexity = this.getComplexityEmoji(step.complexity);
-				const files = step.files.length > 0 ? ` (${step.files.length} files)` : '';
-				output += `- [${step.id}] ${step.title} ${complexity}${files}\n`;
+				const files = step.files.length > 0 ? `  \n  **Files:** ${step.files.map(f => `\`${f}\``).join(', ')}` : '';
+				output += `### ${complexity} Step ${step.id}: ${step.title}\n`;
+				output += `${step.description}\n${files}\n`;
 				if (step.notes) {
-					output += `  Notes: ${step.notes}\n`;
+					output += `\n> 💡 **Notes:** ${step.notes}\n`;
 				}
+				output += '\n---\n\n';
 			}
-			output += '\n';
 		}
 
 		// Then pending steps
 		if (stepsByStatus.pending.length > 0) {
-			output += `### ⏳ Pending\n`;
+			output += `## ⏳ Pending Steps\n\n`;
 			for (const step of stepsByStatus.pending) {
 				const complexity = this.getComplexityEmoji(step.complexity);
-				const deps = step.dependencies.length > 0 ? ` (depends on: ${step.dependencies.join(', ')})` : '';
-				const files = step.files.length > 0 ? ` (${step.files.length} files)` : '';
-				const time = step.estimated_time ? ` (~${step.estimated_time}min)` : '';
-				output += `- [${step.id}] ${step.title} ${complexity}${files}${time}${deps}\n`;
-				output += `  ${step.description}\n`;
+				const deps = step.dependencies.length > 0 ? `  \n  **Depends on:** ${step.dependencies.map(d => `\`${d}\``).join(', ')}` : '';
+				const files = step.files.length > 0 ? `  \n  **Files involved:** ${step.files.map(f => `\`${f}\``).join(', ')}` : '';
+				const time = step.estimated_time ? `  \n  **Estimated time:** ${step.estimated_time} minutes` : '';
+				
+				output += `### ${complexity} Step ${step.id}: ${step.title}\n`;
+				output += `${step.description}\n${files}${time}${deps}\n\n`;
 			}
-			output += '\n';
 		}
 
-		// Then completed steps (collapsed)
+		// Then completed steps
 		if (stepsByStatus.complete.length > 0) {
-			output += `### ✅ Complete (${stepsByStatus.complete.length})\n`;
+			output += `## ✅ Completed\n\n`;
 			for (const step of stepsByStatus.complete) {
 				const complexity = this.getComplexityEmoji(step.complexity);
-				output += `- [${step.id}] ${step.title} ${complexity}\n`;
+				output += `- **[${step.id}] ${step.title}** ${complexity}\n`;
 				if (step.notes) {
-					output += `  Notes: ${step.notes}\n`;
+					output += `  *${step.notes}*\n`;
 				}
 			}
 			output += '\n';
@@ -2045,31 +2057,15 @@ For each module include:
 
 		// Show failed steps
 		if (stepsByStatus.failed.length > 0) {
-			output += `### ❌ Failed\n`;
+			output += `## ❌ Failed\n\n`;
 			for (const step of stepsByStatus.failed) {
-				const complexity = this.getComplexityEmoji(step.complexity);
-				output += `- [${step.id}] ${step.title} ${complexity}\n`;
-				if (step.notes) {
-					output += `  Error: ${step.notes}\n`;
-				}
-			}
-			output += '\n';
-		}
-
-		// Show skipped steps
-		if (stepsByStatus.skipped.length > 0) {
-			output += `### ⏭️ Skipped\n`;
-			for (const step of stepsByStatus.skipped) {
-				const complexity = this.getComplexityEmoji(step.complexity);
-				output += `- [${step.id}] ${step.title} ${complexity}\n`;
-				if (step.notes) {
-					output += `  Reason: ${step.notes}\n`;
-				}
+				output += `### Step ${step.id}: ${step.title}\n`;
+				output += `> ⚠️ **Error:** ${step.notes || 'Unknown error'}\n\n`;
 			}
 		}
 
 		// Show approval status
-		output += `\n${plan.approved ? '✅ Plan approved for execution' : '⏸️ Plan pending approval'}`;
+		output += `\n\n---\n**Plan Status:** ${plan.approved ? '✅ Approved for execution' : '⏸️ Pending review'}`;
 
 		return output;
 	}
@@ -2088,16 +2084,16 @@ For each module include:
 	 * Wrap structured data with TOON encoding if enabled and beneficial
 	 */
 	private _maybeEncodeToon(data: any, fallbackStr: string): string {
-		const enableToon = this.voidSettingsService.state.globalSettings.enableToolResultTOON;
+		const enableToon = this._voidSettingsService.state.globalSettings.enableToolResultTOON;
 
 		if (!enableToon) {
 			return fallbackStr;
 		}
 
 		// Check if TOON would be beneficial
-		if (this.toonService.shouldUseToon(data)) {
+		if (this._toonService.shouldUseToon(data)) {
 			try {
-				const toonEncoded = this.toonService.encode(data);
+				const toonEncoded = this._toonService.encode(data);
 				// Only use TOON if it actually saves space
 				if (toonEncoded.length < fallbackStr.length * 0.9) {
 					return `[TOON]\n${toonEncoded}`;
@@ -2112,7 +2108,7 @@ For each module include:
 	}
 
 	private _getLintErrors(uri: URI): { lintErrors: LintErrorItem[] | null } {
-		const lintErrors = this.markerService
+		const lintErrors = this._markerService
 			.read({ resource: uri })
 			.filter(l => l.severity === MarkerSeverity.Error || l.severity === MarkerSeverity.Warning)
 			.slice(0, 100)
@@ -2131,7 +2127,7 @@ For each module include:
 	 * Get IPC channel for code execution
 	 */
 	private getCodeExecutionChannel(): any {
-		return this.mainProcessService.getChannel('void-channel-code-execution');
+		return this._mainProcessService.getChannel('void-channel-code-execution');
 	}
 
 	/**
@@ -2167,15 +2163,15 @@ For each module include:
 	 * Get the planning service for UI access
 	 */
 	public getPlanningService(): PlanningService {
-		return this.planningService;
+		return this._planningService;
 	}
 
 	public getImplementationPlanningService(): ImplementationPlanningService {
-		return this.implementationPlanningService;
+		return this._implementationPlanningService;
 	}
 
 	private async _syncToMorphRepoStorage(uri: URI, message: string): Promise<void> {
-		const gs = this.voidSettingsService.state.globalSettings;
+		const gs = this._voidSettingsService.state.globalSettings;
 		if (!gs.enableMorphRepoStorage || !gs.morphApiKey) return;
 
 		try {
@@ -2188,20 +2184,20 @@ For each module include:
 			const repoId = gs.morphRepoId || workspaceFolder.name;
 
 			// Initialize (safe to call multiple times)
-			await this.morphService.repoInit({ repoId, dir: repoDir });
+			await this._morphService.repoInit({ repoId, dir: repoDir });
 
 			// Add changed file
-			await this.morphService.repoAdd({ dir: repoDir, filepath: relativePath });
+			await this._morphService.repoAdd({ dir: repoDir, filepath: relativePath });
 
 			// Commit
-			await this.morphService.repoCommit({
+			await this._morphService.repoCommit({
 				dir: repoDir,
 				message: message,
 				metadata: { source: 'code', tool: 'void-coder' }
 			});
 
 			// Push with indexing
-			await this.morphService.repoPush({
+			await this._morphService.repoPush({
 				dir: repoDir,
 				branch: gs.morphRepoBranch,
 				index: gs.morphRepoIndexOnPush,
