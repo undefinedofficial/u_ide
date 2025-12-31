@@ -12,6 +12,7 @@ import { ICodeEditor, IOverlayWidget, IViewZone } from '../../../../editor/brows
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 // import { throttle } from '../../../../base/common/decorators.js';
 import { findDiffs } from './helpers/findDiffs.js';
+import { DiffWorkerClient } from './helpers/diffWorkerClient.js';
 import { EndOfLinePreference, IModelDecorationOptions, ITextModel } from '../../../../editor/common/model.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
@@ -415,6 +416,8 @@ class EditCodeService extends Disposable implements IEditCodeService {
 
 	// PERFORMANCE: Debounce timers for diff computation per URI
 	private _debouncedRefreshTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+	private _lastRefreshRequestId: Map<string, number> = new Map();
+	private readonly _diffWorkerClient = this._register(new DiffWorkerClient());
 
 	// events
 
@@ -511,9 +514,9 @@ class EditCodeService extends Disposable implements IEditCodeService {
 			clearTimeout(existingTimer);
 		}
 
-		const timer = setTimeout(() => {
+		const timer = setTimeout(async () => {
 			this._debouncedRefreshTimers.delete(uriKey);
-			this._refreshStylesAndDiffsInURI(uri);
+			await this._refreshStylesAndDiffsInURI(uri);
 
 			// if diffarea has no diffs after a user edit, delete it
 			const diffAreasToDelete: DiffZone[] = []
@@ -609,7 +612,7 @@ class EditCodeService extends Disposable implements IEditCodeService {
 	}
 
 
-	private _computeDiffsAndAddStylesToURI = (uri: URI) => {
+	private _computeDiffsAndAddStylesToURIAsync = async (uri: URI) => {
 		const { model } = this._voidModelService.getModel(uri)
 		if (model === null) return
 		const fullFileText = model.getValue(EndOfLinePreference.LF)
@@ -619,7 +622,7 @@ class EditCodeService extends Disposable implements IEditCodeService {
 			if (diffArea.type !== 'DiffZone') continue
 
 			const newDiffAreaCode = fullFileText.split('\n').slice((diffArea.startLine - 1), (diffArea.endLine - 1) + 1).join('\n')
-			const computedDiffs = findDiffs(diffArea.originalCode, newDiffAreaCode)
+			const computedDiffs = await this._diffWorkerClient.findDiffs(diffArea.originalCode, newDiffAreaCode)
 			for (let computedDiff of computedDiffs) {
 				if (computedDiff.type === 'deletion') {
 					computedDiff.startLine += diffArea.startLine - 1
@@ -630,7 +633,6 @@ class EditCodeService extends Disposable implements IEditCodeService {
 				}
 				this._addDiff(computedDiff, diffArea)
 			}
-
 		}
 	}
 
@@ -1213,7 +1215,10 @@ class EditCodeService extends Disposable implements IEditCodeService {
 	}
 
 
-	private _refreshStylesAndDiffsInURI(uri: URI) {
+	private async _refreshStylesAndDiffsInURI(uri: URI) {
+		const uriKey = uri.fsPath;
+		const requestId = (this._lastRefreshRequestId.get(uriKey) ?? 0) + 1;
+		this._lastRefreshRequestId.set(uriKey, requestId);
 
 		// 1. clear DiffArea styles and Diffs
 		this._clearAllEffects(uri)
@@ -1222,7 +1227,12 @@ class EditCodeService extends Disposable implements IEditCodeService {
 		this._addDiffAreaStylesToURI(uri)
 
 		// 3. add Diffs
-		this._computeDiffsAndAddStylesToURI(uri)
+		await this._computeDiffsAndAddStylesToURIAsync(uri)
+
+		// If a new request came in while we were awaiting, don't proceed with this one
+		if (this._lastRefreshRequestId.get(uriKey) !== requestId) {
+			return;
+		}
 
 		// 4. refresh ctrlK zones
 		this._refreshCtrlKInputs(uri)

@@ -53,7 +53,9 @@ import {
 	getBasename,
 	getFolderName,
 	ResultWrapper,
-	WrapperProps
+	WrapperProps,
+	InvalidTool,
+	CanceledTool,
 } from './ToolResultHelpers.js';
 import { DefaultToolResultWrapper } from './GenericToolResultWrapper.js';
 import { FileResultWrapper } from './FileResultWrapper.js';
@@ -1728,7 +1730,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor)
 			const isRejected = toolMessage.type === 'rejected'
 			const { params } = toolMessage
-			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError, icon, isRejected }
+			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError: false, icon: null, isRejected }
 			componentParams.info = getRelative(params.uri, accessor)
 
 			if (toolMessage.type === 'success') {
@@ -1778,7 +1780,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor)
 			const isRejected = toolMessage.type === 'rejected'
 			const { params } = toolMessage
-			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError, icon, isRejected, }
+			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError: false, icon: null, isRejected }
 			if (toolMessage.type === 'success') {
 				const { persistentTerminalId } = params
 				componentParams.desc1 = persistentTerminalNameOfId(persistentTerminalId)
@@ -1796,7 +1798,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor)
 			const isRejected = toolMessage.type === 'rejected'
 			const { params } = toolMessage
-			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError, icon, isRejected }
+			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError: false, icon: null, isRejected }
 			if (toolMessage.type === 'success') {
 				componentParams.bottomChildren = <BottomChildren title='Result'><CodeChildren>{JSON.stringify(toolMessage.result.result, null, 2)}</CodeChildren></BottomChildren>
 			} else if (toolMessage.type === 'tool_error') {
@@ -1812,7 +1814,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 			const { desc1, desc1Info } = toolNameToDesc(toolMessage.name, toolMessage.params, accessor)
 			const isRejected = toolMessage.type === 'rejected'
 			const { params } = toolMessage
-			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError, icon, isRejected }
+			const componentParams: ToolHeaderParams = { title, desc1, desc1Info, isError: false, icon: null, isRejected }
 			componentParams.info = getRelative(params.uri, accessor)
 			if (toolMessage.type === 'success') {
 				componentParams.onClick = () => { voidOpenFileFn(params.uri, accessor) }

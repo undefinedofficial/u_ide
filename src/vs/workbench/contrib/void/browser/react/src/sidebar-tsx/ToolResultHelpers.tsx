@@ -493,3 +493,25 @@ export const ListableToolItem = ({ name, onClick, isSmall, className, showDot }:
 		<div className={`${isSmall ? 'italic text-void-fg-4 flex items-center' : ''}`}>{name}</div>
 	</div>
 }
+
+export const InvalidTool = ({ toolName, message, mcpServerName }: { toolName: string, message: string, mcpServerName?: string }) => {
+	const title = `Invalid Call: ${toolName}`
+	return <ToolHeaderWrapper
+		title={title}
+		desc1={mcpServerName}
+		isError={true}
+	>
+		<ToolChildrenWrapper>
+			<CodeChildren>{message}</CodeChildren>
+		</ToolChildrenWrapper>
+	</ToolHeaderWrapper>
+}
+
+export const CanceledTool = ({ toolName, mcpServerName }: { toolName: string, mcpServerName?: string }) => {
+	const title = `Canceled: ${toolName}`
+	return <ToolHeaderWrapper
+		title={title}
+		desc1={mcpServerName}
+		isRejected={true}
+	/>
+}
