@@ -8,7 +8,7 @@ import { ProviderName, SettingName, displayInfoOfSettingName, providerNames, Voi
 import ErrorBoundary from '../sidebar-tsx/ErrorBoundary.js'
 import { VoidButtonBgDarken, VoidCustomDropdownBox, VoidInputBox2, VoidSimpleInputBox, VoidSwitch } from '../util/inputs.js'
 import { useAccessor, useIsDark, useIsOptedOut, useRefreshModelListener, useRefreshModelState, useSettingsState } from '../util/services.js'
-import { X, RefreshCw, Loader2, Check, Asterisk, Plus, Cpu, Cloud, Settings2, Info, LayoutGrid, Smartphone, Database, Zap, Sparkles, Box, Globe, ShieldCheck, ArrowRightLeft } from 'lucide-react'
+import { X, RefreshCw, Loader2, Check, Asterisk, Plus, Cpu, Cloud, Settings2, Info, LayoutGrid, Smartphone, Database, Zap, Sparkles, Box, Globe, ShieldCheck, ArrowRightLeft, Search } from 'lucide-react'
 import { URI } from '../../../../../../../base/common/uri.js'
 import { ModelDropdown } from './ModelDropdown.js'
 import { ChatMarkdownRender } from '../markdown/ChatMarkdownRender.js'
@@ -260,6 +260,7 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 	const [userChosenProviderName, setUserChosenProviderName] = useState<ProviderName | null>(null);
 	const [modelName, setModelName] = useState<string>('');
 	const [errorString, setErrorString] = useState('');
+	const [searchQuery, setSearchQuery] = useState('');
 
 	// a dump of all the enabled providers' models
 	const modelDump: (VoidStatefulModelInfo & { providerName: ProviderName, providerEnabled: boolean })[] = []
@@ -277,6 +278,11 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 	modelDump.sort((a, b) => {
 		return Number(b.providerEnabled) - Number(a.providerEnabled)
 	})
+
+	const filteredModelDump = modelDump.filter(m =>
+		m.modelName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+		displayInfoOfProviderName(m.providerName).title.toLowerCase().includes(searchQuery.toLowerCase())
+	);
 
 	// Add model handler
 	const handleAddModel = () => {
@@ -420,10 +426,22 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 	};
 
 	return <div className='divide-y divide-void-border-2'>
-		{modelDump.map((m, i) => {
+		{/* Search Bar */}
+		<div className="p-3 px-4 border-b border-void-border-2 bg-void-bg-2/30 flex items-center gap-3">
+			<Search size={16} className="text-void-fg-3 flex-shrink-0" />
+			<VoidSimpleInputBox
+				value={searchQuery}
+				onChangeValue={setSearchQuery}
+				placeholder="Search models..."
+				className="!bg-transparent !border-none !p-0 text-sm"
+				compact={true}
+			/>
+		</div>
+
+		{filteredModelDump.map((m, i) => {
 			const { isHidden, type, modelName, providerName, providerEnabled } = m
 
-			const isNewProviderName = (i > 0 ? modelDump[i - 1] : undefined)?.providerName !== providerName
+			const isNewProviderName = (i > 0 ? filteredModelDump[i - 1] : undefined)?.providerName !== providerName
 
 			const providerTitle = displayInfoOfProviderName(providerName).title
 

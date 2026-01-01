@@ -1,0 +1,17 @@
+name: Trigger Builder
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository Dispatch
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.STRONGER_GITHUB_TOKEN }}
+          repository: hamishfromatech/a-coder-builder
+          event-type: stable

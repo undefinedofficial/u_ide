@@ -916,6 +916,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-icon-foreground) !important;
 }
 
+.chat-execute-toolbar .codicon.codicon-stop-circle,
+.chat-execute-toolbar .codicon.codicon-debug-stop {
+	color: var(--vscode-chat-stopButtonForeground) !important;
+}
+
 .interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {
 	height: 16px;
 	padding: 3px 0px 3px 6px;
@@ -934,8 +939,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 4px;
 }
 
-.interactive-session .chat-input-toolbars .codicon-debug-stop {
-	color: var(--vscode-icon-foreground) !important;
+.interactive-session .chat-input-toolbars .codicon-debug-stop,
+.interactive-session .chat-input-toolbars .codicon-stop-circle,
+.interactive-session .chat-input-toolbars .action-label .codicon-stop-circle {
+	color: var(--vscode-chat-stopButtonForeground) !important;
 }
 
 .interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor,
@@ -1417,6 +1424,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .quick-input-widget .interactive-session .interactive-input-part .chat-input-toolbars {
 	margin-bottom: 1px;
 	align-items: flex-end;
+}
+
+.quick-input-widget .interactive-session .interactive-input-part .chat-input-toolbars .codicon-debug-stop,
+.quick-input-widget .interactive-session .interactive-input-part .chat-input-toolbars .codicon-stop-circle,
+.quick-input-widget .interactive-session .interactive-input-part .chat-input-toolbars .action-label .codicon-stop-circle {
+	color: var(--vscode-chat-stopButtonForeground) !important;
 }
 
 .quick-input-widget .interactive-session .chat-input-container {
