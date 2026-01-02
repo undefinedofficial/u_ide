@@ -26,6 +26,7 @@ import { ToonService } from '../common/toonService.js'
 import { PlanningService, TaskStatus as PlanTaskStatus } from '../common/planningService.js'
 import { ImplementationPlanningService, ImplementationPlan, ImplementationStep, StepStatus as ImplStepStatus } from '../common/implementationPlanningService.js'
 import { IAgentManagerService } from './agentManager.contribution.js'
+import { IPathService } from '../../../services/path/common/pathService.js'
 
 
 // tool use for AI
@@ -199,6 +200,7 @@ export class ToolsService implements IToolsService {
 		@IMainProcessService private readonly _mainProcessService: IMainProcessService,
 		@IMorphService private readonly _morphService: IMorphService,
 		@IAgentManagerService private readonly _agentManagerService: IAgentManagerService,
+		@IPathService private readonly _pathService: IPathService,
 	) {
 		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		this._toonService = new ToonService();
@@ -764,6 +766,16 @@ export class ToolsService implements IToolsService {
 					level: validateStr('level', level) as 'beginner' | 'intermediate' | 'advanced',
 					time_available: typeof time_available === 'number' ? time_available : undefined
 				};
+			},
+
+			load_skill: (params: RawToolParamsObj) => {
+				const { skill_name: skillNameUnknown } = params;
+				const skill_name = validateStr('skill_name', skillNameUnknown);
+				return { skill_name };
+			},
+
+			list_skills: (params: RawToolParamsObj) => {
+				return {};
 			},
 
 		}
@@ -1683,6 +1695,71 @@ For each module include:
 				return { result: { planId, template } };
 			},
 
+			load_skill: async ({ skill_name }, opts) => {
+				const userHome = await this._pathService.userHome();
+				const skillsDir = URI.joinPath(userHome, '.a-coder', 'skills');
+				const skillPath = URI.joinPath(skillsDir, skill_name, 'SKILL.md');
+
+				opts?.onData?.(`Loading skill: ${skill_name}...`);
+
+				try {
+					const content = await this._fileService.readFile(skillPath);
+					const instructions = content.value.toString();
+					return { result: { skill_name, instructions, success: true } };
+				} catch (error) {
+					console.error(`[ToolsService] Failed to load skill ${skill_name}:`, error);
+					// Try to list available skills to help the LLM
+					let availableSkills: string[] = [];
+					try {
+						const stat = await this._fileService.resolve(skillsDir);
+						if (stat.children) {
+							availableSkills = stat.children
+								.filter(child => child.isDirectory)
+								.map(child => child.name);
+						}
+					} catch (e) {
+						// Skills dir might not exist yet
+					}
+
+					const errorMsg = `Skill "${skill_name}" not found. ${availableSkills.length > 0 ? `Available skills: ${availableSkills.join(', ')}` : 'No skills are currently installed.'}`;
+					return { result: { skill_name, instructions: errorMsg, success: false } };
+				}
+			},
+
+			list_skills: async (params, opts) => {
+				const userHome = await this._pathService.userHome();
+				const skillsDir = URI.joinPath(userHome, '.a-coder', 'skills');
+				opts?.onData?.('Listing available skills...');
+
+				const skills: Array<{ name: string, description: string }> = [];
+
+				try {
+					const stat = await this._fileService.resolve(skillsDir);
+					if (stat.children) {
+						for (const child of stat.children) {
+							if (child.isDirectory) {
+								const skillName = child.name;
+								const skillPath = URI.joinPath(skillsDir, skillName, 'SKILL.md');
+								try {
+									const content = await this._fileService.readFile(skillPath);
+									const text = content.value.toString();
+									// Extract first paragraph or first 100 chars as description
+									const lines = text.split('\n').filter(l => l.trim().length > 0 && !l.trim().startsWith('#'));
+									const description = lines.length > 0 ? lines[0].substring(0, 150) : 'No description available.';
+									skills.push({ name: skillName, description });
+								} catch (e) {
+									// Skip if SKILL.md is missing
+								}
+							}
+						}
+					}
+				} catch (error) {
+					// Skills dir might not exist
+				}
+
+				return { result: { skills } };
+			},
+
 		}
 
 		// given to the LLM after the call for successful tool calls
@@ -1981,6 +2058,27 @@ For each module include:
 
 			create_lesson_plan: (params, result) => {
 				return `📚 Lesson Plan Created!\n\nPlan ID: ${result.planId}\n\n${result.template}`;
+			},
+
+			load_skill: (params, result) => {
+				if (result.success) {
+					return `✅ Skill "${result.skill_name}" loaded successfully!\n\n${result.instructions}`;
+				} else {
+					return `❌ Failed to load skill "${result.skill_name}":\n${result.instructions}`;
+				}
+			},
+
+			list_skills: (params, result) => {
+				if (result.skills.length === 0) {
+					return 'No specialized skills are currently available.';
+				}
+
+				let output = 'Available specialized skills:\n\n';
+				for (const skill of result.skills) {
+					output += `- **${skill.name}**: ${skill.description}\n`;
+				}
+				output += '\nUse `load_skill(skill_name="name")` to load a skill.';
+				return output;
 			},
 		}
 	}

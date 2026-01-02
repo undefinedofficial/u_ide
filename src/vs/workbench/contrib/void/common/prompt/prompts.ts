@@ -1096,6 +1096,40 @@ Each call advances to the next hint level automatically.`,
 		}
 	},
 
+	load_skill: {
+		name: 'load_skill',
+		description: `Loads a specialized skill to enhance your capabilities with domain-specific instructions and patterns.
+
+**When to use:**
+- When you identify a task that matches an available skill (e.g., "pdf-processing", "data-analysis")
+- When you need specialized instructions for a complex domain
+- At the beginning of a task if you know which skills will be needed
+
+**What happens:**
+1. Loads the skill's specific instructions and best practices
+2. Automatically enriches all subsequent turns in this conversation with these instructions
+3. Provides you with specialized patterns and tool usage guidelines for that domain
+
+**Idempotency:** Loading the same skill multiple times has no additional effect.`,
+		params: {
+			skill_name: { description: "The name of the skill to load (e.g., 'pdf-processing', 'code-review')." }
+		}
+	},
+
+	list_skills: {
+		name: 'list_skills',
+		description: `Lists all available specialized skills that can be loaded.
+
+**What you'll receive:**
+- A list of skill names
+- A brief description of what each skill provides
+
+**When to use:**
+- To discover what specialized capabilities are available
+- If you're unsure of the exact name of a skill you want to load`,
+		params: {}
+	},
+
 	// go_to_definition
 	// go_to_usages
 
@@ -1127,6 +1161,8 @@ const gatherModeTools: BuiltinToolName[] = [
 	'search_in_file',
 	'read_lint_errors',
 	'fast_context',
+	'load_skill',
+	'list_skills',
 	// Implementation planning - create detailed plans for user review
 	'create_implementation_plan',
 	'preview_implementation_plan',
@@ -1145,6 +1181,8 @@ const agentModeTools: BuiltinToolName[] = [
 	'search_in_file',
 	'read_lint_errors',
 	'fast_context',
+	'load_skill',
+	'list_skills',
 	// Edit/Write tools - make changes
 	'create_file_or_folder',
 	'delete_file_or_folder',
@@ -1176,6 +1214,8 @@ const studentModeTools: BuiltinToolName[] = [
 	'search_for_files',
 	'search_in_file',
 	'fast_context',
+	'load_skill',
+	'list_skills',
 	// Teaching tools - explain, teach, and practice
 	'explain_code',
 	'teach_concept',

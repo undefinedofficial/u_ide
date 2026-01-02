@@ -24,7 +24,7 @@ import { WarningBox } from '../void-settings-tsx/WarningBox.js';
 import { getModelCapabilities, getIsReasoningEnabledState } from '../../../../common/modelCapabilities.js';
 import { AlertTriangle, ChevronRight, ChevronDown, X, Copy as CopyIcon, CircleEllipsis, Play, Settings, ArrowUp, Trash2, Send, Circle, Loader2, Brain, Check, Pencil, CirclePlus, File as FileIcon, Folder as FolderIcon, Text as TextIcon, SkipForward } from 'lucide-react';
 import { ChatMessage, CheckpointEntry, StagingSelectionItem, ToolMessage, ImageAttachment } from '../../../../common/chatThreadServiceTypes.js';
-import { BuiltinToolName, ToolName, IsRunningType } from '../../../../common/toolsServiceTypes.js';
+import { BuiltinToolName, ToolName, IsRunningType, approvalTypeOfBuiltinToolName } from '../../../../common/toolsServiceTypes.js';
 import { CopyButton, EditToolAcceptRejectButtonsHTML, IconShell1, StatusIndicator, useEditToolStreamState } from '../markdown/ApplyBlockHoverButtons.js';
 import { AUTO_CONTINUE_CHAR_THRESHOLD } from '../../../chatThreadService.js';
 import { builtinToolNames, isABuiltinToolName, MAX_FILE_CHARS_PAGE } from '../../../../common/prompt/prompts.js';
@@ -63,6 +63,7 @@ import { SearchQueryResultWrapper } from './SearchQueryResultWrapper.js';
 import { CommandToolResultWrapper, TerminalCommandApproval } from './TerminalResultWrapper.js';
 import { EditToolResultWrapper, EditToolChildren } from './EditToolResultWrapper.tsx';
 import { MCPToolResultWrapper } from './MCPToolResultWrapper.js';
+import { SkillsResultWrapper } from './SkillsResultWrapper.js';
 
 
 // Lazy-loaded components - MUST be at module level to avoid re-creating on every render
@@ -390,8 +391,8 @@ const IconSquare = ({ size, className = '' }: { size: number, className?: string
 	return (
 		<svg
 			className={className}
-			stroke="black"
-			fill="black"
+			stroke="currentColor"
+			fill="currentColor"
 			strokeWidth="0"
 			viewBox="0 0 24 24"
 			width={size}
@@ -457,7 +458,7 @@ const ReasoningOptionSlider = ({ featureName }: { featureName: FeatureName }) =>
 
 	if (canTurnOffReasoning && !reasoningBudgetSlider) { // if it's just a on/off toggle without a power slider
 		return <div
-			className='flex items-center gap-x-2 cursor-pointer group hover:bg-void-bg-3 px-2 py-1 rounded -mx-2 -my-1 transition-colors duration-200'
+			className='flex items-center gap-x-2 cursor-pointer group hover:bg-void-bg-3 py-1 rounded transition-colors duration-200'
 			onClick={(e) => {
 				e.stopPropagation()
 				const newVal = !isReasoningEnabled
@@ -488,7 +489,7 @@ const ReasoningOptionSlider = ({ featureName }: { featureName: FeatureName }) =>
 		const value = isReasoningEnabled ? voidSettingsState.optionsOfModelSelection[featureName][modelSelection.providerName]?.[modelSelection.modelName]?.reasoningBudget ?? defaultVal
 			: valueIfOff
 
-		return <div className='flex items-center gap-x-2 px-2 py-1 rounded -mx-2 -my-1'>
+		return <div className='flex items-center gap-x-2 py-1 rounded'>
 			<span className='text-void-fg-3 text-xs select-none'>Thinking</span>
 			<VoidSlider
 				width={60}
@@ -519,7 +520,7 @@ const ReasoningOptionSlider = ({ featureName }: { featureName: FeatureName }) =>
 
 		const currentEffortCapitalized = currentEffort.charAt(0).toUpperCase() + currentEffort.slice(1, Infinity)
 
-		return <div className='flex items-center gap-x-2 px-2 py-1 rounded -mx-2 -my-1'>
+		return <div className='flex items-center gap-x-2 py-1 rounded'>
 			<span className='text-void-fg-3 text-xs select-none'>Thinking</span>
 			<VoidSlider
 				width={40}
@@ -586,7 +587,7 @@ const StudentOnboardingModal = ({ isOpen, onClose, onSelectLevel }: {
 					<div>
 						<h2 className="text-lg font-semibold text-void-fg-1 leading-tight">Student Mode</h2>
 						<p className="text-void-fg-3 text-sm mt-1 leading-relaxed">
-							A-Coder will act as your personal tutor. Select your experience level to customize explanations.
+							A-Coder will act as your personal tutor.
 						</p>
 					</div>
 				</div>
@@ -846,7 +847,7 @@ export const ButtonSubmit = ({ className, disabled, isQueueMode, ...props }: But
 	return <button
 		type='button'
 		className={`rounded-xl flex-shrink-0 flex-grow-0 flex items-center justify-center transition-all duration-200
-				${disabled ? 'bg-void-bg-3 cursor-not-allowed opacity-50' :
+				${disabled ? 'bg-void-bg-3 cursor-not-allowed opacity-50 border border-void-border-2' :
 				isDark ?
 					'bg-void-accent/80 hover:bg-void-accent cursor-pointer shadow-sm' :
 					'bg-void-accent hover:bg-void-accent/90 cursor-pointer shadow-md'
@@ -867,7 +868,7 @@ export const ButtonSubmit = ({ className, disabled, isQueueMode, ...props }: But
 export const ButtonStop = ({ className, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => {
 	return <button
 		className={`rounded-xl flex-shrink-0 flex-grow-0 cursor-pointer flex items-center justify-center transition-all duration-200
-			bg-void-bg-3 hover:bg-void-bg-4 text-void-fg-1 shadow-sm
+			bg-void-bg-2 hover:bg-void-bg-3 text-void-fg-1 shadow-sm border border-void-border-2
 			${className}
 		`}
 		type='button'
@@ -1842,6 +1843,8 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	'check_answer': { resultWrapper: DefaultToolResultWrapper },
 	'give_hint': { resultWrapper: DefaultToolResultWrapper },
 	'create_lesson_plan': { resultWrapper: DefaultToolResultWrapper },
+	'load_skill': { resultWrapper: SkillsResultWrapper as ResultWrapper<'load_skill'> },
+	'list_skills': { resultWrapper: SkillsResultWrapper as ResultWrapper<'list_skills'> },
 };
 
 

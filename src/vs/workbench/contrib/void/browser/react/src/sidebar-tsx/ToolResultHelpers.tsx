@@ -171,6 +171,8 @@ export const titleOfBuiltinToolName = {
 	'check_answer': { done: 'Checked answer', proposed: 'Check answer', running: loadingTitleWrapper('Checking answer') },
 	'give_hint': { done: 'Gave hint', proposed: 'Give hint', running: loadingTitleWrapper('Giving hint') },
 	'create_lesson_plan': { done: 'Created lesson plan', proposed: 'Create lesson plan', running: loadingTitleWrapper('Creating lesson plan') },
+	'load_skill': { done: 'Skill loaded', proposed: 'Load skill', running: loadingTitleWrapper('Loading skill') },
+	'list_skills': { done: 'Skills listed', proposed: 'List skills', running: loadingTitleWrapper('Listing skills') },
 } as const satisfies Record<BuiltinToolName, { done: any, proposed: any, running: any }>
 
 export const getTitle = (toolMessage: Pick<ChatMessage & { role: 'tool' }, 'name' | 'type' | 'mcpServerName'>): React.ReactNode => {
@@ -371,6 +373,13 @@ export const toolNameToDesc = (toolName: BuiltinToolName, _toolParams: BuiltinTo
 			const toolParams = _toolParams as BuiltinToolCallParams['create_lesson_plan']
 			return { desc1: toolParams.goal }
 		},
+		'load_skill': () => {
+			const toolParams = _toolParams as BuiltinToolCallParams['load_skill']
+			return { desc1: toolParams.skill_name }
+		},
+		'list_skills': () => {
+			return { desc1: 'All available skills' }
+		},
 	}
 	try { return x[toolName]?.() || { desc1: '' } }
 	catch { return { desc1: '' } }
@@ -456,8 +465,8 @@ export const ToolHeaderWrapper = ({
 	const isDropdown = children !== undefined
 	const isClickable = !!(isDropdown || onClick)
 	const isDesc1Clickable = !!desc1OnClick
-	const isReadingTool = (title && typeof title === 'string' && (title.includes('Read') || title.includes('Searched') || title.includes('Listed'))) || false
-	const isCodingTool = (title && typeof title === 'string' && (title.includes('Edit') || title.includes('Rewrite') || title.includes('Created'))) || false
+	const isReadingTool = (title && typeof title === 'string' && (title.toLowerCase().includes('read') || title.toLowerCase().includes('searched') || title.toLowerCase().includes('listed'))) || false
+	const isCodingTool = (title && typeof title === 'string' && (title.toLowerCase().includes('edit') || title.toLowerCase().includes('rewrite') || title.toLowerCase().includes('created'))) || false
 	const containerClasses = `w-full rounded-xl overflow-hidden transition-all duration-200 bg-void-bg-2/40 border border-void-border-2 hover:border-void-border-1 hover:bg-void-bg-2/60 ${isCodingTool ? 'shadow-[0_0_15px_-5px_rgba(0,127,212,0.15)] ring-1 ring-void-accent/5' : 'shadow-sm'} ${className}`
 	const desc1HTML = <span className={`text-void-fg-4 text-xs italic truncate ml-2 ${isDesc1Clickable ? 'cursor-pointer hover:brightness-125 transition-all duration-150' : ''}`} onClick={desc1OnClick} {...desc1Info ? { 'data-tooltip-id': 'void-tooltip', 'data-tooltip-content': desc1Info, 'data-tooltip-place': 'top', 'data-tooltip-delay-show': 1000 } : {}}>{desc1}</span>
 

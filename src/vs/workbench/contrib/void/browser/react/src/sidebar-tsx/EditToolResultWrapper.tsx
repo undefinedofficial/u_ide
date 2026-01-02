@@ -10,6 +10,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { ChatMarkdownRender, getApplyBoxId, ChatMessageLocation } from '../markdown/ChatMarkdownRender.js';
 import { CopyButton, EditToolAcceptRejectButtonsHTML, useEditToolStreamState } from '../markdown/ApplyBlockHoverButtons.js';
 import { VoidDiffEditor } from '../util/inputs.js';
+import { detectLanguage } from '../../../../common/helpers/languageHelpers.js';
 import { 
 	ToolHeaderWrapper, 
 	ToolChildrenWrapper, 
@@ -33,6 +34,8 @@ const EditToolHeaderButtons = ({ applyBoxId, uri, codeStr, toolName, threadId }:
 }
 
 export const EditToolChildren = ({ uri, code, type, chatMessageLocation }: { uri: URI | undefined, code: string, type: 'diff' | 'rewrite', chatMessageLocation: ChatMessageLocation | undefined }) => {
+	const accessor = useAccessor()
+	const languageService = accessor.get('ILanguageService')
 
 	const hasValidDiffFormat = type === 'diff' && (
 		code.includes('<<<<<<< ORIGINAL') &&
@@ -48,7 +51,7 @@ export const EditToolChildren = ({ uri, code, type, chatMessageLocation }: { uri
 				<div className="text-void-fg-4 text-xs">Waiting for complete ORIGINAL/UPDATED blocks.</div>
 			</div>)
 		: <ChatMarkdownRender string={`\
-\`\`\`${uri ? detectLanguage(null as any, { uri, fileContents: code }) : ''}
+\`\`\`${uri ? detectLanguage(languageService, { uri, fileContents: code }) : ''}
 ${code}
 \`\`\``} codeURI={uri} chatMessageLocation={chatMessageLocation} isApplyEnabled={true} />
 

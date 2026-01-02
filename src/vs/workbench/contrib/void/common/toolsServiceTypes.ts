@@ -122,6 +122,8 @@ export type BuiltinToolCallParams = {
 	'check_answer': { exercise_id: string, student_code: string },
 	'give_hint': { exercise_id: string },
 	'create_lesson_plan': { goal: string, level: 'beginner' | 'intermediate' | 'advanced', time_available?: number },
+	'load_skill': { skill_name: string },
+	'list_skills': {},
 }
 
 // RESULT OF TOOL CALL
@@ -197,6 +199,8 @@ export type BuiltinToolResultType = {
 	'check_answer': { template: string },
 	'give_hint': { hintLevel: number, template: string },
 	'create_lesson_plan': { planId: string, template: string },
+	'load_skill': { skill_name: string, instructions: string, success: boolean },
+	'list_skills': { skills: Array<{ name: string, description: string }> },
 }
 
 

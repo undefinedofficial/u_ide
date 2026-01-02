@@ -10,6 +10,7 @@ import { VoidButtonBgDarken, VoidCustomDropdownBox, VoidInputBox2, VoidSimpleInp
 import { useAccessor, useIsDark, useIsOptedOut, useRefreshModelListener, useRefreshModelState, useSettingsState } from '../util/services.js'
 import { X, RefreshCw, Loader2, Check, Asterisk, Plus, Cpu, Cloud, Settings2, Info, LayoutGrid, Smartphone, Database, Zap, Sparkles, Box, Globe, ShieldCheck, ArrowRightLeft, Search } from 'lucide-react'
 import { URI } from '../../../../../../../base/common/uri.js'
+import { VSBuffer } from '../../../../../../../base/common/buffer.js'
 import { ModelDropdown } from './ModelDropdown.js'
 import { ChatMarkdownRender } from '../markdown/ChatMarkdownRender.js'
 import { WarningBox } from './WarningBox.js'
@@ -26,7 +27,7 @@ import { StorageScope, StorageTarget } from '../../../../../../../platform/stora
 import '../styles.css'
 
 type Tab =
-	| 'models' | 'localProviders' | 'providers' | 'featureOptions' | 'general' | 'mcp' | 'mobileApi' | 'about' | 'all';
+	| 'models' | 'localProviders' | 'providers' | 'featureOptions' | 'general' | 'mcp' | 'skills' | 'mobileApi' | 'about' | 'all';
 
 // --- Shared Components ---
 
@@ -1024,6 +1025,173 @@ const MCPServersList = () => {
 	return <div className="my-2">{content}</div>
 };
 
+// Skills component
+const SkillsList = () => {
+	const accessor = useAccessor();
+	const fileService = accessor.get('IFileService');
+	const pathService = accessor.get('IPathService');
+	const notificationService = accessor.get('INotificationService');
+	const isDark = useIsDark();
+
+	const [skills, setSkills] = useState<Array<{ name: string, description: string }>>([]);
+	const [loading, setLoading] = useState(true);
+	const [isAddOpen, setIsAddOpen] = useState(false);
+	const [newSkillName, setNewSkillName] = useState('');
+	const [newSkillContent, setNewSkillContent] = useState('');
+
+	const [userHome, setUserHome] = useState<URI | null>(null);
+
+	useEffect(() => {
+		pathService.userHome().then(setUserHome);
+	}, [pathService]);
+
+	const skillsDir = useMemo(() => userHome ? URI.joinPath(userHome, '.a-coder', 'skills') : null, [userHome]);
+
+	const refreshSkills = useCallback(async () => {
+		if (!skillsDir) return;
+		setLoading(true);
+		const foundSkills: Array<{ name: string, description: string }> = [];
+		try {
+			const stat = await fileService.resolve(skillsDir);
+			if (stat.children) {
+				for (const child of stat.children) {
+					if (child.isDirectory) {
+						const skillName = child.name;
+						const skillPath = URI.joinPath(skillsDir, skillName, 'SKILL.md');
+						try {
+							const content = await fileService.readFile(skillPath);
+							const text = content.value.toString();
+							const lines = text.split('\n').filter(l => l.trim().length > 0 && !l.trim().startsWith('#'));
+							const description = lines.length > 0 ? lines[0].substring(0, 150) : 'No description available.';
+							foundSkills.push({ name: skillName, description });
+						} catch (e) {
+							// Skip if SKILL.md missing
+						}
+					}
+				}
+			}
+		} catch (e) {
+			// Dir might not exist
+		}
+		setSkills(foundSkills);
+		setLoading(false);
+	}, [fileService, skillsDir]);
+
+	useEffect(() => {
+		refreshSkills();
+	}, [refreshSkills]);
+
+	const handleAddSkill = async () => {
+		if (!skillsDir) return;
+		if (!newSkillName.trim()) {
+			notificationService.error('Skill name is required');
+			return;
+		}
+
+		const skillDir = URI.joinPath(skillsDir, newSkillName.trim());
+		const skillPath = URI.joinPath(skillDir, 'SKILL.md');
+
+		try {
+			await fileService.createFolder(skillDir);
+			await fileService.createFile(skillPath, VSBuffer.fromString(newSkillContent || `# ${newSkillName}\n\nNew skill instructions go here.`));
+			notificationService.info(`Skill "${newSkillName}" created successfully!`);
+			setIsAddOpen(false);
+			setNewSkillName('');
+			setNewSkillContent('');
+			refreshSkills();
+		} catch (e) {
+			notificationService.error(`Failed to create skill: ${e}`);
+		}
+	};
+
+	const handleDeleteSkill = async (name: string) => {
+		if (!skillsDir) return;
+		const skillDir = URI.joinPath(skillsDir, name);
+		try {
+			await fileService.del(skillDir, { recursive: true });
+			notificationService.info(`Skill "${name}" deleted.`);
+			refreshSkills();
+		} catch (e) {
+			notificationService.error(`Failed to delete skill: ${e}`);
+		}
+	};
+
+	if (loading && skills.length === 0) {
+		return <div className="flex items-center gap-2 text-void-fg-3 text-sm p-4"><IconLoading /> Loading skills...</div>;
+	}
+
+	return (
+		<div className="space-y-4">
+			<div className="flex flex-col gap-2">
+				{skills.length === 0 ? (
+					<div className="text-void-fg-3 text-sm italic p-4 text-center bg-void-bg-1 border border-void-border-2 rounded-sm">
+						No custom skills found. Add one below to enhance your AI's capabilities.
+					</div>
+				) : (
+					skills.map(skill => (
+						<div key={skill.name} className="border border-void-border-2 bg-void-bg-1 py-3 px-4 rounded-sm group">
+							<div className="flex items-center justify-between">
+								<div className="flex items-center gap-3">
+									<div className="p-1.5 bg-void-accent/10 rounded-md">
+										<Zap size={14} className="text-void-accent" />
+									</div>
+									<div>
+										<div className="text-sm font-medium text-void-fg-1">{skill.name}</div>
+										<div className="text-xs text-void-fg-3 mt-0.5 line-clamp-1">{skill.description}</div>
+									</div>
+								</div>
+								<button 
+									onClick={() => handleDeleteSkill(skill.name)}
+									className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-void-vscode-error-fg/10 text-void-vscode-error-fg rounded-md transition-all"
+									title="Delete Skill"
+								>
+									<X size={14} />
+								</button>
+							</div>
+						</div>
+					))
+				)}
+			</div>
+
+			{isAddOpen ? (
+				<div className="p-4 bg-void-bg-2/50 border border-void-border-2 rounded-lg space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+					<div className="space-y-2">
+						<label className="text-xs font-medium text-void-fg-3 uppercase tracking-wide">Skill Name</label>
+						<VoidSimpleInputBox
+							value={newSkillName}
+							onChangeValue={setNewSkillName}
+							placeholder="e.g. pdf-processing"
+							compact={true}
+						/>
+					</div>
+					<div className="space-y-2">
+						<label className="text-xs font-medium text-void-fg-3 uppercase tracking-wide">Instructions (SKILL.md)</label>
+						<VoidInputBox2
+							initValue={newSkillContent}
+							onChangeText={setNewSkillContent}
+							placeholder="# My Skill\n\nYou are now an expert at..."
+							multiline={true}
+							className="min-h-[120px] text-sm"
+						/>
+					</div>
+					<div className="flex gap-2 justify-end">
+						<SettingsButton onClick={() => setIsAddOpen(false)}>Cancel</SettingsButton>
+						<AddButton onClick={handleAddSkill} text="Create Skill" />
+					</div>
+				</div>
+			) : (
+				<button
+					onClick={() => setIsAddOpen(true)}
+					className="w-full py-3 border border-dashed border-void-border-2 rounded-lg text-sm text-void-fg-3 hover:text-void-fg-1 hover:bg-void-bg-2 transition-all flex items-center justify-center gap-2"
+				>
+					<Plus size={16} />
+					<span>Add new specialized skill</span>
+				</button>
+			)}
+		</div>
+	);
+};
+
 export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 	const isDark = useIsDark()
 	// ─── sidebar nav ──────────────────────────
@@ -1043,6 +1211,7 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 		{ tab: 'featureOptions', label: 'Feature Options', icon: Sparkles },
 		{ tab: 'general', label: 'General', icon: Settings2 },
 		{ tab: 'mcp', label: 'MCP', icon: Database },
+		{ tab: 'skills', label: 'Skills', icon: Zap },
 		{ tab: 'mobileApi', label: 'Mobile API', icon: Smartphone },
 		{ tab: 'about', label: 'About', icon: Info },
 		{ tab: 'all', label: 'All Settings', icon: LayoutGrid },
@@ -1051,6 +1220,7 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 	const accessor = useAccessor()
 	const commandService = accessor.get('ICommandService')
 	const environmentService = accessor.get('IEnvironmentService')
+	const productService = accessor.get('IProductService')
 	const nativeHostService = accessor.get('INativeHostService')
 	const settingsState = useSettingsState()
 	const voidSettingsService = accessor.get('IVoidSettingsService')
@@ -1171,7 +1341,7 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 
 				{/* Footer/Version if needed */}
 				<div className="p-4 border-t border-void-border-2 text-xs text-void-fg-4">
-					v0.0.1
+					v{productService.voidVersion || productService.version}
 				</div>
 			</aside>
 
@@ -1759,6 +1929,30 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 						</ErrorBoundary>
 					</div>
 
+					{/* Skills section */}
+					<div className={shouldShowTab('skills') ? 'space-y-8' : 'hidden'}>
+						<ErrorBoundary>
+							<section className="space-y-6">
+								<div className="mb-6 flex items-center justify-between">
+									<div>
+										<h2 className="text-xl font-medium text-void-fg-1">AI Skills</h2>
+										<p className="text-sm text-void-fg-3 mt-1">Specialized instructions to enhance your AI's expertise.</p>
+									</div>
+								</div>
+
+								<SettingCard
+									isDark={isDark}
+									title="Custom Skills"
+									description="Skills allow you to inject domain-specific instructions and patterns into your conversations."
+								>
+									<SettingBox>
+										<SkillsList />
+									</SettingBox>
+								</SettingCard>
+							</section>
+						</ErrorBoundary>
+					</div>
+
 					{/* Mobile API section */}
 					<div className={shouldShowTab('mobileApi') ? 'space-y-8' : 'hidden'}>
 						<ErrorBoundary>
@@ -1860,7 +2054,7 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 									<div className="@@void-void-icon w-24 h-24 rounded-full mx-auto mb-6 opacity-90 shadow-lg" />
 									<h2 className="text-2xl font-bold text-void-fg-1 mb-2">A-Coder</h2>
 									<p className="text-xs text-void-fg-3 mb-4 font-mono">
-										Version: 1.4.9 (0044)
+										Version: {productService.voidVersion || productService.version} ({productService.voidRelease || '0000'})
 									</p>
 									<p className="text-sm text-void-fg-3 mb-8 max-w-lg mx-auto leading-relaxed">
 										The open-source, AI-powered code editor built for the next generation of software development.

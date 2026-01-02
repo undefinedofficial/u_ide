@@ -182,5 +182,4 @@ This will download the Electron binary and create the app structure.
 ## Support
 
 For questions or issues:
-- Discord: [Join our server]
-- Email: hello@voideditor.com
+coming soon.

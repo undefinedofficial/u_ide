@@ -313,10 +313,11 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 	renderTemplate(container: HTMLElement): InputTemplate {
 		// hack
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
-
-		// Disable hover for list item
-		container.parentElement!.parentElement!.classList.add('force-no-hover');
+		const row = container.parentElement?.parentElement;
+		if (row) {
+			row.querySelector('.monaco-tl-twistie')?.classList.add('force-no-twistie');
+			row.classList.add('force-no-hover');
+		}
 
 		const templateDisposable = new DisposableStore();
 		const inputElement = append(container, $('.scm-input'));

@@ -233,6 +233,9 @@ export type ThreadType = {
 
 		// Student mode session state
 		studentSession?: StudentSession;
+
+		// Skills system: map of skill name to its instructions/content
+		loadedSkills: { [skillName: string]: string };
 	};
 }
 
@@ -318,6 +321,7 @@ const newThreadObject = () => {
 			focusedMessageIdx: undefined,
 			linksOfMessageIdx: {},
 			autoContinueEnabled: false,
+			loadedSkills: {},
 		},
 		filesWithUserChanges: new Set()
 	} satisfies ThreadType
@@ -418,6 +422,9 @@ export interface IChatThreadService {
 	updateExerciseHintLevel(threadId: string, exerciseId: string): number;
 	completeExercise(threadId: string, exerciseId: string): void;
 	addConceptLearned(threadId: string, concept: string): void;
+
+	// Skills
+	loadSkill(threadId: string, skillName: string, instructions: string): void;
 }
 
 export const IChatThreadService = createDecorator<IChatThreadService>('chatThreadService');
@@ -1038,6 +1045,11 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		// 5. add to history and keep going
 		this._updateLatestTool(threadId, { role: 'tool', type: 'success', params: toolParams, result: toolResult, name: toolName, content: toolResultStr, id: toolId, rawParams: opts.unvalidatedToolParams, mcpServerName, thought_signature: opts.thought_signature })
 
+		// SIDE EFFECT: if it's load_skill, update the thread's loadedSkills
+		if (toolName === 'load_skill' && (toolResult as any).success) {
+			this.loadSkill(threadId, (toolResult as any).skill_name, (toolResult as any).instructions);
+		}
+
 		// Update history
 		if (!this.toolCallHistory[threadId]) this.toolCallHistory[threadId] = [];
 		this.toolCallHistory[threadId].push({ name: toolName, params: toolParams, result: toolResult, type: 'success' });
@@ -1121,6 +1133,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			this._setStreamState(threadId, { isRunning: 'idle', interrupt: idleInterruptor })
 
 			const chatMessages = this.state.allThreads[threadId]?.messages ?? []
+			const loadedSkills = this.state.allThreads[threadId]?.state.loadedSkills
 			console.log(`[_runChatAgent] threadId: ${threadId}, messages count: ${chatMessages.length}`);
 			if (chatMessages.length > 0) {
 				const lastMsg = chatMessages[chatMessages.length - 1];
@@ -1132,7 +1145,8 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			let { messages, separateSystemMessage, tokenUsage } = await this._convertToLLMMessagesService.prepareLLMChatMessages({
 				chatMessages,
 				modelSelection,
-				chatMode
+				chatMode,
+				loadedSkills
 			})
 
 			// Update stream state with token usage
@@ -2469,7 +2483,8 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			const { tokenUsage } = await this._convertToLLMMessagesService.prepareLLMChatMessages({
 				chatMessages: thread.messages,
 				modelSelection,
-				chatMode
+				chatMode,
+				loadedSkills: thread.state.loadedSkills
 			})
 
 			// Update stream state with new token usage
@@ -2888,6 +2903,22 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			this._onDidChangeCurrentThread.fire()
 			console.log(`[chatThreadService] Added concept learned: ${concept}`)
 		}
+	}
+
+	loadSkill(threadId: string, skillName: string, instructions: string): void {
+		const thread = this.state.allThreads[threadId];
+		if (!thread) return;
+
+		const currentSkills = thread.state.loadedSkills || {};
+		if (currentSkills[skillName]) return; // already loaded
+
+		this._setThreadState(threadId, {
+			loadedSkills: {
+				...currentSkills,
+				[skillName]: instructions
+			}
+		});
+		console.log(`[chatThreadService] Loaded skill: ${skillName} for thread: ${threadId}`);
 	}
 
 	// gets `staging` and `setStaging` of the currently focused element, given the index of the currently selected message (or undefined if no message is selected)

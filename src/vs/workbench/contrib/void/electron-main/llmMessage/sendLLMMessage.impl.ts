@@ -430,6 +430,7 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 		messages: messages as any,
 		stream: true,
 		...nativeToolsObj,
+		...includeInPayload,
 		...additionalOpenAIPayload
 		// max_completion_tokens: maxTokens,
 	}

@@ -34,6 +34,7 @@ Our AI agents come equipped with a professional-grade toolset:
 *   **File Operations:** Read (with smart pagination), create, delete, and rewrite files across your project.
 *   **Context Discovery:** Tools for directory tree visualization, pathname search, and symbol outlining.
 *   **Terminal Integration:** AI can run commands in temporary or persistent terminals to install packages, run tests, or execute your code.
+*   **🧩 Custom AI Skills:** Enhance your AI with specialized domain knowledge. Create markdown-based skills that A-Coder can autonomously discover and load to master specific libraries, architectures, or complex project requirements.
 *   **Self-Correction:** AI automatically analyzes linting and compiler errors to debug and fix its own code applications.
 
 ### ⚡ Precision & Reliability

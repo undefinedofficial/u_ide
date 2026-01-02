@@ -136,7 +136,7 @@ const prepareMessages_openai_tools = (messages: SimpleLLMMessage[]): OpenAILLMCh
 
 			const assistantMsg: any = {
 				role: 'assistant',
-				content: currMsg.content || '', // OpenAI requires content to be a string or null
+				content: currMsg.content || (toolCalls.length > 0 ? null : ''),
 				reasoning: currMsg.reasoning,
 				thought_signature: signature,
 			}
@@ -536,6 +536,10 @@ const prepareOpenAIOrAnthropicMessages = ({
 		if (typeof currMsg.content === 'string') {
 			currMsg.content = currMsg.content || EMPTY_MESSAGE
 		}
+		else if (currMsg.content === null) {
+			// already null, leave it as is (happens with tool_calls)
+			continue
+		}
 		else {
 			// allowed to be empty if has a tool in it or following it
 			if (currMsg.content.find(c => c.type === 'tool_result' || c.type === 'tool_use')) {
@@ -592,7 +596,7 @@ const prepareMessages = (params: {
 export interface IConvertToLLMMessageService {
 	readonly _serviceBrand: undefined;
 	prepareLLMSimpleMessages: (opts: { simpleMessages: SimpleLLMMessage[], systemMessage: string, modelSelection: ModelSelection | null, featureName: FeatureName }) => { messages: LLMChatMessage[], separateSystemMessage: string | undefined }
-	prepareLLMChatMessages: (opts: { chatMessages: ChatMessage[], chatMode: ChatMode, modelSelection: ModelSelection | null }) => Promise<{ messages: LLMChatMessage[], separateSystemMessage: string | undefined, tokenUsage: { used: number, total: number, percentage: number } }>
+	prepareLLMChatMessages: (opts: { chatMessages: ChatMessage[], chatMode: ChatMode, modelSelection: ModelSelection | null, loadedSkills?: { [name: string]: string } }) => Promise<{ messages: LLMChatMessage[], separateSystemMessage: string | undefined, tokenUsage: { used: number, total: number, percentage: number } }>
 	prepareFIMMessage(opts: { messages: LLMFIMMessage, }): { prefix: string, suffix: string, stopTokens: string[] }
 	updateTokenRatio(modelName: string, estimatedTokens: number, actualTokens: number): void
 }
@@ -768,7 +772,7 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 		})
 		return { messages, separateSystemMessage };
 	}
-	prepareLLMChatMessages: IConvertToLLMMessageService['prepareLLMChatMessages'] = async ({ chatMessages, chatMode, modelSelection }) => {
+	prepareLLMChatMessages: IConvertToLLMMessageService['prepareLLMChatMessages'] = async ({ chatMessages, chatMode, modelSelection, loadedSkills }) => {
 		if (modelSelection === null) return { messages: [], separateSystemMessage: undefined, tokenUsage: { used: 0, total: 0, percentage: 0 } }
 
 		const { overridesOfModel } = this.voidSettingsService.state
@@ -787,12 +791,21 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 		const { disableSystemMessage } = this.voidSettingsService.state.globalSettings;
 		// Pass the ACTUAL specialToolFormat (can be undefined) to system message for XML tool calling
 		const fullSystemMessage = await this._generateChatMessagesSystemMessage(chatMode, specialToolFormat, modelSelection)
-		const systemMessage = disableSystemMessage ? '' : fullSystemMessage;
+		
+		// Get combined AI instructions
+		const aiInstructions = this._getCombinedAIInstructions();
+
+		// Add loaded skills to system message
+		let systemMessage = disableSystemMessage ? '' : fullSystemMessage;
+		if (loadedSkills && Object.keys(loadedSkills).length > 0) {
+			const skillsText = Object.entries(loadedSkills)
+				.map(([name, instructions]) => `### SKILL: ${name}\n${instructions}`)
+				.join('\n\n');
+			systemMessage += `\n\n## LOADED SKILLS\nYou have loaded the following specialized skills for this conversation. Adhere to their instructions and patterns:\n\n${skillsText}`;
+		}
 
 		const modelSelectionOptions = this.voidSettingsService.state.optionsOfModelSelection['Chat'][modelSelection.providerName]?.[modelSelection.modelName]
 
-		// Get combined AI instructions
-		const aiInstructions = this._getCombinedAIInstructions();
 		const isReasoningEnabled = getIsReasoningEnabledState('Chat', providerName, modelName, modelSelectionOptions, overridesOfModel)
 		const reservedOutputTokenSpace = getReservedOutputTokenSpace(providerName, modelName, { isReasoningEnabled, overridesOfModel })
 		const llmMessages = this._chatMessagesToSimpleMessages(chatMessages)

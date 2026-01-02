@@ -295,9 +295,8 @@
 }
 
 .scm-view .scm-input {
-	height: 100%;
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	padding-left: 11px;
 }
 
@@ -321,15 +320,28 @@
 	border-radius: 2px;
 }
 
+.scm-view .scm-editor .scm-editor-container {
+	flex-grow: 1;
+	order: 1;
+	min-width: 0;
+	min-height: 0;
+}
+
+.scm-view .scm-editor .scm-editor-toolbar {
+	flex-shrink: 0;
+	order: 2;
+	margin-left: auto;
+}
+
 .scm-view .scm-editor {
 	box-sizing: border-box;
 	width: 100%;
 	display: flex;
 	align-items: flex-start;
-	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	background-color: var(--vscode-input-background);
 	border-radius: 2px;
+	min-height: 26px;
 }
 
 .scm-view .button-container {

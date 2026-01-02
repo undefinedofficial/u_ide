@@ -1655,7 +1655,12 @@ const openRouterModelOptions_assumingOpenAICompat = {
 		downloadable: false,
 		supportsFIM: false,
 		supportsSystemMessage: 'system-role',
-		reasoningCapabilities: { supportsReasoning: true, canIOReasoning: true, canTurnOffReasoning: false },
+		reasoningCapabilities: {
+			supportsReasoning: true,
+			canIOReasoning: true,
+			canTurnOffReasoning: false,
+			reasoningSlider: { type: 'budget_slider', min: 1024, max: 32768, default: 4096 }
+		},
 	},
 	'microsoft/phi-4-reasoning-plus:free': { // a 14B model...
 		contextWindow: 32_768,
@@ -1664,7 +1669,12 @@ const openRouterModelOptions_assumingOpenAICompat = {
 		downloadable: false,
 		supportsFIM: false,
 		supportsSystemMessage: 'system-role',
-		reasoningCapabilities: { supportsReasoning: true, canIOReasoning: true, canTurnOffReasoning: false },
+		reasoningCapabilities: {
+			supportsReasoning: true,
+			canIOReasoning: true,
+			canTurnOffReasoning: false,
+			reasoningSlider: { type: 'budget_slider', min: 1024, max: 16384, default: 4096 }
+		},
 	},
 	'mistralai/mistral-small-3.1-24b-instruct:free': {
 		contextWindow: 128_000,
@@ -1708,6 +1718,12 @@ const openRouterModelOptions_assumingOpenAICompat = {
 		reservedOutputTokenSpace: null,
 		cost: { input: 0.8, output: 2.4 },
 		downloadable: false,
+		reasoningCapabilities: {
+			supportsReasoning: true,
+			canIOReasoning: true,
+			canTurnOffReasoning: false,
+			reasoningSlider: { type: 'budget_slider', min: 1024, max: 32768, default: 4096 }
+		},
 	},
 	'anthropic/claude-opus-4': {
 		contextWindow: 200_000,
@@ -1789,6 +1805,12 @@ const openRouterModelOptions_assumingOpenAICompat = {
 		reservedOutputTokenSpace: null,
 		cost: { input: 0.07, output: 0.16 },
 		downloadable: false,
+		reasoningCapabilities: {
+			supportsReasoning: true,
+			canIOReasoning: true,
+			canTurnOffReasoning: false,
+			reasoningSlider: { type: 'budget_slider', min: 1024, max: 32768, default: 4096 }
+		},
 	}
 } as const satisfies { [s: string]: VoidStaticModelInfo }
 
@@ -1796,9 +1818,17 @@ const openRouterSettings: VoidStaticProviderInfo = {
 	modelOptions: openRouterModelOptions_assumingOpenAICompat,
 	modelOptionsFallback: (modelName) => {
 		const res = extensiveModelOptionsFallback(modelName)
-		// openRouter does not support gemini-style, use openai-style instead
-		if (res?.specialToolFormat === 'gemini-style') {
+		// openRouter does not support gemini-style or anthropic-style, use openai-style instead
+		if (res) {
 			res.specialToolFormat = 'openai-style'
+
+			// Optimization: Ensure all reasoning models on OpenRouter have a slider to trigger include_reasoning
+			if (res.reasoningCapabilities && res.reasoningCapabilities.supportsReasoning && !res.reasoningCapabilities.reasoningSlider) {
+				res.reasoningCapabilities = {
+					...res.reasoningCapabilities,
+					reasoningSlider: { type: 'budget_slider', min: 1024, max: 32768, default: 4096 }
+				}
+			}
 		}
 		return res
 	},
@@ -1811,6 +1841,7 @@ const openRouterSettings: VoidStaticProviderInfo = {
 
 				if (reasoningInfo.type === 'budget_slider_value') {
 					return {
+						include_reasoning: true,
 						reasoning: {
 							max_tokens: reasoningInfo.reasoningBudget
 						}
@@ -1818,6 +1849,7 @@ const openRouterSettings: VoidStaticProviderInfo = {
 				}
 				if (reasoningInfo.type === 'effort_slider_value')
 					return {
+						include_reasoning: true,
 						reasoning: {
 							effort: reasoningInfo.reasoningEffort
 						}
@@ -1828,6 +1860,7 @@ const openRouterSettings: VoidStaticProviderInfo = {
 		output: { nameOfFieldInDelta: 'reasoning' },
 	},
 }
+
 
 
 
@@ -1895,14 +1928,14 @@ export const getModelCapabilities = (
 		const lowercaseModelName_ = modelName_.toLowerCase()
 		if (lowercaseModelName === lowercaseModelName_) {
 			// Use modelName_ (the actual key) to access modelOptions, not the input modelName
-			const base = { ...modelOptions[modelName_], modelName, recognizedModelName: modelName_, isUnrecognizedModel: false as const };
+			const base = { ...defaultModelOptions, ...modelOptions[modelName_], modelName, recognizedModelName: modelName_, isUnrecognizedModel: false as const };
 			return mergeWithOverrides(base, overrides);
 		}
 	}
 
 	const result = modelOptionsFallback(modelName)
 	if (result) {
-		const base = { ...result, modelName: result.modelName, isUnrecognizedModel: false as const };
+		const base = { ...defaultModelOptions, ...result, modelName: result.modelName, isUnrecognizedModel: false as const };
 		return mergeWithOverrides(base, overrides);
 	}
 
