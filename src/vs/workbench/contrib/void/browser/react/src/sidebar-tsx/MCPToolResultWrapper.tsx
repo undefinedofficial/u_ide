@@ -48,6 +48,7 @@ export const MCPToolResultWrapper: ResultWrapper<string> = ({ toolMessage }) => 
 			</SmallProseWrapper>
 		</ToolChildrenWrapper>
 	} else if (toolMessage.type === 'tool_request' || toolMessage.type === 'running_now') {
+		componentParams.isOpen = true
 		const paramsToSend = JSON.stringify(params, null, 2)
 		componentParams.children = <ToolChildrenWrapper>
 			<SmallProseWrapper>

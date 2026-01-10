@@ -129,5 +129,5 @@ export const CommandToolResultWrapper: ResultWrapper<'run_command' | 'run_persis
 		}
 	}
 
-	return <ToolHeaderWrapper {...componentParams} isOpen={toolMessage.name === 'run_command' && toolMessage.type === 'running_now' ? true : undefined} />
+	return <ToolHeaderWrapper {...componentParams} isOpen={toolMessage.type === 'running_now' ? true : undefined} />
 }

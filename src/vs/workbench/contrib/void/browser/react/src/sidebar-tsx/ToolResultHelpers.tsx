@@ -461,12 +461,14 @@ export const ToolHeaderWrapper = ({
 	className,
 }: ToolHeaderParams) => {
 	const [isOpen_, setIsOpen] = useState(isOpen !== undefined ? isOpen : false);
+	const lastIsOpenProp = React.useRef(isOpen);
 
 	useEffect(() => {
-		if (isOpen !== undefined) {
-			setIsOpen(isOpen);
-		} else {
-			setIsOpen(false);
+		if (isOpen !== lastIsOpenProp.current) {
+			if (isOpen !== undefined) {
+				setIsOpen(isOpen);
+			}
+			lastIsOpenProp.current = isOpen;
 		}
 	}, [isOpen]);
 

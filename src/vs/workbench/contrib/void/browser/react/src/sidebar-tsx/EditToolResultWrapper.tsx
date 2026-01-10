@@ -106,6 +106,7 @@ export const EditToolResultWrapper: ResultWrapper<'edit_file' | 'rewrite_file'> 
 		isError: false,
 		icon: null,
 		isRejected,
+		isOpen: toolMessage.type === 'running_now' || toolMessage.type === 'tool_request' || undefined,
 	}
 
 	const editToolType = toolMessage.name === 'edit_file' ? 'diff' : 'rewrite'

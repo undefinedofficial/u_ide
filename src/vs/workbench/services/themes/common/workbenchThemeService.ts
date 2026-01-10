@@ -39,7 +39,7 @@ export enum ThemeSettings {
 }
 
 export enum ThemeSettingDefaults {
-	COLOR_THEME_DARK = 'Default Dark+', // Void changed this from 'Default Dark Modern'
+	COLOR_THEME_DARK = 'A-Coder Theme', // Void changed this from 'Default Dark Modern'
 	COLOR_THEME_LIGHT = 'Default Light Modern',
 	COLOR_THEME_HC_DARK = 'Default High Contrast',
 	COLOR_THEME_HC_LIGHT = 'Default High Contrast Light',
@@ -51,31 +51,31 @@ export enum ThemeSettingDefaults {
 	PRODUCT_ICON_THEME = 'Default',
 }
 
-export const COLOR_THEME_DARK_INITIAL_COLORS = { // Void changed this to match dark+
-	'activityBar.activeBorder': '#ffffff',
-	'activityBar.background': '#333333',
-	'activityBar.border': '#454545',
-	'activityBar.foreground': '#ffffff',
-	'activityBar.inactiveForeground': '#ffffff66',
-	'editorGroup.border': '#444444',
-	'editorGroupHeader.tabsBackground': '#252526',
-	'editorGroupHeader.tabsBorder': '#252526',
-	'statusBar.background': '#007ACC',
-	'statusBar.border': '#454545',
-	'statusBar.foreground': '#ffffff',
-	'statusBar.noFolderBackground': '#68217A',
-	'tab.activeBackground': '#2D2D2D',
-	'tab.activeBorder': '#ffffff',
-	'tab.activeBorderTop': '#007ACC',
-	'tab.activeForeground': '#ffffff',
-	'tab.border': '#252526',
-	'textLink.foreground': '#3794ff',
-	'titleBar.activeBackground': '#3C3C3C',
+export const COLOR_THEME_DARK_INITIAL_COLORS = { // Void changed this to match A-Coder Theme
+	'activityBar.activeBorder': '#0078D4',
+	'activityBar.background': '#000000',
+	'activityBar.border': '#111111',
+	'activityBar.foreground': '#D7D7D7',
+	'activityBar.inactiveForeground': '#868686',
+	'editorGroup.border': '#111111',
+	'editorGroupHeader.tabsBackground': '#000000',
+	'editorGroupHeader.tabsBorder': '#111111',
+	'statusBar.background': '#000000',
+	'statusBar.border': '#111111',
+	'statusBar.foreground': '#CCCCCC',
+	'statusBar.noFolderBackground': '#000000',
+	'tab.activeBackground': '#000000',
+	'tab.activeBorder': '#000000',
+	'tab.activeBorderTop': '#0078D4',
+	'tab.activeForeground': '#FFFFFF',
+	'tab.border': '#111111',
+	'textLink.foreground': '#4daafc',
+	'titleBar.activeBackground': '#000000',
 	'titleBar.activeForeground': '#CCCCCC',
-	'titleBar.border': '#454545',
-	'titleBar.inactiveBackground': '#2C2C2C',
-	'titleBar.inactiveForeground': '#999999',
-	'welcomePage.tileBackground': '#252526'
+	'titleBar.border': '#111111',
+	'titleBar.inactiveBackground': '#000000',
+	'titleBar.inactiveForeground': '#9D9D9D',
+	'welcomePage.tileBackground': '#111111'
 };
 
 export const COLOR_THEME_LIGHT_INITIAL_COLORS = {
