@@ -27,7 +27,7 @@ import { StorageScope, StorageTarget } from '../../../../../../../platform/stora
 import '../styles.css'
 
 type Tab =
-	| 'models' | 'localProviders' | 'providers' | 'featureOptions' | 'general' | 'mcp' | 'skills' | 'mobileApi' | 'about' | 'all';
+	| 'models' | 'localProviders' | 'providers' | 'featureOptions' | 'mediaGeneration' | 'general' | 'mcp' | 'skills' | 'mobileApi' | 'about' | 'all';
 
 // --- Shared Components ---
 
@@ -1209,6 +1209,7 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 		{ tab: 'localProviders', label: 'Local Providers', icon: Cpu },
 		{ tab: 'providers', label: 'Main Providers', icon: Globe },
 		{ tab: 'featureOptions', label: 'Feature Options', icon: Sparkles },
+		{ tab: 'mediaGeneration', label: 'Media Generation', icon: Search },
 		{ tab: 'general', label: 'General', icon: Settings2 },
 		{ tab: 'mcp', label: 'MCP', icon: Database },
 		{ tab: 'skills', label: 'Skills', icon: Zap },
@@ -1781,6 +1782,71 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 												</section>
 											</ErrorBoundary>
 										</div>
+
+										{/* Media Generation section */}
+										<div className={shouldShowTab('mediaGeneration') ? 'space-y-8' : 'hidden'}>
+											<ErrorBoundary>
+												<section className="space-y-6">
+													<div className="mb-6">
+														<h2 className="text-xl font-medium text-void-fg-1">Media Generation</h2>
+														<p className="text-sm text-void-fg-3 mt-1">Configure image and video generation using Pollinations.ai.</p>
+													</div>
+
+													<div className="space-y-6">
+														<SettingCard
+															isDark={isDark}
+															title="Pollinations.ai Configuration"
+															description="Set up your API key and default models for media generation."
+														>
+															<SettingBox>
+																<div className="space-y-4">
+																	<div>
+																		<label className="text-xs font-medium text-void-fg-3 uppercase tracking-wide mb-2 block">Pollinations API Key (Optional)</label>
+																		<VoidSimpleInputBox
+																			value={settingsState.globalSettings.pollinationsApiKey}
+																			onChangeValue={(newVal) => voidSettingsService.setGlobalSetting('pollinationsApiKey', newVal)}
+																			placeholder='sk_...'
+																			passwordBlur={true}
+																			compact={true}
+																		/>
+																		<p className="text-[10px] text-void-fg-3 mt-1">Leave empty for anonymous use (rate-limited). Use your key for Pollen currency.</p>
+																	</div>
+
+																	<div>
+																		<label className="text-xs font-medium text-void-fg-3 uppercase tracking-wide mb-2 block">Image Model</label>
+																		<VoidCustomDropdownBox
+																			options={['flux', 'zimage', 'turbo', 'gptimage', 'kontext', 'seedream', 'seedream-pro', 'nanobanana', 'nanobanana-pro']}
+																			selectedOption={settingsState.globalSettings.pollinationsImageModel}
+																			onChangeOption={(newVal) => voidSettingsService.setGlobalSetting('pollinationsImageModel', newVal)}
+																			getOptionDisplayName={(val) => val}
+																			getOptionDropdownName={(val) => val}
+																			getOptionsEqual={(a, b) => a === b}
+																			className="w-full max-w-xs bg-void-bg-1 border border-void-border-2 rounded-lg px-2 py-1.5 text-sm"
+																			arrowTouchesText={false}
+																		/>
+																	</div>
+
+																	<div>
+																		<label className="text-xs font-medium text-void-fg-3 uppercase tracking-wide mb-2 block">Video Model</label>
+																		<VoidCustomDropdownBox
+																			options={['veo', 'seedance', 'seedance-pro']}
+																			selectedOption={settingsState.globalSettings.pollinationsVideoModel}
+																			onChangeOption={(newVal) => voidSettingsService.setGlobalSetting('pollinationsVideoModel', newVal)}
+																			getOptionDisplayName={(val) => val}
+																			getOptionDropdownName={(val) => val}
+																			getOptionsEqual={(a, b) => a === b}
+																			className="w-full max-w-xs bg-void-bg-1 border border-void-border-2 rounded-lg px-2 py-1.5 text-sm"
+																			arrowTouchesText={false}
+																		/>
+																	</div>
+																</div>
+															</SettingBox>
+														</SettingCard>
+													</div>
+												</section>
+											</ErrorBoundary>
+										</div>
+
 										{/* General section */}
 					<div className={shouldShowTab('general') ? 'space-y-8' : 'hidden'}>
 						<ErrorBoundary>

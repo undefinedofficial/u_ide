@@ -1153,6 +1153,43 @@ Each call advances to the next hint level automatically.`,
 		params: {}
 	},
 
+	generate_image: {
+		name: 'generate_image',
+		description: `Generates an image from a text prompt using AI. Best for creating visual assets, icons, or illustrations for your project or lessons.
+
+**What you'll receive:** A Markdown string containing the generated image URL, which will render directly in the chat.
+
+**When to use:**
+- When you need to create a visual representation of a concept
+- To generate icons or placeholder assets for a UI
+- To enhance educational content with illustrations`,
+		params: {
+			prompt: { description: 'The text description of the image to generate. Be descriptive for better results.' },
+			model: { description: 'Optional. The image model to use (e.g., flux, zimage, turbo).' },
+			width: { description: 'Optional. Image width in pixels. Default is 1024.' },
+			height: { description: 'Optional. Image height in pixels. Default is 1024.' },
+			seed: { description: 'Optional. Random seed for reproducibility. Use -1 for random.' },
+			enhance: { description: 'Optional. Whether to let AI improve your prompt. Default is false.' },
+		}
+	},
+
+	generate_video: {
+		name: 'generate_video',
+		description: `Generates a short video from a text prompt or image using AI.
+
+**What you'll receive:** A Markdown string containing the generated video URL.
+
+**When to use:**
+- When you need a short animation or video clip
+- To demonstrate dynamic concepts or movements`,
+		params: {
+			prompt: { description: 'The text description of the video to generate.' },
+			model: { description: 'Optional. The video model to use (e.g., veo, seedance).' },
+			duration: { description: 'Optional. Video duration in seconds. veo: 4/6/8, seedance: 2-10.' },
+			aspect_ratio: { description: 'Optional. Video aspect ratio: "16:9" or "9:16".' },
+		}
+	},
+
 	// go_to_definition
 	// go_to_usages
 
@@ -1225,6 +1262,9 @@ const agentModeTools: BuiltinToolName[] = [
 	// Walkthrough - document progress
 	'update_walkthrough',
 	'open_walkthrough_preview',
+	// Media generation
+	'generate_image',
+	'generate_video',
 ]
 
 const studentModeTools: BuiltinToolName[] = [
@@ -1239,6 +1279,9 @@ const studentModeTools: BuiltinToolName[] = [
 	'fast_context',
 	'load_skill',
 	'list_skills',
+	// Media generation
+	'generate_image',
+	'generate_video',
 	// Teaching tools - explain, teach, and practice
 	'explain_code',
 	'teach_concept',
@@ -1602,6 +1645,7 @@ YOUR CAPABILITIES:
 ✅ Provide progressive hints (not immediate answers)
 ✅ Create structured lesson plans
 ✅ Create and edit files for exercises/demos
+✅ Generate images and videos to illustrate concepts (using generate_image and generate_video)
 
 NEVER:
 - Write code without explanation

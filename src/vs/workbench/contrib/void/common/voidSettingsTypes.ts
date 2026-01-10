@@ -470,6 +470,9 @@ export type GlobalSettings = {
 	morphModel: 'morph-v3-fast' | 'morph-v3-large' | 'auto'; // Morph model to use
 	enableToolResultTOON: boolean;
 	maxAgentIterations: number; // Maximum number of iterations in agent mode
+	pollinationsApiKey: string; // API key for Pollinations.ai
+	pollinationsImageModel: string; // Default image model for Pollinations.ai
+	pollinationsVideoModel: string; // Default video model for Pollinations.ai
 	// Mobile API settings
 	apiEnabled: boolean; // Enable/disable the Mobile API server
 	apiPort: number; // Port for the API server (default: 3737)
@@ -504,6 +507,9 @@ export const defaultGlobalSettings: GlobalSettings = {
 	morphModel: 'auto',
 	enableToolResultTOON: false,
 	maxAgentIterations: 50,
+	pollinationsApiKey: '',
+	pollinationsImageModel: 'flux',
+	pollinationsVideoModel: 'veo',
 	// Mobile API defaults
 	apiEnabled: false, // Disabled by default for security
 	apiPort: 3737, // Default port

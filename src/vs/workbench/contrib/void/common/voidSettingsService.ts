@@ -306,6 +306,11 @@ export class VoidSettingsService extends Disposable implements IVoidSettingsServ
 			if (readS.globalSettings.apiPort === undefined) readS.globalSettings.apiPort = 3737;
 			if (readS.globalSettings.apiTokens === undefined) readS.globalSettings.apiTokens = [];
 			if (readS.globalSettings.apiTunnelUrl === undefined) readS.globalSettings.apiTunnelUrl = undefined;
+
+			// add Pollinations.ai settings (1.5.0+)
+			if (readS.globalSettings.pollinationsApiKey === undefined) readS.globalSettings.pollinationsApiKey = '';
+			if (readS.globalSettings.pollinationsImageModel === undefined) readS.globalSettings.pollinationsImageModel = 'flux';
+			if (readS.globalSettings.pollinationsVideoModel === undefined) readS.globalSettings.pollinationsVideoModel = 'veo';
 		}
 		catch (e) {
 			readS = defaultState()

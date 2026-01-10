@@ -788,6 +788,34 @@ export class ToolsService implements IToolsService {
 				return {};
 			},
 
+			generate_image: (params: RawToolParamsObj) => {
+				const { prompt, model, width, height, seed, enhance, negative_prompt, safe, quality, transparent } = params;
+				return {
+					prompt: validateStr('prompt', prompt),
+					model: typeof model === 'string' ? model : undefined,
+					width: validateNumber(width, { default: null }) ?? undefined,
+					height: validateNumber(height, { default: null }) ?? undefined,
+					seed: validateNumber(seed, { default: null }) ?? undefined,
+					enhance: validateBoolean(enhance, { default: false }),
+					negative_prompt: typeof negative_prompt === 'string' ? negative_prompt : undefined,
+					safe: validateBoolean(safe, { default: false }),
+					quality: (typeof quality === 'string' && ['low', 'medium', 'high', 'hd'].includes(quality)) ? quality as any : undefined,
+					transparent: validateBoolean(transparent, { default: false }),
+				};
+			},
+
+			generate_video: (params: RawToolParamsObj) => {
+				const { prompt, model, duration, aspect_ratio, audio, image } = params;
+				return {
+					prompt: validateStr('prompt', prompt),
+					model: typeof model === 'string' ? model : undefined,
+					duration: validateNumber(duration, { default: null }) ?? undefined,
+					aspectRatio: (typeof aspect_ratio === 'string' && ['16:9', '9:16'].includes(aspect_ratio)) ? aspect_ratio as any : undefined,
+					audio: validateBoolean(audio, { default: false }),
+					image: typeof image === 'string' ? image : undefined,
+				};
+			},
+
 		}
 
 
@@ -1799,6 +1827,58 @@ For each module include:
 				return { result: { skills } };
 			},
 
+			generate_image: async ({ prompt, model, width, height, seed, enhance, negative_prompt, safe, quality, transparent }, opts) => {
+				const settings = this._voidSettingsService.state.globalSettings;
+				const apiKey = settings.pollinationsApiKey;
+				const defaultModel = settings.pollinationsImageModel;
+
+				opts?.onData?.(`Generating image with Pollinations.ai...`);
+
+				const baseUrl = 'https://gen.pollinations.ai/image/';
+				const encodedPrompt = encodeURIComponent(prompt);
+				const url = new URL(`${baseUrl}${encodedPrompt}`);
+
+				if (model || defaultModel) url.searchParams.append('model', model || defaultModel);
+				if (width) url.searchParams.append('width', width.toString());
+				if (height) url.searchParams.append('height', height.toString());
+				if (seed !== undefined && seed !== null) url.searchParams.append('seed', seed.toString());
+				if (enhance) url.searchParams.append('enhance', 'true');
+				if (negative_prompt) url.searchParams.append('negative_prompt', negative_prompt);
+				if (safe) url.searchParams.append('safe', 'true');
+				if (quality) url.searchParams.append('quality', quality);
+				if (transparent) url.searchParams.append('transparent', 'true');
+				if (apiKey) url.searchParams.append('key', apiKey);
+
+				const finalUrl = url.toString();
+				const markdown = `![Generated Image](${finalUrl})`;
+
+				return { result: { url: finalUrl, markdown } };
+			},
+
+			generate_video: async ({ prompt, model, duration, aspectRatio, audio, image }, opts) => {
+				const settings = this._voidSettingsService.state.globalSettings;
+				const apiKey = settings.pollinationsApiKey;
+				const defaultModel = settings.pollinationsVideoModel;
+
+				opts?.onData?.(`Generating video with Pollinations.ai...`);
+
+				const baseUrl = 'https://gen.pollinations.ai/image/';
+				const encodedPrompt = encodeURIComponent(prompt);
+				const url = new URL(`${baseUrl}${encodedPrompt}`);
+
+				if (model || defaultModel) url.searchParams.append('model', model || defaultModel);
+				if (duration) url.searchParams.append('duration', duration.toString());
+				if (aspectRatio) url.searchParams.append('aspectRatio', aspectRatio);
+				if (audio) url.searchParams.append('audio', 'true');
+				if (image) url.searchParams.append('image', image);
+				if (apiKey) url.searchParams.append('key', apiKey);
+
+				const finalUrl = url.toString();
+				const markdown = `[Generated Video](${finalUrl})`;
+
+				return { result: { url: finalUrl, markdown } };
+			},
+
 		}
 
 		// given to the LLM after the call for successful tool calls
@@ -2129,11 +2209,18 @@ For each module include:
 					output += `- **${skill.name}**: ${skill.description}\n`;
 				}
 				output += '\nUse `load_skill(skill_name="name")` to load a skill.';
-				return output;
-			},
-		}
-	}
-
+				                return result.skills.length === 0 ? 'No specialized skills are currently available.' : output;
+				            },
+				
+				            generate_image: (params, result) => {
+				                return `Successfully generated image for prompt: "${params.prompt}"\n\n${result.markdown}`;
+				            },
+				
+				            generate_video: (params, result) => {
+				                return `Successfully generated video for prompt: "${params.prompt}"\n\n${result.markdown}`;
+				            },
+				        }
+				    }
 	// Helper method to format implementation plan summary
 	private formatImplementationPlanSummary(plan: ImplementationPlan): string {
 		const { steps } = plan;

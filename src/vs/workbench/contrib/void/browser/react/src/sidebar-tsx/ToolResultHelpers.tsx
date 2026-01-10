@@ -173,6 +173,8 @@ export const titleOfBuiltinToolName = {
 	'create_lesson_plan': { done: 'Created lesson plan', proposed: 'Create lesson plan', running: loadingTitleWrapper('Creating lesson plan') },
 	'load_skill': { done: 'Skill loaded', proposed: 'Load skill', running: loadingTitleWrapper('Loading skill') },
 	'list_skills': { done: 'Skills listed', proposed: 'List skills', running: loadingTitleWrapper('Listing skills') },
+	'generate_image': { done: 'Image generated', proposed: 'Generate image', running: loadingTitleWrapper('Generating image') },
+	'generate_video': { done: 'Video generated', proposed: 'Generate video', running: loadingTitleWrapper('Generating video') },
 } as const satisfies Record<BuiltinToolName, { done: any, proposed: any, running: any }>
 
 export const getTitle = (toolMessage: Pick<ChatMessage & { role: 'tool' }, 'name' | 'type' | 'mcpServerName'>): React.ReactNode => {
@@ -379,6 +381,14 @@ export const toolNameToDesc = (toolName: BuiltinToolName, _toolParams: BuiltinTo
 		},
 		'list_skills': () => {
 			return { desc1: 'All available skills' }
+		},
+		'generate_image': () => {
+			const toolParams = _toolParams as BuiltinToolCallParams['generate_image']
+			return { desc1: toolParams.prompt }
+		},
+		'generate_video': () => {
+			const toolParams = _toolParams as BuiltinToolCallParams['generate_video']
+			return { desc1: toolParams.prompt }
 		},
 	}
 	try { return x[toolName]?.() || { desc1: '' } }

@@ -63,6 +63,7 @@ import { SearchQueryResultWrapper } from './SearchQueryResultWrapper.js';
 import { CommandToolResultWrapper, TerminalCommandApproval } from './TerminalResultWrapper.js';
 import { EditToolResultWrapper, EditToolChildren } from './EditToolResultWrapper.tsx';
 import { MCPToolResultWrapper } from './MCPToolResultWrapper.js';
+import { MediaResultWrapper } from './MediaResultWrapper.js';
 import { SkillsResultWrapper } from './SkillsResultWrapper.js';
 
 
@@ -1845,6 +1846,8 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	'create_lesson_plan': { resultWrapper: DefaultToolResultWrapper },
 	'load_skill': { resultWrapper: SkillsResultWrapper as ResultWrapper<'load_skill'> },
 	'list_skills': { resultWrapper: SkillsResultWrapper as ResultWrapper<'list_skills'> },
+	'generate_image': { resultWrapper: MediaResultWrapper as ResultWrapper<'generate_image'> },
+	'generate_video': { resultWrapper: MediaResultWrapper as ResultWrapper<'generate_video'> },
 };
 
 
