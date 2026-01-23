@@ -67,6 +67,16 @@ export type ChatMessage =
 			stagingSelections: StagingSelectionItem[];
 			isBeingEdited: boolean;
 		}
+		orchestrationResult?: {
+			suggestions: Array<{
+				toolName: string;
+				toolParams?: Record<string, any>;
+				reasoning: string;
+				confidence: 'high' | 'medium' | 'low';
+			}>;
+			reasoning: string;
+			summary: string;
+		};
 	} | {
 		role: 'assistant';
 		displayContent: string; // content received from LLM  - allowed to be '', will be replaced with (empty)

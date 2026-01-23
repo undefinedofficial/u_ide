@@ -65,6 +65,7 @@ import { EditToolResultWrapper, EditToolChildren } from './EditToolResultWrapper
 import { MCPToolResultWrapper } from './MCPToolResultWrapper.js';
 import { MediaResultWrapper } from './MediaResultWrapper.js';
 import { SkillsResultWrapper } from './SkillsResultWrapper.js';
+import { FormResultWrapper } from './FormResultWrapper.js';
 
 
 // Lazy-loaded components - MUST be at module level to avoid re-creating on every render
@@ -1848,6 +1849,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	'list_skills': { resultWrapper: SkillsResultWrapper as ResultWrapper<'list_skills'> },
 	'generate_image': { resultWrapper: MediaResultWrapper as ResultWrapper<'generate_image'> },
 	'generate_video': { resultWrapper: MediaResultWrapper as ResultWrapper<'generate_video'> },
+	'render_form': { resultWrapper: FormResultWrapper as ResultWrapper<'render_form'> },
 };
 
 

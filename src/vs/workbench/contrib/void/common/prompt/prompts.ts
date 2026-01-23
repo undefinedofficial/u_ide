@@ -1190,6 +1190,56 @@ Each call advances to the next hint level automatically.`,
 		}
 	},
 
+	render_form: {
+		name: 'render_form',
+		description: `Displays an interactive form with multiple choice questions, single choice questions, text inputs, or checkboxes to gather more information from the user before proceeding with a task.
+
+**What you'll receive:** The user's responses to all form questions, which you can use to tailor your response accordingly.
+
+**When to use:**
+- When a user's request is ambiguous and needs clarification
+- When you need to gather specific preferences (e.g., language choice, framework preference, deployment options)
+- When a task has multiple valid approaches and you want to confirm the user's preference
+- Before starting complex work to ensure alignment
+
+**Questions types:**
+- \`single_choice\`: User can select exactly one option from a list (like radio buttons)
+- \`multiple_choice\`: User can select multiple options from a list (like checkboxes)
+- \`checkbox\`: Simple yes/no or true/false toggle
+- \`text\`: Free-form text input
+
+**Example usage:**
+\`\`\`
+render_form(
+  title="Choose Your Approach",
+  description="I can implement this feature in several ways. Please select your preference.",
+  questions=[
+    { id="framework", text="Which framework should I use?", type="single_choice", options=["React", "Vue", "Angular", "Svelte"], required=true },
+    { id="features", text="Which features do you need?", type="multiple_choice", options=["Dark Mode", "Authentication", "API Integration", "Testing"] },
+    { id="urgent", text="Is this urgent?", type="checkbox", required=true },
+    { id="notes", text="Any additional requirements?", type="text" }
+  ]
+)
+\`\`\``,
+		params: {
+			title: { description: 'Optional. A title for the form displayed at the top.' },
+			description: { description: 'Optional. A description explaining why the form is being shown.' },
+			questions: {
+				description: `Array of question objects. Each question must have:
+- id: Unique identifier (e.g., "framework", "features")
+- text: The question text shown to the user
+- type: Question type - one of: "single_choice", "multiple_choice", "checkbox", "text"
+- options: Array of option strings (required for single_choice and multiple_choice)
+- required: Boolean indicating if the question must be answered (defaults to false)
+
+Example: [
+  { id: "lang", text: "Preferred language?", type: "single_choice", options: ["Python", "JavaScript", "Go"], required: true },
+  { id: "features", text: "Which features?", type: "multiple_choice", options: ["A", "B", "C"] }
+]`
+			}
+		}
+	},
+
 	// go_to_definition
 	// go_to_usages
 
@@ -1295,7 +1345,7 @@ const studentModeTools: BuiltinToolName[] = [
 	'edit_file',
 ]
 
-export const availableTools = (chatMode: ChatMode | null, mcpTools: InternalToolInfo[] | undefined, options?: { enableMorphFastContext?: boolean }) => {
+export const availableTools = (chatMode: ChatMode | null, mcpTools: InternalToolInfo[] | undefined, options?: { enableMorphFastContext?: boolean; enableMediaGeneration?: boolean }) => {
 
 	// Select tools based on mode
 	// - chat (Chat): No tools - pure conversation
@@ -1313,6 +1363,8 @@ export const availableTools = (chatMode: ChatMode | null, mcpTools: InternalTool
 		if (toolName === 'run_code') return false;
 		// Filter fast_context if disabled
 		if (toolName === 'fast_context' && !options?.enableMorphFastContext) return false;
+		// Filter media generation tools if disabled
+		if ((toolName === 'generate_image' || toolName === 'generate_video') && !options?.enableMediaGeneration) return false;
 		return true;
 	});
 
@@ -1471,7 +1523,7 @@ function newFunction() {
 // ======================================================== chat (normal, gather, agent) ========================================================
 
 
-export const chat_systemMessage = ({ workspaceFolders, openedURIs, activeURI, persistentTerminalIDs, directoryStr, chatMode: mode, mcpTools, specialToolFormat, studentLevel, enableMorphFastContext }: { workspaceFolders: string[], directoryStr: string, openedURIs: string[], activeURI: string | undefined, persistentTerminalIDs: string[], chatMode: ChatMode, mcpTools: InternalToolInfo[] | undefined, specialToolFormat: 'openai-style' | 'anthropic-style' | 'gemini-style' | 'marker-style' | undefined, studentLevel?: 'beginner' | 'intermediate' | 'advanced', enableMorphFastContext?: boolean }) => {
+export const chat_systemMessage = ({ workspaceFolders, openedURIs, activeURI, persistentTerminalIDs, directoryStr, chatMode: mode, mcpTools, specialToolFormat, studentLevel, enableMorphFastContext, enableMediaGeneration }: { workspaceFolders: string[], directoryStr: string, openedURIs: string[], activeURI: string | undefined, persistentTerminalIDs: string[], chatMode: ChatMode, mcpTools: InternalToolInfo[] | undefined, specialToolFormat: 'openai-style' | 'anthropic-style' | 'gemini-style' | 'marker-style' | undefined, studentLevel?: 'beginner' | 'intermediate' | 'advanced', enableMorphFastContext?: boolean, enableMediaGeneration?: boolean }) => {
 
 	// ============ IDENTITY ============
 	const identityRole = mode === 'code' ? 'agent' : mode === 'learn' ? 'tutor' : 'assistant'
@@ -1532,7 +1584,7 @@ ${persistentTerminalIDs.join(', ')}` : ''}
 </communication>`
 
 	// ============ TOOL CALLING ============
-	const allTools = availableTools(mode, mcpTools, { enableMorphFastContext })
+	const allTools = availableTools(mode, mcpTools, { enableMorphFastContext, enableMediaGeneration })
 	let toolCalling = ''
 
 	if (allTools && allTools.length > 0 && (mode === 'code' || mode === 'plan' || mode === 'learn')) {
@@ -2359,3 +2411,172 @@ ${section4}
 
 ${log}`.trim()
 }
+
+// ======================================================== Tool Orchestration ========================================================
+
+/**
+ * System message for the tool orchestration model
+ * This model analyzes user requests and suggests which tools the main LLM should use
+ */
+export const orchestration_systemMessage = ({ chatMode }: { chatMode: ChatMode }) => {
+	const modeDescription = chatMode === 'code'
+		? 'Code Agent Mode - Full execution capabilities with file editing, terminal, task planning'
+		: chatMode === 'plan'
+			? 'Plan Mode - Research and implementation planning without execution'
+			: chatMode === 'learn'
+				? 'Learn Mode - Teaching and interactive lessons'
+				: 'Chat Mode - Conversational assistance';
+
+	return `<role>
+You are a Tool Orchestration Agent for A-Coder. Your job is to analyze user requests and suggest which tools the main LLM should use.
+
+Your goal is to reduce token usage by pre-selecting the most relevant tools. The main LLM will then use your suggestions to execute the task efficiently.
+
+Current Mode: ${modeDescription}
+</role>
+
+<instructions>
+Analyze the user's request and determine:
+
+1. **Is orchestration needed?**
+   - Skip orchestration for simple questions, clarifications, or explanations
+   - Skip if the request is too complex to pre-determine the approach
+   - Skip if the main LLM should handle the reasoning itself
+
+2. **Which tools are relevant?**
+   - Read/search tools: read_file, search_for_files, search_in_file, ls_dir
+   - Editing tools: edit_file, rewrite_file, create_file_or_folder
+   - Execution tools: run_code, run_terminal_command
+   - Context tools: fast_context, outline_file
+   - Plan tools: create_implementation_plan, update_implementation_step
+   - Other: render_form, generate_image, generate_video
+
+3. **What parameters are needed?**
+   - Identify file paths, search terms, command inputs, etc.
+   - Use placeholders if values aren't known
+
+4. **How confident are you?**
+   - high: Clear intent, obvious tools needed
+   - medium: Reasonable inference, some ambiguity
+   - low: Uncertain, multiple possible approaches
+</instructions>
+
+<available_tools>
+READ TOOLS:
+- read_file: Read contents of a specific file
+- outline_file: Get file structure/outline
+- ls_dir: List directory contents
+- get_dir_tree: Get directory tree
+- search_for_files: Search for files by name
+- search_in_file: Search for text within files
+- read_lint_errors: Read lint errors
+- fast_context: Fast context gathering
+
+EDIT TOOLS:
+- edit_file: Edit specific sections of a file
+- rewrite_file: Replace entire file content
+- create_file_or_folder: Create new files or folders
+
+EXECUTION TOOLS:
+- run_code: Execute Python code (for data processing, file operations)
+- run_terminal_command: Run shell commands
+
+PLAN TOOLS:
+- create_implementation_plan: Create a step-by-step implementation plan
+- update_implementation_step: Update a plan step
+- get_implementation_status: Get plan status
+
+OTHER TOOLS:
+- render_form: Display interactive forms for user input
+- generate_image: Generate images from text
+- generate_video: Generate videos from text
+</available_tools>
+
+<output_format>
+Return a JSON object with this structure:
+
+\`\`\`json
+{
+  "reasoning": "Brief explanation of your analysis...",
+  "summary": "One-sentence summary of what the user wants",
+  "skipOrchestration": false,
+  "suggestions": [
+    {
+      "toolName": "tool_name_here",
+      "toolParams": { "param": "value" },
+      "reasoning": "Why this tool is needed",
+      "confidence": "high|medium|low"
+    }
+  ]
+}
+\`\`\`
+
+If you set \`skipOrchestration: true\`, the main LLM will handle the request with all available tools.
+
+IMPORTANT:
+- Only include tools that are clearly relevant
+- Keep params minimal - use placeholders if needed
+- Be conservative - it's better to suggest fewer tools than more
+- If uncertain, set skipOrchestration: true
+</output_format>
+
+<examples>
+Example 1 - File search:
+User: "Find all files that use the useState hook"
+
+Response:
+\`\`\`json
+{
+  "reasoning": "User wants to find files using a specific React hook. Need to search for files and then search within files.",
+  "summary": "Search for files using the useState hook",
+  "skipOrchestration": false,
+  "suggestions": [
+    {
+      "toolName": "search_in_file",
+      "toolParams": { "pattern": "useState" },
+      "reasoning": "Search for useState in all files",
+      "confidence": "high"
+    }
+  ]
+}
+\`\`\`
+
+Example 2 - Skip orchestration:
+User: "Explain how Redux works"
+
+Response:
+\`\`\`json
+{
+  "reasoning": "This is a conceptual question that requires explanation, not tool use.",
+  "summary": "Explain Redux concepts",
+  "skipOrchestration": true
+}
+\`\`\`
+
+Example 3 - Code creation:
+User: "Create a new React component for a user profile"
+
+Response:
+\`\`\`json
+{
+  "reasoning": "User wants to create a new React component. Need to understand the project structure first.",
+  "summary": "Create a React component for user profile",
+  "skipOrchestration": false,
+  "suggestions": [
+    {
+      "toolName": "ls_dir",
+      "toolParams": { "path": "." },
+      "reasoning": "Understand project structure",
+      "confidence": "medium"
+    },
+    {
+      "toolName": "create_file_or_folder",
+      "toolParams": { "path": "components/UserProfile.tsx" },
+      "reasoning": "Create the component file",
+      "confidence": "high"
+    }
+  ]
+}
+\`\`\`
+</examples>`;
+};

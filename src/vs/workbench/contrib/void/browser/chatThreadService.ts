@@ -34,6 +34,7 @@ import { truncate } from '../../../../base/common/strings.js';
 import { THREAD_STORAGE_KEY } from '../common/storageKeys.js';
 import { IVisionService } from './visionService.js';
 import { IConvertToLLMMessageService } from './convertToLLMMessageService.js';
+import { IToolOrchestrationService } from './toolOrchestrationService.js';
 import { timeout } from '../../../../base/common/async.js';
 import { deepClone } from '../../../../base/common/objects.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -515,6 +516,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		@IMCPService private readonly _mcpService: IMCPService,
 		@IVisionService private readonly _visionService: IVisionService,
 		@IModelService private readonly _modelService: IModelService,
+		@IToolOrchestrationService private readonly _orchestrationService: IToolOrchestrationService,
 	) {
 		super()
 		this.state = { allThreads: {}, currentThreadId: null as unknown as string } // default state
@@ -1110,12 +1112,22 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		modelSelection,
 		modelSelectionOptions,
 		callThisToolFirst,
+		orchestrationResult,
 	}: {
 		threadId: string,
 		modelSelection: ModelSelection | null,
 		modelSelectionOptions: ModelSelectionOptions | undefined,
-
 		callThisToolFirst?: ToolMessage<ToolName> & { type: 'tool_request' }
+		orchestrationResult?: {
+			suggestions: Array<{
+				toolName: string;
+				toolParams?: Record<string, any>;
+				reasoning: string;
+				confidence: 'high' | 'medium' | 'low';
+			}>;
+			reasoning: string;
+			summary: string;
+		};
 	}) {
 
 
@@ -1189,7 +1201,8 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 				chatMessages,
 				modelSelection,
 				chatMode,
-				loadedSkills
+				loadedSkills,
+				orchestrationResult
 			})
 
 			// Update stream state with token usage
@@ -2008,6 +2021,30 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			: userMessage;
 
 		let finalContent = await chat_userMessageContent(messageContent, currSelns, { directoryStrService: this._directoryStringService, fileService: this._fileService })
+
+		// Tool Orchestration: Get tool suggestions before adding user message to thread
+		let orchestrationResult: any = { suggestions: [], reasoning: '', summary: '' };
+		const chatMode = this._settingsService.state.globalSettings.chatMode;
+		if (this._settingsService.state.globalSettings.enableToolOrchestration) {
+			console.log('[chatThreadService] Running tool orchestration...');
+			this._setStreamState(threadId, { isRunning: 'idle', interrupt: 'not_needed' });
+			try {
+				orchestrationResult = await this._orchestrationService.orchestrate({
+					userMessage: userMessage,
+					chatMode: chatMode as any,
+					onProgress: (reasoning) => {
+						// Could show progress in UI if needed
+					},
+				});
+				console.log('[chatThreadService] Orchestration result:', orchestrationResult);
+			} catch (error) {
+				console.error('[chatThreadService] Orchestration error:', error);
+				orchestrationResult = { suggestions: [], reasoning: '', summary: '' };
+			} finally {
+				this._setStreamState(threadId, undefined);
+			}
+		}
+
 		const userHistoryElt: ChatMessage = {
 			role: 'user',
 			content: finalContent,
@@ -2015,14 +2052,16 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			selections: currSelns,
 			images,
 			visionAnalysis,
-			state: defaultMessageState
+			state: defaultMessageState,
+			// Store orchestration result for use in LLM prompt
+			orchestrationResult: orchestrationResult.suggestions.length > 0 ? orchestrationResult : undefined,
 		}
 		this._addMessageToThread(threadId, userHistoryElt)
 
 		this._setThreadState(threadId, { currCheckpointIdx: null }) // no longer at a checkpoint because started streaming
 
 		this._wrapRunAgentToNotify(
-			this._runChatAgent({ threadId, ...this._currentModelSelectionProps(), }),
+			this._runChatAgent({ threadId, ...this._currentModelSelectionProps(), orchestrationResult: orchestrationResult.suggestions.length > 0 ? orchestrationResult : undefined }),
 			threadId,
 		)
 

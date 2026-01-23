@@ -816,6 +816,27 @@ export class ToolsService implements IToolsService {
 				};
 			},
 
+			render_form: (params: RawToolParamsObj) => {
+				const { title, description, questions } = params;
+				const validatedQuestions: any[] = [];
+				if (Array.isArray(questions)) {
+					for (const q of questions) {
+						if (!q || typeof q !== 'object') continue;
+						const id = q.id ?? `q${validatedQuestions.length}`;
+						const text = typeof q.text === 'string' ? q.text : '';
+						const type = (typeof q.type === 'string' && ['single_choice', 'multiple_choice', 'text', 'checkbox'].includes(q.type)) ? q.type : 'text';
+						const options = Array.isArray(q.options) ? q.options.filter((o: any) => typeof o === 'string') : undefined;
+						const required = validateBoolean(q.required, { default: false });
+						validatedQuestions.push({ id, text, type, options, required });
+					}
+				}
+				return {
+					title: typeof title === 'string' ? title : undefined,
+					description: typeof description === 'string' ? description : undefined,
+					questions: validatedQuestions.length > 0 ? validatedQuestions : [{ id: 'q1', text: 'Please provide your input', type: 'text' as const, required: false }],
+				};
+			},
+
 		}
 
 
@@ -1879,6 +1900,18 @@ For each module include:
 				return { result: { url: finalUrl, markdown } };
 			},
 
+			render_form: async ({ title, description, questions }, opts) => {
+				opts?.onData?.('Rendering form...');
+
+				// The actual form rendering happens on the UI side
+				// We just return a template that indicates the form is ready
+				const template = title
+					? `### ${title}\n\n${description || ''}\n\nPlease answer the questions in the form below.`
+					: 'Please answer the questions in the form below.';
+
+				return { result: { template } };
+			},
+
 		}
 
 		// given to the LLM after the call for successful tool calls
@@ -2218,6 +2251,10 @@ For each module include:
 				
 				            generate_video: (params, result) => {
 				                return `Successfully generated video for prompt: "${params.prompt}"\n\n${result.markdown}`;
+				            },
+
+				            render_form: (params, result) => {
+				                return result.template || 'Form rendered successfully. The user can now provide their responses.';
 				            },
 				        }
 				    }

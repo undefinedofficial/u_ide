@@ -602,7 +602,7 @@ const prepareMessages = (params: {
 export interface IConvertToLLMMessageService {
 	readonly _serviceBrand: undefined;
 	prepareLLMSimpleMessages: (opts: { simpleMessages: SimpleLLMMessage[], systemMessage: string, modelSelection: ModelSelection | null, featureName: FeatureName }) => { messages: LLMChatMessage[], separateSystemMessage: string | undefined }
-	prepareLLMChatMessages: (opts: { chatMessages: ChatMessage[], chatMode: ChatMode, modelSelection: ModelSelection | null, loadedSkills?: { [name: string]: string } }) => Promise<{ messages: LLMChatMessage[], separateSystemMessage: string | undefined, tokenUsage: { used: number, total: number, percentage: number } }>
+	prepareLLMChatMessages: (opts: { chatMessages: ChatMessage[], chatMode: ChatMode, modelSelection: ModelSelection | null, loadedSkills?: { [name: string]: string }, orchestrationResult?: { suggestions: Array<{ toolName: string; toolParams?: Record<string, any>; reasoning: string; confidence: 'high' | 'medium' | 'low'; }>; reasoning: string; summary: string; } }) => Promise<{ messages: LLMChatMessage[], separateSystemMessage: string | undefined, tokenUsage: { used: number, total: number, percentage: number } }>
 	prepareFIMMessage(opts: { messages: LLMFIMMessage, }): { prefix: string, suffix: string, stopTokens: string[] }
 	updateTokenRatio(modelName: string, estimatedTokens: number, actualTokens: number): void
 }
@@ -699,7 +699,10 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 		// Ensure key is present
 		enableMorphFastContext = enableMorphFastContext && hasMorphApiKey
 
-		const systemMessage = chat_systemMessage({ workspaceFolders, openedURIs, directoryStr, activeURI, persistentTerminalIDs, chatMode, mcpTools, specialToolFormat: specialToolFormat as any, studentLevel, enableMorphFastContext })
+		// Get media generation setting
+		const enableMediaGeneration = this.voidSettingsService.state.globalSettings.enableMediaGeneration
+
+		const systemMessage = chat_systemMessage({ workspaceFolders, openedURIs, directoryStr, activeURI, persistentTerminalIDs, chatMode, mcpTools, specialToolFormat: specialToolFormat as any, studentLevel, enableMorphFastContext, enableMediaGeneration })
 		return systemMessage
 	}
 
@@ -778,7 +781,7 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 		})
 		return { messages, separateSystemMessage };
 	}
-	prepareLLMChatMessages: IConvertToLLMMessageService['prepareLLMChatMessages'] = async ({ chatMessages, chatMode, modelSelection, loadedSkills }) => {
+	prepareLLMChatMessages: IConvertToLLMMessageService['prepareLLMChatMessages'] = async ({ chatMessages, chatMode, modelSelection, loadedSkills, orchestrationResult }) => {
 		if (modelSelection === null) return { messages: [], separateSystemMessage: undefined, tokenUsage: { used: 0, total: 0, percentage: 0 } }
 
 		const { overridesOfModel } = this.voidSettingsService.state
@@ -808,6 +811,14 @@ class ConvertToLLMMessageService extends Disposable implements IConvertToLLMMess
 				.map(([name, instructions]) => `### SKILL: ${name}\n${instructions}`)
 				.join('\n\n');
 			systemMessage += `\n\n## LOADED SKILLS\nYou have loaded the following specialized skills for this conversation. Adhere to their instructions and patterns:\n\n${skillsText}`;
+		}
+
+		// Add orchestration suggestions to system message
+		if (orchestrationResult && orchestrationResult.suggestions.length > 0) {
+			const suggestionsText = orchestrationResult.suggestions
+				.map(s => `- **${s.toolName}**: ${s.toolParams ? JSON.stringify(s.toolParams) : 'no params specified'} (confidence: ${s.confidence}) - ${s.reasoning}`)
+				.join('\n');
+			systemMessage += `\n\n## TOOL ORCHESTRATION SUGGESTIONS\nThe tool orchestration model has suggested the following tools for this request. These are **suggestions only** - you should use them as guidance but use your own judgment to determine the best approach.\n\nSummary: ${orchestrationResult.summary}\n\nSuggested tools:\n${suggestionsText}\n\nOrchestration reasoning: ${orchestrationResult.reasoning}`;
 		}
 
 		const modelSelectionOptions = this.voidSettingsService.state.optionsOfModelSelection['Chat'][modelSelection.providerName]?.[modelSelection.modelName]

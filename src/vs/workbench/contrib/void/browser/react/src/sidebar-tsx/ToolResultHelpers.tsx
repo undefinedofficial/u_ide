@@ -175,6 +175,7 @@ export const titleOfBuiltinToolName = {
 	'list_skills': { done: 'Skills listed', proposed: 'List skills', running: loadingTitleWrapper('Listing skills') },
 	'generate_image': { done: 'Image generated', proposed: 'Generate image', running: loadingTitleWrapper('Generating image') },
 	'generate_video': { done: 'Video generated', proposed: 'Generate video', running: loadingTitleWrapper('Generating video') },
+	'render_form': { done: 'Form rendered', proposed: 'Render form', running: loadingTitleWrapper('Rendering form') },
 } as const satisfies Record<BuiltinToolName, { done: any, proposed: any, running: any }>
 
 export const getTitle = (toolMessage: Pick<ChatMessage & { role: 'tool' }, 'name' | 'type' | 'mcpServerName'>): React.ReactNode => {
@@ -390,6 +391,10 @@ export const toolNameToDesc = (toolName: BuiltinToolName, _toolParams: BuiltinTo
 			const toolParams = _toolParams as BuiltinToolCallParams['generate_video']
 			return { desc1: toolParams.prompt }
 		},
+		'render_form': () => {
+			const toolParams = _toolParams as BuiltinToolCallParams['render_form']
+			return { desc1: toolParams.title || `${toolParams.questions.length} question(s)` }
+		},
 	}
 	try { return x[toolName]?.() || { desc1: '' } }
 	catch { return { desc1: '' } }
@@ -495,9 +500,11 @@ export const ToolHeaderWrapper = ({
 		<div className='my-3 px-1'>
 			<div className={containerClasses}>
 				<div className={`select-none flex items-center justify-between ${isReadingTool ? 'min-h-[32px] px-3 py-1.5' : 'min-h-[36px] px-3 py-2'} ${isClickable ? 'cursor-pointer group/header' : ''}`} onClick={() => { if (isDropdown) { setIsOpen(v => !v); } if (onClick) { onClick(); } }}>
-					<div className={`flex items-center min-w-0 overflow-hidden ${isRejected ? 'line-through opacity-60' : ''}`}> 
+					<div className={`flex items-center min-w-0 overflow-hidden ${isRejected ? 'line-through opacity-60' : ''}`}>
 						{isDropdown && <ChevronRight size={14} className={`text-void-fg-4 mr-2 transition-transform duration-200 ease-out group-hover/header:text-void-fg-2 ${isExpanded ? 'rotate-90 text-void-accent' : ''}`} />}
-						<div className={`mr-2 p-1 rounded-md ${isCodingTool ? 'bg-void-accent/10 text-void-accent' : 'bg-void-bg-3 text-void-fg-3'}`}>{isReadingTool ? <File size={12} strokeWidth={2.5} /> : isCodingTool ? <Pencil size={12} strokeWidth={2.5} /> : <Database size={12} strokeWidth={2.5} />}</div>
+						<div className={`mr-2 p-1 rounded-md ${isCodingTool ? 'bg-void-accent/10 text-void-accent' : icon ? 'bg-void-bg-3 text-void-fg-2' : 'bg-void-bg-3 text-void-fg-3'}`}>
+							{icon || (isReadingTool ? <File size={12} strokeWidth={2.5} /> : isCodingTool ? <Pencil size={12} strokeWidth={2.5} /> : <Database size={12} strokeWidth={2.5} />)}
+						</div>
 						<span className={`flex-shrink-0 truncate ${isReadingTool ? 'text-void-fg-2 text-xs font-semibold' : 'text-void-fg-1 text-sm font-bold'}`}>{title}</span>
 						{desc1HTML}
 					</div>

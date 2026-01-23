@@ -1617,6 +1617,31 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 															</SettingBox>
 														</SettingCard>
 
+														{/* Tool Orchestration Card */}
+														<SettingCard
+															isDark={isDark}
+															title={displayInfoOfFeatureName('ToolOrchestration')}
+															description="Use a dedicated model to decide which tools to call, reducing context usage for the main LLM."
+														>
+															<SettingBox>
+																<SettingRow label="Tool Orchestration Enabled" description="When enabled, a separate model analyzes requests and suggests appropriate tools.">
+																	<VoidSwitch
+																		size='sm'
+																		value={settingsState.globalSettings.enableToolOrchestration}
+																		onChange={(newVal) => voidSettingsService.setGlobalSetting('enableToolOrchestration', newVal)}
+																	/>
+																</SettingRow>
+
+																{settingsState.globalSettings.enableToolOrchestration && (
+																	<div className="mt-4 pt-4 border-t border-void-border-2">
+																		<label className="text-xs text-void-fg-3 mb-2 block uppercase tracking-wide font-medium">Orchestration Model</label>
+																		<ModelDropdown featureName={'ToolOrchestration'} className='w-full max-w-xs' />
+																		<p className="text-[10px] text-void-fg-3 mt-2">Use a small, fast model (like Claude Haiku or GPT-4o-mini) for optimal performance.</p>
+																	</div>
+																)}
+															</SettingBox>
+														</SettingCard>
+
 														{/* Morph Settings Card */}
 														<SettingCard
 															isDark={isDark}
@@ -1795,9 +1820,26 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 													<div className="space-y-6">
 														<SettingCard
 															isDark={isDark}
-															title="Pollinations.ai Configuration"
-															description="Set up your API key and default models for media generation."
+															title="Media Generation Enabled"
+															description="Allow the LLM to generate images and videos using Pollinations.ai."
 														>
+															<SettingBox>
+																<SettingRow label="Enable Media Generation">
+																	<VoidSwitch
+																		size='sm'
+																		value={settingsState.globalSettings.enableMediaGeneration}
+																		onChange={(newVal) => voidSettingsService.setGlobalSetting('enableMediaGeneration', newVal)}
+																	/>
+																</SettingRow>
+															</SettingBox>
+														</SettingCard>
+
+														{settingsState.globalSettings.enableMediaGeneration && (
+															<SettingCard
+																isDark={isDark}
+																title="Pollinations.ai Configuration"
+																description="Set up your API key and default models for media generation."
+															>
 															<SettingBox>
 																<div className="space-y-4">
 																	<div>
@@ -1842,6 +1884,7 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 																</div>
 															</SettingBox>
 														</SettingCard>
+														)}
 													</div>
 												</section>
 											</ErrorBoundary>

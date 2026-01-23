@@ -362,7 +362,7 @@ export const modelSelectionsEqual = (m1: ModelSelection, m2: ModelSelection) => 
 }
 
 // this is a state
-export const featureNames = ['Chat', 'Ctrl+K', 'Autocomplete', 'Apply', 'SCM', 'Vision'] as const
+export const featureNames = ['Chat', 'Ctrl+K', 'Autocomplete', 'Apply', 'SCM', 'Vision', 'ToolOrchestration'] as const
 export type ModelSelectionOfFeature = Record<(typeof featureNames)[number], ModelSelection | null>
 export type FeatureName = keyof ModelSelectionOfFeature
 
@@ -383,6 +383,9 @@ export const displayInfoOfFeatureName = (featureName: FeatureName) => {
 	// vision:
 	else if (featureName === 'Vision')
 		return 'Vision (Image Processing)'
+	// tool orchestration:
+	else if (featureName === 'ToolOrchestration')
+		return 'Tool Orchestration'
 	else
 		throw new Error(`Feature Name ${featureName} not allowed`)
 }
@@ -473,6 +476,8 @@ export type GlobalSettings = {
 	pollinationsApiKey: string; // API key for Pollinations.ai
 	pollinationsImageModel: string; // Default image model for Pollinations.ai
 	pollinationsVideoModel: string; // Default video model for Pollinations.ai
+	enableMediaGeneration: boolean; // Enable/disable image and video generation tools
+	enableToolOrchestration: boolean; // Enable/disable universal tool orchestration
 	// Mobile API settings
 	apiEnabled: boolean; // Enable/disable the Mobile API server
 	apiPort: number; // Port for the API server (default: 3737)
@@ -510,6 +515,8 @@ export const defaultGlobalSettings: GlobalSettings = {
 	pollinationsApiKey: '',
 	pollinationsImageModel: 'flux',
 	pollinationsVideoModel: 'veo',
+	enableMediaGeneration: true, // Media generation enabled by default
+	enableToolOrchestration: false, // Tool orchestration disabled by default (requires setup)
 	// Mobile API defaults
 	apiEnabled: false, // Disabled by default for security
 	apiPort: 3737, // Default port

@@ -144,6 +144,18 @@ export type BuiltinToolCallParams = {
 		audio?: boolean;
 		image?: string;
 	},
+	// --- Generative UI (Forms & Questions) ---
+	'render_form': {
+		title?: string;
+		description?: string;
+		questions: Array<{
+			id: string;
+			text: string;
+			type: 'multiple_choice' | 'single_choice' | 'text' | 'checkbox';
+			options?: string[];
+			required?: boolean;
+		}>;
+	},
 }
 
 // RESULT OF TOOL CALL
@@ -224,6 +236,8 @@ export type BuiltinToolResultType = {
 	'list_skills': { skills: Array<{ name: string, description: string }> },
 	'generate_image': { url: string, markdown: string },
 	'generate_video': { url: string, markdown: string },
+	// --- Generative UI (Forms & Questions)
+	'render_form': { template: string },
 }
 
 

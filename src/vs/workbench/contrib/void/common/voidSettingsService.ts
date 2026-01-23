@@ -118,6 +118,7 @@ export const modelFilterOfFeatureName: {
 	'Apply': { filter: o => true, emptyMessage: null, },
 	'SCM': { filter: o => true, emptyMessage: null, },
 	'Vision': { filter: o => true, emptyMessage: null, }, // All models can be used for vision processing
+	'ToolOrchestration': { filter: o => true, emptyMessage: null, }, // All models can be used for tool orchestration
 }
 
 
@@ -221,10 +222,11 @@ const defaultState = () => {
 			'Autocomplete': null,
 			'Apply': null,
 			'SCM': null,
-			'Vision': { providerName: 'ollama', modelName: 'qwen3-vl:235b-instruct-cloud' } // Default vision model
+			'Vision': { providerName: 'ollama', modelName: 'qwen3-vl:235b-instruct-cloud' }, // Default vision model
+			'ToolOrchestration': { providerName: 'ollama', modelName: 'glm-4.7:cloud' }, // Default tool orchestration model
 		},
 		globalSettings: deepClone(defaultGlobalSettings),
-		optionsOfModelSelection: { 'Chat': {}, 'Ctrl+K': {}, 'Autocomplete': {}, 'Apply': {}, 'SCM': {}, 'Vision': {} },
+		optionsOfModelSelection: { 'Chat': {}, 'Ctrl+K': {}, 'Autocomplete': {}, 'Apply': {}, 'SCM': {}, 'Vision': {}, 'ToolOrchestration': {} },
 		overridesOfModel: deepClone(defaultOverridesOfModel),
 		_modelOptions: [], // computed later
 		mcpUserStateOfName: {},
@@ -353,6 +355,10 @@ export class VoidSettingsService extends Disposable implements IVoidSettingsServ
 			// Migration: Set default Vision model if it's null (for users upgrading from before Vision feature)
 			if (!readS.modelSelectionOfFeature['Vision']) {
 				readS.modelSelectionOfFeature['Vision'] = { providerName: 'ollama', modelName: 'qwen3-vl:235b-instruct-cloud' }
+			}
+			// Migration: Set default ToolOrchestration model if it's null
+			if (!readS.modelSelectionOfFeature['ToolOrchestration']) {
+				readS.modelSelectionOfFeature['ToolOrchestration'] = { providerName: 'ollama', modelName: 'glm-4.7:cloud' }
 			}
 		}
 		catch (e) {
