@@ -176,6 +176,7 @@ export const titleOfBuiltinToolName = {
 	'generate_image': { done: 'Image generated', proposed: 'Generate image', running: loadingTitleWrapper('Generating image') },
 	'generate_video': { done: 'Video generated', proposed: 'Generate video', running: loadingTitleWrapper('Generating video') },
 	'render_form': { done: 'Form rendered', proposed: 'Render form', running: loadingTitleWrapper('Rendering form') },
+	'create_quiz': { done: 'Quiz completed', proposed: 'Create quiz', running: loadingTitleWrapper('Creating quiz') },
 } as const satisfies Record<BuiltinToolName, { done: any, proposed: any, running: any }>
 
 export const getTitle = (toolMessage: Pick<ChatMessage & { role: 'tool' }, 'name' | 'type' | 'mcpServerName'>): React.ReactNode => {
@@ -393,6 +394,10 @@ export const toolNameToDesc = (toolName: BuiltinToolName, _toolParams: BuiltinTo
 		},
 		'render_form': () => {
 			const toolParams = _toolParams as BuiltinToolCallParams['render_form']
+			return { desc1: toolParams.title || `${toolParams.questions.length} question(s)` }
+		},
+		'create_quiz': () => {
+			const toolParams = _toolParams as BuiltinToolCallParams['create_quiz']
 			return { desc1: toolParams.title || `${toolParams.questions.length} question(s)` }
 		},
 	}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import React, { useState } from 'react';
-import { Check, Square, Circle, Type, Send, AlertTriangle } from 'lucide-react';
+import { Check, Square, Circle, Type, Send, AlertTriangle, Ban } from 'lucide-react';
 import { useAccessor, useChatThreadsStreamState } from '../util/services.js';
 import { BuiltinToolName } from '../../../../common/toolsServiceTypes.js';
 import {
@@ -45,9 +45,11 @@ const QuestionItem = ({ question, value, onChange }: { question: Question; value
 					</div>
 					<div className="space-y-1.5">
 						{question.options?.map((option, idx) => (
-							<label
+							<button
+								type="button"
 								key={idx}
-								className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 border ${
+								onClick={() => onChange(option)}
+								className={`w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 border ${
 									value === option
 										? 'bg-void-accent/10 border-void-accent/40'
 										: 'bg-void-bg-2/30 border-void-border-2 hover:bg-void-bg-2/50 hover:border-void-border-1'
@@ -61,7 +63,7 @@ const QuestionItem = ({ question, value, onChange }: { question: Question; value
 									{value === option && <Circle size={8} className="text-white" fill="currentColor" />}
 								</div>
 								<span className="text-sm text-void-fg-1">{option}</span>
-							</label>
+							</button>
 						))}
 					</div>
 				</div>
@@ -78,9 +80,18 @@ const QuestionItem = ({ question, value, onChange }: { question: Question; value
 						{question.options?.map((option, idx) => {
 							const isSelected = Array.isArray(value) && value.includes(option);
 							return (
-								<label
+								<button
+									type="button"
 									key={idx}
-									className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 border ${
+									onClick={() => {
+										const current = Array.isArray(value) ? value : [];
+										if (current.includes(option)) {
+											onChange(current.filter((o: string) => o !== option));
+										} else {
+											onChange([...current, option]);
+										}
+									}}
+									className={`w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 border ${
 										isSelected
 											? 'bg-void-accent/10 border-void-accent/40'
 											: 'bg-void-bg-2/30 border-void-border-2 hover:bg-void-bg-2/50 hover:border-void-border-1'
@@ -94,7 +105,7 @@ const QuestionItem = ({ question, value, onChange }: { question: Question; value
 										{isSelected && <Check size={10} className="text-white" strokeWidth={3} />}
 									</div>
 									<span className="text-sm text-void-fg-1">{option}</span>
-								</label>
+								</button>
 							);
 						})}
 					</div>
@@ -103,11 +114,15 @@ const QuestionItem = ({ question, value, onChange }: { question: Question; value
 
 		case 'checkbox':
 			return (
-				<label className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 border ${
-					value === true
-						? 'bg-void-accent/10 border-void-accent/40'
-						: 'bg-void-bg-2/30 border-void-border-2 hover:bg-void-bg-2/50 hover:border-void-border-1'
-				}`}>
+				<button
+					type="button"
+					onClick={() => onChange(!value)}
+					className={`w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 border ${
+						value === true
+							? 'bg-void-accent/10 border-void-accent/40'
+							: 'bg-void-bg-2/30 border-void-border-2 hover:bg-void-bg-2/50 hover:border-void-border-1'
+					}`}
+				>
 					<div className={`flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center ${
 						value === true
 							? 'border-void-accent bg-void-accent'
@@ -119,7 +134,7 @@ const QuestionItem = ({ question, value, onChange }: { question: Question; value
 						{question.text}
 						{question.required && <span className="text-void-accent ml-1">*</span>}
 					</span>
-				</label>
+				</button>
 			);
 
 		case 'text':
@@ -174,41 +189,48 @@ export const FormResultWrapper: ResultWrapper<'render_form'> = ({ toolMessage, t
 	const streamState = useChatThreadsStreamState(threadId);
 	const chatThreadsService = accessor.get('IChatThreadService');
 
+	// Debug logging to understand what's happening
+	console.log('[FormResultWrapper] toolMessage.type:', toolMessage.type);
+	console.log('[FormResultWrapper] toolMessage.params:', toolMessage.params);
+
 	const title = getTitle(toolMessage);
 	const { desc1 } = toolNameToDesc(toolMessage.name as BuiltinToolName, toolMessage.params, accessor);
 
 	const isRejected = toolMessage.type === 'rejected';
 
-	       // Form state for interactive responses
-	       const params = toolMessage.params as RenderFormParams | undefined;
-	       const [responses, setResponses] = useState<Record<string, any>>({});
-	       const [showError, setShowError] = useState(false);
-	       const [isSubmitting, setIsSubmitting] = useState(false);
-	
-	       // Safety check for params
-	       if (!params || !params.questions || !Array.isArray(params.questions)) {
-	               const componentParams: ToolHeaderParams = {
-	                       title,
-	                       desc1,
-	                       isError: false,
-	                       icon: <Type size={12} strokeWidth={2.5} />,
-	                       isRejected,
-	                       isOpen: true,
-	                       children: (
-	                               <ToolChildrenWrapper>
-	                                       <div className="flex items-center gap-2 py-2 mb-3">
-	                                               <div className="w-3 h-3 border-2 border-void-accent border-t-transparent rounded-full animate-spin" />
-	                                               <span className="text-xs italic text-void-fg-3">Loading form...</span>
-	                                       </div>
-	                               </ToolChildrenWrapper>
-	                       )
-	               };
-	               return <ToolHeaderWrapper {...componentParams} />;
-	       }
-	
-	       // Check if all required questions are answered
-	       const validateForm = (): boolean => {
-	               return params.questions.every(q => {			if (!q.required) return true;
+       // Form state for interactive responses
+       const params = toolMessage.params as RenderFormParams | undefined;
+       const [responses, setResponses] = useState<Record<string, any>>({});
+       const [showError, setShowError] = useState(false);
+       const [isSubmitting, setIsSubmitting] = useState(false);
+
+       // Safety check for params
+       if (!params || !params.questions || !Array.isArray(params.questions)) {
+	       console.log('[FormResultWrapper] Safety check failed - params:', params, 'questions:', params?.questions);
+               const componentParams: ToolHeaderParams = {
+                       title,
+                       desc1,
+                       isError: false,
+                       icon: <Type size={12} strokeWidth={2.5} />,
+                       isRejected,
+                       isOpen: true,
+                       children: (
+                               <ToolChildrenWrapper>
+                                       <div className="flex items-center gap-2 py-2 mb-3">
+                                               <div className="w-3 h-3 border-2 border-void-accent border-t-transparent rounded-full animate-spin" />
+                                               <span className="text-xs italic text-void-fg-3">Loading form...</span>
+                                       </div>
+                               </ToolChildrenWrapper>
+                       )
+               };
+               return <ToolHeaderWrapper {...componentParams} />;
+       }
+
+       console.log('[FormResultWrapper] params.questions length:', params.questions.length);
+
+       // Check if all required questions are answered
+       const validateForm = (): boolean => {
+               return params.questions.every(q => {			if (!q.required) return true;
 			const response = responses[q.id];
 			if (response === undefined || response === null) return false;
 			if (Array.isArray(response) && response.length === 0) return false;
@@ -262,6 +284,7 @@ export const FormResultWrapper: ResultWrapper<'render_form'> = ({ toolMessage, t
 	};
 
 	if (toolMessage.type === 'success') {
+		console.log('[FormResultWrapper] Rendering success state');
 		const result = toolMessage.result as any;
 		const resultTemplate = result?.template || '';
 
@@ -277,6 +300,7 @@ export const FormResultWrapper: ResultWrapper<'render_form'> = ({ toolMessage, t
 			</ToolChildrenWrapper>
 		);
 	} else if (toolMessage.type === 'tool_request' || toolMessage.type === 'running_now') {
+		console.log('[FormResultWrapper] Rendering form with questions');
 		const activity = streamState?.isRunning === 'tool' && streamState.toolInfo.id === toolMessage.id
 			? streamState.toolInfo.content
 			: undefined;
@@ -356,6 +380,35 @@ export const FormResultWrapper: ResultWrapper<'render_form'> = ({ toolMessage, t
 						<AlertTriangle size={14} className="text-void-warning flex-shrink-0 mt-0.5" />
 						<span className="text-sm text-void-warning">
 							Error: {String(toolMessage.result)}
+						</span>
+					</div>
+				</div>
+			</ToolChildrenWrapper>
+		);
+	} else if (toolMessage.type === 'rejected') {
+		componentParams.children = (
+			<ToolChildrenWrapper>
+				<div className="px-3 py-2 bg-void-fg-4/10 border border-void-fg-4/30 rounded-lg">
+					<div className="flex items-center gap-2">
+						<Ban size={14} className="text-void-fg-4 flex-shrink-0" />
+						<span className="text-sm text-void-fg-3">
+							Skipped
+						</span>
+					</div>
+				</div>
+			</ToolChildrenWrapper>
+		);
+	} else {
+		// Unexpected message type - log and show debug info
+		console.error('[FormResultWrapper] Unexpected toolMessage.type:', toolMessage.type);
+		console.error('[FormResultWrapper] Full toolMessage:', toolMessage);
+		componentParams.children = (
+			<ToolChildrenWrapper>
+				<div className="px-3 py-2 bg-void-warning/10 border border-void-warning/30 rounded-lg">
+					<div className="flex items-start gap-2">
+						<AlertTriangle size={14} className="text-void-warning flex-shrink-0 mt-0.5" />
+						<span className="text-sm text-void-warning">
+							Unexpected state: {toolMessage.type}
 						</span>
 					</div>
 				</div>

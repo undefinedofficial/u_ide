@@ -18,7 +18,7 @@ export type ShallowDirectoryItem = {
 }
 
 
-export const approvalTypeOfBuiltinToolName: Partial<{ [T in BuiltinToolName]?: 'edits' | 'terminal' | 'MCP tools' | 'forms' }> = {
+export const approvalTypeOfBuiltinToolName: Partial<{ [T in BuiltinToolName]?: 'edits' | 'terminal' | 'MCP tools' | 'forms' | 'quizzes' }> = {
 	'create_file_or_folder': 'edits',
 	'delete_file_or_folder': 'edits',
 	'rewrite_file': 'edits',
@@ -28,6 +28,7 @@ export const approvalTypeOfBuiltinToolName: Partial<{ [T in BuiltinToolName]?: '
 	'open_persistent_terminal': 'terminal',
 	'kill_persistent_terminal': 'terminal',
 	'render_form': 'forms',
+	'create_quiz': 'quizzes',
 }
 
 
@@ -157,6 +158,22 @@ export type BuiltinToolCallParams = {
 			required?: boolean;
 		}>;
 	},
+	// --- Learn Mode (Quizzes) ---
+	'create_quiz': {
+		title: string;
+		description?: string;
+		questions: Array<{
+			id: string;
+			question: string;
+			type: 'multiple_choice' | 'single_choice' | 'text' | 'true_false';
+			options?: string[];
+			correct_answer: string | string[]; // The correct answer(s)
+			explanation?: string; // Explanation shown after answering
+			points?: number; // Points for this question
+		}>;
+		total_points?: number; // Total points for the quiz
+		time_limit_seconds?: number; // Optional time limit
+	},
 }
 
 // RESULT OF TOOL CALL
@@ -239,6 +256,8 @@ export type BuiltinToolResultType = {
 	'generate_video': { url: string, markdown: string },
 	// --- Generative UI (Forms & Questions)
 	'render_form': { template: string },
+	// --- Learn Mode (Quizzes)
+	'create_quiz': { quiz_id: string, template: string },
 }
 
 

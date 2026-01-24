@@ -66,6 +66,7 @@ import { MCPToolResultWrapper } from './MCPToolResultWrapper.js';
 import { MediaResultWrapper } from './MediaResultWrapper.js';
 import { SkillsResultWrapper } from './SkillsResultWrapper.js';
 import { FormResultWrapper } from './FormResultWrapper.js';
+import { QuizResultWrapper } from './QuizResultWrapper.js';
 
 
 // Lazy-loaded components - MUST be at module level to avoid re-creating on every render
@@ -1850,6 +1851,7 @@ const builtinToolNameToComponent: { [T in BuiltinToolName]: { resultWrapper: Res
 	'generate_image': { resultWrapper: MediaResultWrapper as ResultWrapper<'generate_image'> },
 	'generate_video': { resultWrapper: MediaResultWrapper as ResultWrapper<'generate_video'> },
 	'render_form': { resultWrapper: FormResultWrapper as ResultWrapper<'render_form'> },
+	'create_quiz': { resultWrapper: QuizResultWrapper as ResultWrapper<'create_quiz'> },
 };
 
 
@@ -1958,7 +1960,7 @@ const _ChatBubble = ({ threadId, chatMessage, currCheckpointIdx, isCommitted, me
 						threadId={threadId}
 					/>
 				</div>
-				{chatMessage.type === 'tool_request' && chatMessage.name !== 'run_command' && chatMessage.name !== 'run_persistent_command' && chatMessage.name !== 'open_persistent_terminal' && chatMessage.name !== 'render_form' ?
+				{chatMessage.type === 'tool_request' && chatMessage.name !== 'run_command' && chatMessage.name !== 'run_persistent_command' && chatMessage.name !== 'open_persistent_terminal' && chatMessage.name !== 'render_form' && chatMessage.name !== 'create_quiz' ?
 					<div className={`${isCheckpointGhost ? 'opacity-50 pointer-events-none' : ''}`}>
 						<ToolRequestAcceptRejectButtons toolName={chatMessage.name} toolId={chatMessage.id} />
 					</div> : null}

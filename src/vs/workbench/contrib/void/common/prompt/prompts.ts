@@ -1240,6 +1240,61 @@ Example: [
 		}
 	},
 
+	create_quiz: {
+		name: 'create_quiz',
+		description: `Creates an interactive quiz for a student to test their knowledge on a topic. The student will answer questions, submit their answers, and receive immediate feedback including their score and explanations for each question.
+
+**What you'll receive:** The student's answers, their score, and their percentage. You can then review their answers, provide personalized feedback, and identify areas for improvement.
+
+**When to use:**
+- After teaching a concept or topic, to assess the student's understanding
+- To test knowledge before moving to the next topic
+- To review material that was previously covered
+- To gamify learning and make it more engaging
+- To identify knowledge gaps that need to be addressed
+
+**Question types:**
+- \`single_choice\`: Student can select exactly one option (radio buttons)
+- \`multiple_choice\`: Student can select multiple options (checkboxes)
+- \`text\`: Free-form text input for open-ended questions
+- \`true_false\`: Simple true/false questions
+
+**Example usage:**
+\`\`\`
+create_quiz(
+  title="JavaScript Fundamentals Quiz",
+  description="Test your knowledge of JavaScript basics with this 5-question quiz.",
+  questions=[
+    { id="q1", question="What is the correct way to declare a variable in JavaScript?", type="single_choice", options=["var x = 5;", "let x = 5;", "x = 5;", "variable x = 5;"], correct_answer="let x = 5;", points=10 },
+    { id="q2", question="Which of the following are primitive types in JavaScript?", type="multiple_choice", options=["string", "number", "object", "boolean"], correct_answer=["string", "number", "boolean"], points=10 },
+    { id="q3", question="What is the purpose of 'use strict' in JavaScript?", type="text", correct_answer="It enables strict mode which catches common coding mistakes and prevents unsafe actions", points=15 },
+    { id="q4", question="JavaScript is a compiled language.", type="true_false", options=["True", "False"], correct_answer="False", points=10, explanation="JavaScript is an interpreted language, not compiled. The browser executes JavaScript code directly without compiling it first." }
+  ],
+  total_points=45
+)
+\`\`\``,
+		params: {
+			title: { description: 'Required. The title of the quiz displayed at the top.' },
+			description: { description: 'Optional. A description explaining what the quiz covers.' },
+			questions: {
+				description: `Array of question objects. Each question must have:
+- id: Unique identifier (e.g., "q1", "q2")
+- question: The question text shown to the student
+- type: Question type - one of: "single_choice", "multiple_choice", "text", "true_false"
+- options: Array of option strings (required for single_choice, multiple_choice, true_false)
+- correct_answer: The correct answer(s). For single_choice/true_false: a string. For multiple_choice: an array of strings. For text: a string or the expected answer.
+- explanation: Optional. An explanation shown after the quiz is submitted explaining the correct answer.
+- points: Optional. Points for this question (defaults to 10)
+
+Example: [
+  { id: "q1", question: "What is 2+2?", type: "single_choice", options: ["3", "4", "5"], correct_answer="4", points=10, explanation="2+2=4" }
+]`
+			},
+			total_points: { description: 'Optional. Total points for the quiz. If not provided, it will be calculated from individual question points.' },
+			time_limit_seconds: { description: 'Optional. Time limit in seconds for completing the quiz.' }
+		}
+	},
+
 	// go_to_definition
 	// go_to_usages
 
@@ -1338,6 +1393,7 @@ const studentModeTools: BuiltinToolName[] = [
 	'generate_video',
 	// Generative UI - interactive forms for user input
 	'render_form',
+	'create_quiz',
 	// Teaching tools - explain, teach, and practice
 	'explain_code',
 	'teach_concept',
@@ -2533,6 +2589,7 @@ PLAN TOOLS:
 
 OTHER TOOLS:
 - render_form: Display interactive forms for user input
+- create_quiz: Create interactive quizzes to test knowledge
 - generate_image: Generate images from text
 - generate_video: Generate videos from text
 </available_tools>

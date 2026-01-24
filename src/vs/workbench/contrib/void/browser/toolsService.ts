@@ -819,8 +819,24 @@ export class ToolsService implements IToolsService {
 			render_form: (params: RawToolParamsObj) => {
 				const { title, description, questions } = params;
 				const validatedQuestions: any[] = [];
+
+				// Handle both array and JSON string formats for questions
+				let parsedQuestions: any[] | undefined;
 				if (Array.isArray(questions)) {
-					for (const q of questions) {
+					parsedQuestions = questions;
+				} else if (typeof questions === 'string') {
+					try {
+						parsedQuestions = JSON.parse(questions);
+						if (!Array.isArray(parsedQuestions)) {
+							parsedQuestions = undefined;
+						}
+					} catch (e) {
+						// Invalid JSON, use undefined
+					}
+				}
+
+				if (parsedQuestions && Array.isArray(parsedQuestions)) {
+					for (const q of parsedQuestions) {
 						if (!q || typeof q !== 'object') continue;
 						const id = q.id ?? `q${validatedQuestions.length}`;
 						const text = typeof q.text === 'string' ? q.text : '';
@@ -834,6 +850,46 @@ export class ToolsService implements IToolsService {
 					title: typeof title === 'string' ? title : undefined,
 					description: typeof description === 'string' ? description : undefined,
 					questions: validatedQuestions.length > 0 ? validatedQuestions : [{ id: 'q1', text: 'Please provide your input', type: 'text' as const, required: false }],
+				};
+			},
+			create_quiz: (params: RawToolParamsObj) => {
+				const { title, description, questions, total_points, time_limit_seconds } = params;
+				const validatedQuestions: any[] = [];
+
+				// Handle both array and JSON string formats for questions
+				let parsedQuestions: any[] | undefined;
+				if (Array.isArray(questions)) {
+					parsedQuestions = questions;
+				} else if (typeof questions === 'string') {
+					try {
+						parsedQuestions = JSON.parse(questions);
+						if (!Array.isArray(parsedQuestions)) {
+							parsedQuestions = undefined;
+						}
+					} catch (e) {
+						// Invalid JSON, use undefined
+					}
+				}
+
+				if (parsedQuestions && Array.isArray(parsedQuestions)) {
+					for (const q of parsedQuestions) {
+						if (!q || typeof q !== 'object') continue;
+						const id = q.id ?? `q${validatedQuestions.length}`;
+						const questionText = typeof q.question === 'string' ? q.question : typeof q.text === 'string' ? q.text : '';
+						const type = (typeof q.type === 'string' && ['single_choice', 'multiple_choice', 'text', 'true_false'].includes(q.type)) ? q.type : 'single_choice';
+						const options = Array.isArray(q.options) ? q.options.filter((o: any) => typeof o === 'string') : undefined;
+						const correctAnswer = q.correct_answer !== undefined ? q.correct_answer : (type === 'true_false' ? 'True' : '');
+						const explanation = typeof q.explanation === 'string' ? q.explanation : undefined;
+						const points = typeof q.points === 'number' ? q.points : 10;
+						validatedQuestions.push({ id, question: questionText, type, options, correct_answer: correctAnswer, explanation, points });
+					}
+				}
+				return {
+					title: typeof title === 'string' ? title : 'Quiz',
+					description: typeof description === 'string' ? description : undefined,
+					questions: validatedQuestions.length > 0 ? validatedQuestions : [{ id: 'q1', question: 'What is 2 + 2?', type: 'single_choice' as const, options: ['3', '4', '5', '6'], correct_answer: '4', points: 10 }],
+					total_points: typeof total_points === 'number' ? total_points : validatedQuestions.reduce((sum, q) => sum + (q.points || 10), 0),
+					time_limit_seconds: typeof time_limit_seconds === 'number' ? time_limit_seconds : undefined,
 				};
 			},
 
@@ -1912,6 +1968,29 @@ For each module include:
 				return { result: { template } };
 			},
 
+			create_quiz: async ({ title, description, questions, total_points }, opts) => {
+				opts?.onData?.('Creating quiz...');
+
+				// Generate a unique quiz ID
+				const quizId = `quiz_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+				// The actual quiz rendering happens on the UI side
+				// We just return a template that indicates the quiz is ready
+				const totalPoints = total_points || questions?.reduce((sum: number, q: any) => sum + (q.points || 10), 0) || 0;
+				const questionCount = questions?.length || 0;
+				const template = `### ${title}
+
+${description || ''}
+
+**Quiz Details:**
+- Questions: ${questionCount}
+- Total Points: ${totalPoints}
+
+Please answer the questions in the quiz below. Your answers will be graded and reviewed.`;
+
+				return { result: { quiz_id: quizId, template } };
+			},
+
 		}
 
 		// given to the LLM after the call for successful tool calls
@@ -2255,6 +2334,10 @@ For each module include:
 
 				            render_form: (params, result) => {
 				                return result.template || 'Form rendered successfully. The user can now provide their responses.';
+				            },
+
+				            create_quiz: (params, result) => {
+				                return result.template || 'Quiz created successfully. The student can now answer the questions.';
 				            },
 				        }
 				    }
