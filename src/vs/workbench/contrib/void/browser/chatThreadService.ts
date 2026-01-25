@@ -21,7 +21,7 @@ import { approvalTypeOfBuiltinToolName, BuiltinToolCallParams, ToolCallParams, T
 import { IToolsService } from './toolsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
-import { ChatMessage, CheckpointEntry, CodespanLocationLink, StagingSelectionItem, ToolMessage, ImageAttachment, StudentSession, StudentExercise } from '../common/chatThreadServiceTypes.js';
+import { ChatMessage, CheckpointEntry, CodespanLocationLink, StagingSelectionItem, ToolMessage, ImageAttachment, StudentSession, StudentExercise, ActiveWorkflow, QueueBehavior } from '../common/chatThreadServiceTypes.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { IMetricsService } from '../common/metricsService.js';
 import { shorten } from '../../../../base/common/labels.js';
@@ -274,6 +274,10 @@ export type ThreadType = {
 
 		autoContinueEnabled: boolean;
 
+		// Workflow tracking
+		activeWorkflow: ActiveWorkflow | null;
+		queueBehavior: QueueBehavior;
+
 		// Student mode session state
 		studentSession?: StudentSession;
 
@@ -364,6 +368,8 @@ const newThreadObject = () => {
 			focusedMessageIdx: undefined,
 			linksOfMessageIdx: {},
 			autoContinueEnabled: false,
+			activeWorkflow: null,
+			queueBehavior: 'wait_for_workflow',
 			loadedSkills: {},
 		},
 		filesWithUserChanges: new Set()
@@ -468,6 +474,11 @@ export interface IChatThreadService {
 
 	// Skills
 	loadSkill(threadId: string, skillName: string, instructions: string): void;
+
+	// Workflow management
+	getActiveWorkflow(threadId: string): ThreadType['state']['activeWorkflow'];
+	setActiveWorkflowStatus(threadId: string, status: ActiveWorkflow['status']): void;
+	clearWorkflow(threadId: string): void;
 }
 
 export const IChatThreadService = createDecorator<IChatThreadService>('chatThreadService');
@@ -684,6 +695,8 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 				state: {
 					...thread.state,
 					autoContinueEnabled: thread.state?.autoContinueEnabled ?? false,
+					activeWorkflow: thread.state?.activeWorkflow ?? null,
+					queueBehavior: thread.state?.queueBehavior ?? 'wait_for_workflow',
 				},
 			}
 		}
@@ -1594,6 +1607,18 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 				// The LLM knows when it needs to use tools - if it responds with just text, it's done.
 				else if (!isEmptyResponse && textContent.length > 0 && textContent !== '(empty message)') {
 					if (chatMode === 'code') {
+						const thread = this.state.allThreads[threadId];
+						const workflow = thread?.state.activeWorkflow;
+
+						// NEW: If active workflow has pending tasks, continue loop
+						const hasPendingTasks = workflow && workflow.status === 'active' &&
+							workflow.tasks.some(t => t.status === 'pending' || t.status === 'in_progress');
+
+						if (hasPendingTasks) {
+							console.log(`[chatThreadService] Active workflow has pending tasks, continuing...`);
+							shouldSendAnotherMessage = true;
+							break; // Break retry loop to start new turn
+						}
 
 						// Detect interrupted responses (dangling intent or unfinished XML)
 						const isInterruptedXML = reactParser.isParsingIncomplete();
@@ -1601,7 +1626,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 						if ((isInterruptedXML || danglingIntent !== 'none') && nPokesThisLoop < 3) {
 							nPokesThisLoop += 1;
-							
+
 							if (danglingIntent === 'silent') {
 								console.log(`[chatThreadService] Agent mode: Detected obvious 'About to Act' pattern, silently auto-continuing...`)
 								// Silent auto-continue: just start another turn without adding a user message
@@ -1632,11 +1657,12 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 							break;
 						}
 
-						// No tool call = task complete. This is how Claude Code, Continue, and other agents work.
-						// The LLM will call tools when it needs to take action. Text-only means it's finished.
-						console.log(`[chatThreadService] Agent mode: Text-only response (no tool call) - task complete`)
-						shouldSendAnotherMessage = false
-						break
+						// Only terminate if no workflow or workflow is complete
+						if (!workflow || workflow.status === 'completed') {
+							console.log(`[chatThreadService] Agent mode: Text-only response (no tool call) - task complete`)
+							shouldSendAnotherMessage = false
+							break
+						}
 					}
 				} // end while (attempts)
 			} // end while (send message)
@@ -1652,7 +1678,18 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 			// Process next queued message if any
 			if (!isRunningWhenEnd) {
-				await this._processNextQueuedMessage(threadId)
+				const thread = this.state.allThreads[threadId];
+				const workflow = thread?.state.activeWorkflow;
+				const hasActiveWorkflow = workflow &&
+					workflow.status === 'active' &&
+					workflow.tasks.some(t => t.status === 'pending' || t.status === 'in_progress');
+
+				if (hasActiveWorkflow && thread?.state.queueBehavior === 'wait_for_workflow') {
+					console.log('[chatThreadService] Workflow active, holding queued message');
+					// Don't process - wait for workflow completion
+				} else {
+					await this._processNextQueuedMessage(threadId);
+				}
 			}
 		}
 	}
@@ -1984,7 +2021,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 	}
 
 
-	private async _addUserMessageAndStreamResponse({ userMessage, _chatSelections, images, threadId }: { userMessage: string, _chatSelections?: StagingSelectionItem[], images?: ImageAttachment[], threadId: string }) {
+	private async _addUserMessageAndStreamResponse({ userMessage, _chatSelections, images, threadId, _isFromQueue = false }: { userMessage: string, _chatSelections?: StagingSelectionItem[], images?: ImageAttachment[], threadId: string, _isFromQueue?: boolean }) {
 		const thread = this.state.allThreads[threadId]
 		if (!thread) return // should never happen
 
@@ -2032,6 +2069,29 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		// Tool Orchestration: Get tool suggestions before adding user message to thread
 		let orchestrationResult: any = { suggestions: [], reasoning: '', summary: '' };
 		const chatMode = this._settingsService.state.globalSettings.chatMode;
+
+		// NEW: Auto-create workflow for complex requests in code mode
+		if (chatMode === 'code' && userMessage.length > 50 && !_isFromQueue) {
+			const isComplexRequest = this._detectComplexRequest(userMessage);
+			if (isComplexRequest && !thread.state.activeWorkflow) {
+				console.log('[chatThreadService] Complex request detected, initializing workflow...');
+
+				// Create active workflow
+				thread.state.activeWorkflow = {
+					id: generateUuid(),
+					goal: userMessage,
+					tasks: [], // Will be populated by LLM via create_plan
+					currentTaskId: null,
+					status: 'planning',
+					createdAt: Date.now()
+				};
+
+				thread.state.queueBehavior = 'wait_for_workflow';
+				this._storeAllThreads(this.state.allThreads);
+				this._onDidChangeCurrentThread.fire();
+			}
+		}
+
 		if (this._settingsService.state.globalSettings.enableToolOrchestration) {
 			console.log('[chatThreadService] Running tool orchestration...');
 			this._setStreamState(threadId, { isRunning: 'idle', interrupt: 'not_needed' });
@@ -2085,6 +2145,11 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 		// Check if the thread is currently running
 		const isRunning = this.streamState[threadId]?.isRunning;
+
+		// NEW: Override workflow for manual send (not from queue)
+		if (!isRunning && !this._hasQueuedMessages(threadId)) {
+			this._overrideWorkflow(threadId);
+		}
 
 		// If the thread is running, queue the message instead of aborting
 		if (isRunning) {
@@ -2170,7 +2235,8 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			userMessage: nextMessage.userMessage,
 			_chatSelections: nextMessage.selections,
 			images: nextMessage.images,
-			threadId
+			threadId,
+			_isFromQueue: true,  // NEW: Mark as from queue
 		});
 	}
 
@@ -2226,6 +2292,44 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			images: message.images,
 			threadId
 		});
+	}
+
+	/**
+	 * Override the current active workflow (called when user manually sends message)
+	 */
+	private _overrideWorkflow(threadId: string): void {
+		const thread = this.state.allThreads[threadId];
+		if (!thread) return;
+
+		if (thread.state.activeWorkflow) {
+			console.log('[chatThreadService] Workflow override requested, clearing workflow');
+
+			// Mark workflow as cancelled/failed
+			thread.state.activeWorkflow = null;
+
+			// Clear task plan
+			this.clearTaskPlan(threadId);
+
+			// Reset queue behavior
+			this._updateThreadStateAndStore(threadId, { queueBehavior: 'wait_for_workflow' });
+
+			this._onDidChangeCurrentThread.fire();
+		}
+	}
+
+	/**
+	 * Detect if a user request is complex enough to warrant workflow planning
+	 */
+	private _detectComplexRequest(message: string): boolean {
+		const complexPatterns = [
+			/redesign|refactor|implement|build.*system|create.*feature|add.*system/i,
+			/multiple.*files|several.*pages|all.*components/i,
+			/step\s+\d|first.*then|after.*that/i,
+			/and.*also|and.*then|additionally/i,
+			/complete.*system|full.*implementation/i,
+		];
+
+		return complexPatterns.some(pattern => pattern.test(message));
 	}
 
 	// ---------- the rest ----------
@@ -2889,6 +2993,21 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 				this.updateTaskStatus(threadId, taskToUpdate.id, 'blocked')
 				console.log(`[chatThreadService] Auto-updated task "${taskToUpdate.description}" to blocked after ${toolName} error`)
 			}
+
+			// NEW: Update workflow state if active
+			const thread = this.state.allThreads[threadId];
+			const workflow = thread?.state.activeWorkflow;
+
+			if (workflow && workflow.status === 'active') {
+				// Check if all tasks are complete
+				const allTasksComplete = tasks.every(t => t.status === 'completed');
+				if (allTasksComplete) {
+					workflow.status = 'completed';
+					console.log(`[chatThreadService] Workflow "${workflow.goal}" completed`);
+					this._storeAllThreads(this.state.allThreads);
+					this._onDidChangeCurrentThread.fire();
+				}
+			}
 		}
 	}
 
@@ -3057,6 +3176,24 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			}
 		});
 		console.log(`[chatThreadService] Loaded skill: ${skillName} for thread: ${threadId}`);
+	}
+
+	// Workflow management methods
+	getActiveWorkflow = (threadId: string): ThreadType['state']['activeWorkflow'] => {
+		return this.state.allThreads[threadId]?.state.activeWorkflow ?? null;
+	}
+
+	setActiveWorkflowStatus = (threadId: string, status: ActiveWorkflow['status']): void => {
+		const thread = this.state.allThreads[threadId];
+		if (!thread?.state.activeWorkflow) return;
+
+		thread.state.activeWorkflow.status = status;
+		this._storeAllThreads(this.state.allThreads);
+		this._onDidChangeCurrentThread.fire();
+	}
+
+	clearWorkflow = (threadId: string): void => {
+		this._overrideWorkflow(threadId);
 	}
 
 	// gets `staging` and `setStaging` of the currently focused element, given the index of the currently selected message (or undefined if no message is selected)

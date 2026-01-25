@@ -138,3 +138,27 @@ export type StudentSession = {
 	completedExerciseCount: number;
 	conceptsLearned: string[];
 }
+
+// Workflow tracking for agent mode
+export type WorkflowTaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
+
+export interface WorkflowTask {
+	id: string;
+	description: string;
+	status: WorkflowTaskStatus;
+	dependencies: string[];
+	notes?: string;
+}
+
+export type WorkflowStatus = 'planning' | 'active' | 'paused' | 'completed' | 'failed';
+
+export interface ActiveWorkflow {
+	id: string;
+	goal: string;
+	tasks: WorkflowTask[];
+	currentTaskId: string | null;
+	status: WorkflowStatus;
+	createdAt: number;
+}
+
+export type QueueBehavior = 'immediate' | 'wait_for_workflow' | 'hold';

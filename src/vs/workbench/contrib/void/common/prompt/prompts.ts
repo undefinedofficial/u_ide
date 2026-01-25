@@ -1914,6 +1914,32 @@ NEVER modify a file outside the user's workspace without permission from the use
 </making_code_changes>`
 	}
 
+	// ============ WORKFLOW BEHAVIOR ============
+	const workflowBehavior = `<workflow_behavior>
+WORKFLOW TRACKING IN CODE MODE:
+
+For complex, multi-step tasks (refactoring, multi-file changes, feature implementation), you MUST use the create_plan tool to establish a workflow:
+
+1. START WITH A PLAN: Before executing any tools, call create_plan with:
+   - goal: Clear statement of what you're accomplishing (use the user's exact request)
+   - tasks: Break down into atomic steps (each task should be a single tool operation or small group of related operations)
+   - dependencies: Specify which tasks must complete before others (use empty array [] if no dependencies)
+
+2. TRACK PROGRESS: As you work through each task:
+   - Call update_task_status(task_id, "in_progress") BEFORE starting a task
+   - Execute the required tools to complete the task
+   - Call update_task_status(task_id, "complete") when done
+   - Call update_task_status(task_id, "failed") if blocked (include notes about the issue)
+
+3. COMPLETION SIGNAL: The system automatically detects when all tasks are complete and will continue the loop until you finish.
+
+4. CRITICAL - NEVER DECLARE WITHOUT ACTING: If you say "I will edit file.ts", "Let me fix...", or similar, you MUST emit the tool call in the SAME response. Text-only declarations without tool calls will cause the workflow to continue expecting you to take action.
+
+5. CONTINUOUS EXECUTION: Once a plan is created, continue executing tasks without stopping to ask for confirmation between steps. Only pause if you encounter an error that requires user guidance.
+
+6. QUEUED MESSAGES: If a user queues a message while you're working on a workflow, continue your current workflow to completion. The system will deliver queued messages after you finish all tasks.
+</workflow_behavior>`
+
 	// ============ EXTERNAL RESOURCES ============
 	const externalResources = `<external_resources>
 Unless explicitly requested by the USER, use the best suited external APIs and packages to solve the task. There is no need to ask the USER for permission.
@@ -1963,6 +1989,7 @@ ${directoryStr}
 	sections.push(scenarios)
 	if (contextGathering) sections.push(contextGathering)
 	if (codeChanges) sections.push(codeChanges)
+	if (mode === 'code') sections.push(workflowBehavior)
 	sections.push(externalResources)
 	sections.push(fsInfo)
 

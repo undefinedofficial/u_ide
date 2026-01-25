@@ -80,7 +80,7 @@ export const SearchQueryResultWrapper: ResultWrapper<'ls_dir' | 'search_pathname
 				componentParams.children = <ToolChildrenWrapper>
 					<SmallProseWrapper>
 						<ChatMarkdownRender
-							string={`\`\`\`\n${result.str}\n\`\`\`}`}
+							string={`\`\`\`\n${result.str}\n\`\`\``}
 							chatMessageLocation={undefined}
 							isApplyEnabled={false}
 							isLinkDetectionEnabled={true}
