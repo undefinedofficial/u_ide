@@ -96,3 +96,9 @@ import '../common/voidModelService.js'
 
 // learning progress service
 import '../common/learningProgressService.js'
+
+// analytics services - Analytics enhancement
+import './fileAnalyticsService.js'
+import './editorAnalyticsService.js'
+import './layoutAnalyticsService.js'
+import './commandAnalyticsService.js'

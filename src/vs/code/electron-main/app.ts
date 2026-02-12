@@ -157,6 +157,7 @@ export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
 	private auxiliaryWindowsMainService: IAuxiliaryWindowsMainService | undefined;
 	private nativeHostMainService: INativeHostMainService | undefined;
+	private appInstantiationService: IInstantiationService | undefined; // Store for session lifecycle hooks
 
 	constructor(
 		private readonly mainProcessNodeIpcServer: NodeIPCServer,
@@ -497,6 +498,17 @@ export class CodeApplication extends Disposable {
 			await this.windowsMainService?.openEmptyWindow({ context: OpenContext.DESKTOP }); //macOS native tab "+" button
 		});
 
+		// Session lifecycle hooks for metrics - Analytics enhancement
+		app.on('before-quit', () => {
+			this._endSessionMetrics();
+		});
+
+		app.on('window-all-closed', () => {
+			if (process.platform !== 'darwin') {
+				this._endSessionMetrics();
+			}
+		});
+
 		//#region Bootstrap IPC Handlers
 
 		validatedIpcMain.handle('vscode:fetchShellEnv', event => {
@@ -594,6 +606,12 @@ export class CodeApplication extends Disposable {
 
 		// Services
 		const appInstantiationService = await this.initServices(machineId, sqmId, devDeviceId, sharedProcessReady);
+
+		// Store app instantiation service for session lifecycle hooks - Analytics enhancement
+		this.appInstantiationService = appInstantiationService;
+
+		// Start metrics session on app ready - Analytics enhancement
+		this._startSessionMetrics();
 
 		// Error telemetry
 		appInstantiationService.invokeFunction(accessor => this._register(new ErrorTelemetry(accessor.get(ILogService), accessor.get(ITelemetryService))));
@@ -1524,5 +1542,33 @@ export class CodeApplication extends Disposable {
 		// Validate Device ID is up to date (delay this as it has shown significant perf impact)
 		// Refs: https://github.com/microsoft/vscode/issues/234064
 		validatedevDeviceId(this.stateService, this.logService);
+	}
+
+	// Helper methods for session metrics - Analytics enhancement
+
+	private _startSessionMetrics(): void {
+		if (!this.appInstantiationService) return;
+		try {
+			this.appInstantiationService.invokeFunction(accessor => {
+				const metricsService = accessor.get(IMetricsService);
+				metricsService.startSession();
+			});
+			this.logService.trace('[A-Coder] Started metrics session');
+		} catch (error) {
+			this.logService.warn('[A-Coder] Failed to start metrics session:', error);
+		}
+	}
+
+	private _endSessionMetrics(): void {
+		if (!this.appInstantiationService) return;
+		try {
+			this.appInstantiationService.invokeFunction(accessor => {
+				const metricsService = accessor.get(IMetricsService);
+				metricsService.endSession();
+			});
+			this.logService.trace('[A-Coder] Ended metrics session');
+		} catch (error) {
+			this.logService.warn('[A-Coder] Failed to end metrics session:', error);
+		}
 	}
 }

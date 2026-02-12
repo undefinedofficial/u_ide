@@ -47,12 +47,61 @@ export interface LLMGenerationEvent {
 	feature?: string;             // 'Chat', 'Autocomplete', 'QuickEdit', etc.
 }
 
+// File operation analytics event
+export interface FileOperationEvent {
+	operation: 'open' | 'save' | 'close' | 'create' | 'delete' | 'move' | 'copy';
+	fileExtension: string;
+	fileSize: number;
+	isWorkspaceFile: boolean;
+	language?: string;
+}
+
+// Editor analytics event
+export interface EditorAnalyticsEvent {
+	type: 'active_editor_change' | 'tab_open' | 'tab_close' | 'tab_switch';
+	fileExtension?: string;
+	language?: string;
+	isWorkspaceFile?: boolean;
+	tabCount?: number;
+}
+
+// Layout analytics event
+export interface LayoutAnalyticsEvent {
+	type: 'panel_toggle' | 'sidebar_toggle' | 'zen_mode_toggle' | 'layout_change';
+	part: string;
+	visible: boolean;
+	position?: string;
+}
+
+// Command analytics event
+export interface CommandAnalyticsEvent {
+	commandId: string;
+	source: 'palette' | 'keybinding' | 'menu' | 'unknown';
+}
+
+// Session analytics event
+export interface SessionAnalyticsEvent {
+	type: 'session_start' | 'session_end' | 'session_pause' | 'session_resume';
+	durationMs?: number;
+	activities?: Record<string, number>;
+}
+
 export interface IMetricsService {
 	readonly _serviceBrand: undefined;
 	capture(event: string, params: Record<string, any>): void;
 	captureLLMGeneration(event: LLMGenerationEvent): void;
 	setOptOut(val: boolean): void;
 	getDebuggingProperties(): Promise<object>;
+
+	// NEW METHODS - Analytics enhancement
+	captureFileOperation(event: FileOperationEvent): void;
+	captureEditorEvent(event: EditorAnalyticsEvent): void;
+	captureLayoutEvent(event: LayoutAnalyticsEvent): void;
+	captureCommandEvent(event: CommandAnalyticsEvent): void;
+	captureSessionEvent(event: SessionAnalyticsEvent): void;
+	setUserEmail(email?: string): void;
+	startSession(): void;
+	endSession(): void;
 }
 
 export const IMetricsService = createDecorator<IMetricsService>('metricsService');
@@ -89,6 +138,39 @@ export class MetricsService implements IMetricsService {
 	// anything transmitted over a channel must be async even if it looks like it doesn't have to be
 	async getDebuggingProperties(): Promise<object> {
 		return this.metricsService.getDebuggingProperties()
+	}
+
+	// NEW METHODS - Analytics enhancement
+	captureFileOperation(event: FileOperationEvent): void {
+		this.metricsService.captureFileOperation(event);
+	}
+
+	captureEditorEvent(event: EditorAnalyticsEvent): void {
+		this.metricsService.captureEditorEvent(event);
+	}
+
+	captureLayoutEvent(event: LayoutAnalyticsEvent): void {
+		this.metricsService.captureLayoutEvent(event);
+	}
+
+	captureCommandEvent(event: CommandAnalyticsEvent): void {
+		this.metricsService.captureCommandEvent(event);
+	}
+
+	captureSessionEvent(event: SessionAnalyticsEvent): void {
+		this.metricsService.captureSessionEvent(event);
+	}
+
+	setUserEmail(email?: string): void {
+		this.metricsService.setUserEmail(email);
+	}
+
+	startSession(): void {
+		this.metricsService.startSession();
+	}
+
+	endSession(): void {
+		this.metricsService.endSession();
 	}
 }
 

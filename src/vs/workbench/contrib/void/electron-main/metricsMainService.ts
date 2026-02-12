@@ -11,9 +11,9 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { StorageTarget, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IApplicationStorageMainService } from '../../../../platform/storage/electron-main/storageMainService.js';
 
-import { IMetricsService, LLMGenerationEvent } from '../common/metricsService.js';
+import { IMetricsService, LLMGenerationEvent, FileOperationEvent, EditorAnalyticsEvent, LayoutAnalyticsEvent, CommandAnalyticsEvent, SessionAnalyticsEvent } from '../common/metricsService.js';
 import { PostHog } from 'posthog-node'
-import { OPT_OUT_KEY } from '../common/storageKeys.js';
+import { OPT_OUT_KEY, COHORT_KEY, FIRST_SESSION_KEY, LAST_SESSION_KEY, USER_EMAIL_KEY } from '../common/storageKeys.js';
 
 
 const os = isWindows ? 'windows' : isMacintosh ? 'mac' : isLinux ? 'linux' : null
@@ -38,6 +38,11 @@ export class MetricsMainService extends Disposable implements IMetricsService {
 	private readonly client: PostHog
 
 	private _initProperties: object = {}
+
+	// Session tracking fields - Analytics enhancement
+	private _sessionId: string | undefined;
+	private _sessionStartTime: number | undefined;
+	private _sessionActivities: Record<string, number> = {};
 
 
 	// helper - looks like this is stored in a .vscdb file in ~/Library/Application Support/Void
@@ -103,6 +108,24 @@ export class MetricsMainService extends Disposable implements IMetricsService {
 
 		const isDevMode = !this._envMainService.isBuilt // found in abstractUpdateService.ts
 
+		// Determine cohort for user segmentation - Analytics enhancement
+		const firstSession = this._appStorage.get(FIRST_SESSION_KEY, StorageScope.APPLICATION);
+		const now = Date.now();
+		let cohort: string;
+
+		if (!firstSession) {
+			cohort = 'new';
+			this._appStorage.store(FIRST_SESSION_KEY, now.toString(), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		} else {
+			const daysSinceFirst = Math.floor((now - parseInt(firstSession)) / (1000 * 60 * 60 * 24));
+			if (daysSinceFirst <= 1) cohort = 'returning_1day';
+			else if (daysSinceFirst <= 7) cohort = 'returning_7day';
+			else if (daysSinceFirst <= 30) cohort = 'returning_30day';
+			else cohort = 'returning_30plus';
+		}
+
+		this._appStorage.store(COHORT_KEY, cohort, StorageScope.APPLICATION, StorageTarget.MACHINE);
+
 		// custom properties we identify
 		this._initProperties = {
 			commit,
@@ -115,6 +138,7 @@ export class MetricsMainService extends Disposable implements IMetricsService {
 			distinctIdUser: this.userId,
 			oldId: this.oldId,
 			isDevMode,
+			cohort, // Added cohort for analytics
 			...osInfo,
 		}
 
@@ -211,6 +235,100 @@ export class MetricsMainService extends Disposable implements IMetricsService {
 
 	async getDebuggingProperties() {
 		return this._initProperties
+	}
+
+	// NEW METHODS - Analytics enhancement
+
+	captureFileOperation(event: FileOperationEvent): void {
+		this.capture('file_operation', {
+			operation: event.operation,
+			file_extension: event.fileExtension,
+			file_size_category: this._categorizeFileSize(event.fileSize),
+			is_workspace_file: event.isWorkspaceFile,
+			language: event.language,
+		});
+	}
+
+	captureEditorEvent(event: EditorAnalyticsEvent): void {
+		this.capture('editor_event', {
+			type: event.type,
+			file_extension: event.fileExtension,
+			language: event.language,
+			is_workspace_file: event.isWorkspaceFile,
+			tab_count: event.tabCount,
+		});
+	}
+
+	captureLayoutEvent(event: LayoutAnalyticsEvent): void {
+		this.capture('layout_event', {
+			type: event.type,
+			part: event.part,
+			visible: event.visible,
+			position: event.position,
+		});
+	}
+
+	captureCommandEvent(event: CommandAnalyticsEvent): void {
+		this.capture('command_executed', event);
+	}
+
+	captureSessionEvent(event: SessionAnalyticsEvent): void {
+		this.capture('session_event', {
+			type: event.type,
+			duration_ms: event.durationMs,
+			duration_category: event.durationMs ? this._categorizeDuration(event.durationMs) : undefined,
+			activities: event.activities,
+		});
+	}
+
+	setUserEmail(email?: string): void {
+		if (!email || !this._isValidEmail(email)) return;
+		const hashedEmail = this._hashEmail(email);
+		this._appStorage.store(USER_EMAIL_KEY, email, StorageScope.APPLICATION, StorageTarget.USER);
+		this.client.identify({ distinctId: this.distinctId, properties: { ...this._initProperties, email: hashedEmail } });
+	}
+
+	startSession(): void {
+		this._sessionId = generateUuid();
+		this._sessionStartTime = Date.now();
+		this._sessionActivities = {};
+		this.captureSessionEvent({ type: 'session_start' });
+	}
+
+	endSession(): void {
+		if (!this._sessionId || !this._sessionStartTime) return;
+		const duration = Date.now() - this._sessionStartTime;
+		this.captureSessionEvent({ type: 'session_end', durationMs: duration, activities: this._sessionActivities });
+		this._appStorage.store(LAST_SESSION_KEY, Date.now().toString(), StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	// Helper methods - Analytics enhancement
+
+	private _categorizeFileSize(bytes: number): string {
+		if (bytes < 10240) return 'small';
+		if (bytes < 102400) return 'medium';
+		if (bytes < 1048576) return 'large';
+		return 'huge';
+	}
+
+	private _categorizeDuration(ms: number): string {
+		if (ms < 300000) return 'short';
+		if (ms < 1800000) return 'medium';
+		if (ms < 7200000) return 'long';
+		return 'very_long';
+	}
+
+	private _isValidEmail(email: string): boolean {
+		return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+	}
+
+	private _hashEmail(email: string): string {
+		let hash = 0;
+		for (let i = 0; i < email.length; i++) {
+			hash = ((hash << 5) - hash) + email.charCodeAt(i);
+			hash = hash & hash;
+		}
+		return `email_${hash.toString(36)}`;
 	}
 }
 
