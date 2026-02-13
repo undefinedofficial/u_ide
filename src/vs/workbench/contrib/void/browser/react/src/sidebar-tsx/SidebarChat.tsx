@@ -433,6 +433,23 @@ export const IconWarning = ({ size, className = '' }: { size: number, className?
 	);
 };
 
+// VoidIcon - theme-aware logo that inverts on light themes
+const VoidIcon = ({ size = 96, opacity = 0.9, className = '' }: { size?: number; opacity?: number; className?: string }) => {
+	const isDark = useIsDark();
+
+	return (
+		<div
+			className={`@@void-void-icon ${className}`}
+			style={{
+				width: `${size}px`,
+				height: `${size}px`,
+				opacity,
+				filter: isDark ? '' : 'invert(1)'
+			}}
+		/>
+	);
+};
+
 
 export const IconLoading = ({ className = '' }: { className?: string }) => {
 
@@ -1597,9 +1614,9 @@ const ToolRequestAcceptRejectButtons = ({ toolName, toolId }: { toolName: ToolNa
 			onClick={onAccept}
 			className={`
                 px-4 py-1.5
-                bg-[#0e70c0]
+                bg-[var(--vscode-button-background)]
                 text-white
-                hover:bg-[#1177cb]
+                hover:bg-[var(--vscode-button-hoverBackground)]
                 rounded-xl shadow-sm
                 text-xs font-bold uppercase tracking-wider
                 transition-all duration-200 active:scale-95 flex items-center gap-1.5
@@ -3284,7 +3301,7 @@ export const SidebarChat = () => {
 				{currentChatMode === 'learn' ? (
 					<div className='text-6xl mb-6'>🎓</div>
 				) : (
-					<div className='@@void-void-icon mb-8' style={{ width: '96px', height: '96px', opacity: 0.9 }} />
+					<VoidIcon size={96} opacity={0.9} className="mb-8" />
 				)}
 
 				{/* Title with mode */}

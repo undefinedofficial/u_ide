@@ -403,7 +403,7 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 				<div className="flex gap-2 mt-2">
 					<button
 						onClick={handleSave}
-						className="px-3 py-1 text-xs bg-[#0e70c0] text-white rounded hover:bg-[#0c5fa0]"
+						className="px-3 py-1 text-xs bg-[var(--vscode-button-background)] text-white rounded hover:bg-[var(--vscode-button-hoverBackground)]"
 					>
 						Save
 					</button>
@@ -457,9 +457,9 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 
 
 			const detailAboutModel = type === 'autodetected' ?
-				<Asterisk size={14} className="inline-block align-text-top brightness-115 stroke-[2] text-[#0e70c0]" data-tooltip-id='void-tooltip' data-tooltip-place='right' data-tooltip-content='Detected locally' />
+				<Asterisk size={14} className="inline-block align-text-top brightness-115 stroke-[2] text-[var(--vscode-void-accent)]" data-tooltip-id='void-tooltip' data-tooltip-place='right' data-tooltip-content='Detected locally' />
 				: type === 'custom' ?
-					<Asterisk size={14} className="inline-block align-text-top brightness-115 stroke-[2] text-[#0e70c0]" data-tooltip-id='void-tooltip' data-tooltip-place='right' data-tooltip-content='Custom model' />
+					<Asterisk size={14} className="inline-block align-text-top brightness-115 stroke-[2] text-[var(--vscode-void-accent)]" data-tooltip-id='void-tooltip' data-tooltip-place='right' data-tooltip-content='Custom model' />
 					: undefined
 
 			const hasOverrides = !!settingsState.overridesOfModel?.[providerName]?.[modelName]
@@ -535,7 +535,7 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 		{/* Add Model Section */}
 		{showCheckmark ? (
 			<div className="p-4 bg-void-bg-2/30">
-				<AnimatedCheckmarkButton text='Added' className="bg-[#0e70c0] text-white px-3 py-1 rounded-sm" />
+				<AnimatedCheckmarkButton text='Added' className="bg-[var(--vscode-button-background)] text-white px-3 py-1 rounded-sm" />
 			</div>
 		) : isAddModelOpen ? (
 			<div className="p-4 bg-void-bg-2/30 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -1348,7 +1348,7 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 			</aside>
 
 			{/* ───────────── MAIN PANE ───────────── */}
-			<main className={`flex-1 h-full overflow-y-auto ${isDark ? 'bg-[#121212]' : 'bg-void-bg-2'}`}>
+			<main className={`flex-1 h-full overflow-y-auto bg-void-bg-3`}>
 				<div className="max-w-5xl mx-auto px-8 py-8 pb-32">
 
 					<div className="flex items-center justify-between mb-8">
@@ -2145,7 +2145,7 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 													)}
 												</div>
 												<button
-													className="mt-3 w-full py-2 bg-[#0e70c0] text-white rounded-md hover:bg-[#1177cb] transition-all font-medium text-sm shadow-sm"
+													className="mt-3 w-full py-2 bg-[var(--vscode-button-background)] text-white rounded-md hover:bg-[var(--vscode-button-hoverBackground)] transition-all font-medium text-sm shadow-sm"
 													onClick={async () => {
 														const token = `acoder_${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
 														voidSettingsService.setGlobalSetting('apiTokens', [...settingsState.globalSettings.apiTokens, token]);

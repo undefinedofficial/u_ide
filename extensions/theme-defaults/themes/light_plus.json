@@ -93,8 +93,7 @@
 				"meta.definition.variable.name",
 				"support.variable",
 				"entity.name.variable",
-				"constant.other.placeholder", // placeholders in strings
-
+				"constant.other.placeholder" // placeholders in strings
 			],
 			"settings": {
 				"foreground": "#001080"
@@ -107,7 +106,7 @@
 				"variable.other.enummember"
 			],
 			"settings": {
-				"foreground": "#0070C1",
+				"foreground": "#0070C1"
 			}
 		},
 		{
@@ -202,6 +201,6 @@
 		"newOperator": "#AF00DB",
 		"stringLiteral": "#a31515",
 		"customLiteral": "#795E26",
-		"numberLiteral": "#098658",
+		"numberLiteral": "#098658"
 	}
 }

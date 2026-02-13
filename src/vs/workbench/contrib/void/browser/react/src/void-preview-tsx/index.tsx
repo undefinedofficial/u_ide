@@ -4,6 +4,17 @@
  *--------------------------------------------------------------------------------------*/
 
 import { mountFnGenerator } from '../util/mountFnGenerator.js'
-import { VoidPreview } from './VoidPreview.js'
+import { EnhancedVoidPreview } from './EnhancedVoidPreview.js'
+import { LearningPreviewWithTheme } from './LearningPreview.js'
 
-export const mountVoidPreview = mountFnGenerator(VoidPreview)
+// Export components
+export { EnhancedVoidPreview } from './EnhancedVoidPreview.js'
+export { LearningPreview, LearningPreviewWithTheme } from './LearningPreview.js'
+export { VoidPreview } from './VoidPreview.js'
+
+// Default mount function uses EnhancedVoidPreview for walkthroughs and implementation plans
+// Uses VS Code design tokens (void-*) for theme compatibility
+export const mountVoidPreview = mountFnGenerator(EnhancedVoidPreview)
+
+// Mount function for lessons with procedural theming
+export const mountLearningPreview = mountFnGenerator(LearningPreviewWithTheme)

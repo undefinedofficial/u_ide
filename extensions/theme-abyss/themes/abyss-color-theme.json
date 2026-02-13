@@ -1,5 +1,6 @@
 {
 	"name": "Abyss",
+	"type": "dark",
 	"tokenColors": [
 		{
 			"settings": {
@@ -20,7 +21,7 @@
 			"name": "Comment",
 			"scope": "comment",
 			"settings": {
-				"foreground": "#384887"
+				"foreground": "#5B7E9A"
 			}
 		},
 		{
@@ -65,7 +66,7 @@
 			"name": "Keyword",
 			"scope": "keyword",
 			"settings": {
-				"foreground": "#225588"
+				"foreground": "#4488AA"
 			}
 		},
 		{
@@ -73,7 +74,7 @@
 			"scope": "storage",
 			"settings": {
 				"fontStyle": "",
-				"foreground": "#225588"
+				"foreground": "#4488AA"
 			}
 		},
 		{
@@ -126,7 +127,7 @@
 			"scope": "entity.name.tag",
 			"settings": {
 				"fontStyle": "",
-				"foreground": "#225588"
+				"foreground": "#4488AA"
 			}
 		},
 		{

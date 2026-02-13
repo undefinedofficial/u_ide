@@ -62,7 +62,7 @@ export const TerminalCommandApproval = ({ command, cwd, threadId, toolId }: { co
 			</div>
 			<div className="flex items-center justify-end gap-2 px-3 py-2 border-t border-void-border-2 bg-void-bg-2/30">
 				<button onClick={onCopy} className="p-2 text-void-fg-3 hover:text-void-fg-1 hover:bg-void-bg-2 rounded-lg transition-all active:scale-90" data-tooltip-id='void-tooltip' data-tooltip-content='Copy command' data-tooltip-place='top'><CopyIcon size={14} /></button>
-				<button onClick={onRun} className="flex items-center gap-2 px-4 py-1.5 bg-[#0e70c0] text-white hover:bg-[#1177cb] rounded-lg shadow-sm text-xs font-bold uppercase tracking-wider transition-all active:scale-95"><Play size={12} strokeWidth={3} />Run</button>
+				<button onClick={onRun} className="flex items-center gap-2 px-4 py-1.5 bg-[var(--vscode-button-background)] text-white hover:bg-[var(--vscode-button-hoverBackground)] rounded-lg shadow-sm text-xs font-bold uppercase tracking-wider transition-all active:scale-95"><Play size={12} strokeWidth={3} />Run</button>
 				<button onClick={onSkip} className="px-3 py-1.5 bg-void-bg-2 text-void-fg-2 hover:bg-void-bg-3 rounded-lg text-xs font-bold uppercase tracking-wider border border-void-border-2 transition-all active:scale-95">Skip</button>
 				<button onClick={onCancel} className="px-3 py-1.5 text-void-fg-3 hover:text-void-fg-1 hover:bg-void-bg-3 rounded-lg text-xs font-bold uppercase tracking-wider transition-all active:scale-95">Cancel</button>
 			</div>

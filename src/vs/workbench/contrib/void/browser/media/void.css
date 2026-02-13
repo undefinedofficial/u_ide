@@ -27,8 +27,8 @@
 /* Renamed from void-watermark-button to void-openfolder-button */
 .void-openfolder-button {
     padding: 8px 20px;
-    background-color: #306dce;
-    color: white;
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
     border: none;
     border-radius: 4px;
     outline: none !important;
@@ -37,17 +37,17 @@
 	transition: background-color 0.2s ease;
 }
 .void-openfolder-button:hover {
-    background-color: #2563eb;
+    background-color: var(--vscode-button-hoverBackground);
 }
 .void-openfolder-button:active {
-    background-color: #2563eb;
+    background-color: var(--vscode-button-hoverBackground);
 }
 
 /* Added for Open SSH button with slightly darker color */
 .void-openssh-button {
     padding: 8px 20px;
-    background-color: #656565; /* Slightly darker than the #5a5a5a in the TS file */
-    color: white;
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
     border: none;
     border-radius: 4px;
     outline: none !important;
@@ -56,10 +56,10 @@
     transition: background-color 0.2s ease;
 }
 .void-openssh-button:hover {
-    background-color: #474747; /* Darker on hover */
+    background-color: var(--vscode-button-secondaryHoverBackground);
 }
 .void-openssh-button:active {
-    background-color: #474747;
+    background-color: var(--vscode-button-secondaryHoverBackground);
 }
 
 
@@ -85,13 +85,13 @@
 }
 
 .void-link {
-	color: #3b82f6;
+	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 	transition: all 0.2s ease;
 }
 
 .void-link:hover {
-	opacity: 80%;
+	color: var(--vscode-textLink-activeForeground);
 }
 
 /* styles for all containers used by void */

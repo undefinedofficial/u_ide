@@ -20,6 +20,7 @@ interface WalkthroughResultWrapperProps {
 		content: string
 		result?: any
 		id: string
+		type?: string
 	}
 	messageIdx: number
 	threadId: string
@@ -57,100 +58,68 @@ const WalkthroughResultWrapper: React.FC<WalkthroughResultWrapperProps> = ({
 	const editorService = accessor.get('IEditorService') as any
 
 	const [refreshKey, setRefreshKey] = useState(0)
-	const [latestWalkthrough, setLatestWalkthrough] = useState(toolMessage)
 	const [isExpanded, setIsExpanded] = useState(true)
 	const [showFullPreview, setShowFullPreview] = useState(false)
 
-	// Store the messages length to detect changes without including the service in deps
-	const messagesLengthRef = useRef(0)
-	// Store threadId to detect changes and reset state
-	const threadIdRef = useRef(threadId)
+	// Track content from NEWER walkthrough updates in this thread (for showing latest content)
+	const [newerContent, setNewerContent] = useState<{ preview: string; filePath: string; action: string } | null>(null)
+
 	// Ref to store the latest result to avoid stale closure in openWalkthrough
 	const latestResultRef = useRef(toolMessage.result)
 
-	// Reset state when threadId changes
+	// Update the ref when toolMessage.result changes
 	useEffect(() => {
-		if (threadIdRef.current !== threadId) {
-			// Reset state for new thread
-			threadIdRef.current = threadId
-			setLatestWalkthrough(toolMessage)
-			setRefreshKey(0)
-			setIsExpanded(true)
-			setShowFullPreview(false)
-			messagesLengthRef.current = 0
+		if (toolMessage.result && typeof toolMessage.result === 'object' && toolMessage.result.preview) {
 			latestResultRef.current = toolMessage.result
 		}
-	}, [threadId, toolMessage])
+	}, [toolMessage.result])
 
 	// Check for newer walkthrough updates in this thread
-	const checkForUpdates = useCallback(() => {
-		// Don't auto-update open_walkthrough_preview messages
-		if (toolMessage.name === 'open_walkthrough_preview') return
-
-		if (!chatThreadsService) return
-		const thread = chatThreadsService.state.allThreads[threadId]
-		if (!thread) return
-
-		const messages = thread.messages || []
-
-		// Only look for other update_walkthrough messages to sync content
-		const walkthroughMessages = messages.filter((m: any) => m.name === 'update_walkthrough')
-		const latest = walkthroughMessages[walkthroughMessages.length - 1]
-
-		if (latest && latest.id !== toolMessage.id) {
-			setLatestWalkthrough(latest)
-			setRefreshKey(prev => prev + 1)
-
-			// Update the latest result ref to avoid stale closure
-			latestResultRef.current = latest.result
-
-			// Refresh any open preview tabs for this file
-			if (latest.result?.filePath && latest.result?.preview) {
-				refreshPreviewTabs(latest.result.filePath, latest.result.preview)
-			}
-		}
-	}, [threadId, toolMessage.id, toolMessage.name]) // Removed chatThreadsService from deps
-
-	// Single consolidated effect for all update checking
 	useEffect(() => {
+		// Don't track updates for open_walkthrough_preview
+		if (toolMessage.name === 'open_walkthrough_preview') return
 		if (!chatThreadsService) return
 
 		const thread = chatThreadsService.state.allThreads[threadId]
 		if (!thread) return
 
 		const messages = thread.messages || []
-		const currentLength = messages.length
 
-		// Check if we have new messages
-		if (currentLength !== messagesLengthRef.current) {
-			// Update ref before calling checkForUpdates
-			messagesLengthRef.current = currentLength
-			checkForUpdates()
-		}
+		// Find all update_walkthrough messages
+		const walkthroughMessages = messages.filter((m: any) => m.name === 'update_walkthrough')
 
-		// Listen for custom event to refresh preview tabs
-		// This is fired when openWalkthrough is called
-		const handleWalkthroughEvent = (e: CustomEvent) => {
-			const { filePath, threadId: eventThreadId } = e.detail
-			// Only refresh if this is our thread and file
-			if (eventThreadId === threadId && filePath === latestResultRef.current?.filePath) {
-				// This event indicates the preview tab was just opened
-				// We don't need to do anything here as the content was just set
+		// Find if there's a newer message than ours
+		const currentIdx = walkthroughMessages.findIndex((m: any) => m.id === toolMessage.id)
+		const latestIdx = walkthroughMessages.length - 1
+
+		// If there's a newer message after ours, track its content
+		if (currentIdx !== -1 && latestIdx > currentIdx) {
+			const newerMsg = walkthroughMessages[latestIdx]
+			if (newerMsg?.result?.preview && newerMsg?.result?.filePath) {
+				setNewerContent({
+					preview: newerMsg.result.preview,
+					filePath: newerMsg.result.filePath,
+					action: newerMsg.result.action
+				})
+				setRefreshKey(prev => prev + 1)
+
+				// Update the latest result ref
+				latestResultRef.current = newerMsg.result
+
+				// Refresh any open preview tabs
+				refreshPreviewTabs(newerMsg.result.filePath, newerMsg.result.preview)
 			}
 		}
+	}, [chatThreadsService, threadId, toolMessage.id, toolMessage.name])
 
-		window.addEventListener('walkthrough-updated', handleWalkthroughEvent as EventListener)
+	// Get result - use newer content if available, otherwise use current tool's result
+	const result = newerContent || toolMessage.result
+	const toolName = toolMessage.name
+	const toolType = toolMessage.type
 
-		return () => {
-			window.removeEventListener('walkthrough-updated', handleWalkthroughEvent as EventListener)
-		}
-	}, [chatThreadsService, threadId, checkForUpdates])
-
-	// Get the latest result (from latestWalkthrough, not toolMessage)
-	const result = latestWalkthrough.result
-	const toolName = latestWalkthrough.name
-
-	if (!result || typeof result === 'string') {
+	// Show loading state if tool is still running (check type, not result)
+	// This matches how other wrappers work - they check toolMessage.type directly
+	if (toolType === 'running_now' || toolType === 'tool_request') {
 		return (
 			<div className="@@void-scope">
 				<div className="void-walkthrough-result w-full rounded-xl overflow-hidden border border-void-border-2 bg-void-bg-2 shadow-sm">
@@ -171,21 +140,26 @@ const WalkthroughResultWrapper: React.FC<WalkthroughResultWrapperProps> = ({
 		)
 	}
 
-	// Handle error case from the tool
-	if (result.error) {
+	// Handle error case - check type first
+	if (toolType === 'tool_error') {
 		return (
 			<div className="@@void-scope">
 				<div className="void-walkthrough-result border border-void-warning/50 rounded-lg overflow-hidden bg-void-warning/5 p-3">
 					<div className="flex items-start gap-2 text-void-fg-1">
 						<span className="text-lg">⚠️</span>
 						<div className="flex flex-col">
-							<span className="text-sm font-medium text-void-warning">Walkthrough update failed</span>
-							<span className="text-xs text-void-fg-3 mt-1">{result.error}</span>
+							<span className="text-sm font-medium text-void-warning">Walkthrough tool failed</span>
+							<span className="text-xs text-void-fg-3 mt-1">{result?.error || String(result) || 'Unknown error'}</span>
 						</div>
 					</div>
 				</div>
 			</div>
 		)
+	}
+
+	// Handle rejected case
+	if (toolType === 'rejected') {
+		return null // Don't show anything for rejected
 	}
 
 	// Handle open_walkthrough_preview tool result
@@ -352,7 +326,7 @@ const WalkthroughResultWrapper: React.FC<WalkthroughResultWrapperProps> = ({
 				)}
 
 				{/* Update indicator */}
-				{latestWalkthrough.id !== toolMessage.id && (
+				{newerContent && (
 					<div className="px-3 pb-2 text-xs text-void-fg-4 italic">
 						This walkthrough has been updated. See latest version above.
 					</div>
