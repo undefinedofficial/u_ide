@@ -44,14 +44,17 @@ const ImplementationPlanPreviewWrapper: React.FC<ImplementationPlanPreviewWrappe
 			if (!thread) return
 
 			const messages = thread.messages || []
+			// Filter for tool messages with implementation plan names
 			const planMessages = messages.filter((m: any) =>
-				m.name === 'create_implementation_plan' ||
-				m.name === 'preview_implementation_plan' ||
-				m.name === 'execute_implementation_plan' ||
-				m.name === 'update_implementation_step' ||
-				m.name === 'get_implementation_status'
+				m.name && (
+					m.name === 'create_implementation_plan' ||
+					m.name === 'preview_implementation_plan' ||
+					m.name === 'execute_implementation_plan' ||
+					m.name === 'update_implementation_step' ||
+					m.name === 'get_implementation_status'
+				)
 			)
-			const latest = planMessages[planMessages.length - 1]
+			const latest = planMessages[planMessages.length - 1] as typeof toolMessage | undefined
 
 			if (latest && latest.id !== toolMessage.id) {
 				setLatestPlan(latest)
@@ -462,7 +465,7 @@ My requested changes:`
 										</>
 									) : (
 										<>
-											\u{2705} Approve Plan
+											{'\u{2705}'} Approve Plan
 										</>
 									)}
 								</button>
@@ -470,7 +473,7 @@ My requested changes:`
 									onClick={handleRequestChanges}
 									className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-2"
 								>
-									\u{270F}\u{FE0F} Request Changes
+									{'\u{270F}\u{FE0F}'} Request Changes
 								</button>
 							</div>
 							<div className="text-xs text-void-fg-4 mt-2 italic opacity-70">
