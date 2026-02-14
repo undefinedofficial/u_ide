@@ -177,6 +177,14 @@ const fastSimilarityScore = (str1: string, str2: string): number => {
 	return jaccardSimilarity * 0.7 + lengthFactor * 0.3;
 }
 
+/**
+ * Normalizes line endings to LF for consistent string comparison.
+ * Handles both CRLF (Windows) and CR (old Mac) line endings.
+ */
+const normalizeLineEndings = (str: string): string => {
+	return str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+};
+
 // Find best fuzzy match using optimized middle-out search
 const findBestFuzzyMatch = (searchText: string, fileContents: string, startLine?: number): { idx: number, score: number } | null => {
 	const searchNorm = normalizeWhitespace(searchText);
@@ -190,7 +198,7 @@ const findBestFuzzyMatch = (searchText: string, fileContents: string, startLine?
 
 	const startIdx = startLine ? Math.max(0, startLine - 1) : Math.floor(fileLines.length / 2);
 	let bestMatch: { idx: number, score: number } | null = null;
-	const threshold = 0.8; // 80% similarity required
+	const threshold = 0.9; // 90% similarity required (raised from 80% for safety)
 
 	// Limit search radius to prevent performance issues on large files
 	// macOS is sensitive to main thread blocking, so we reduce the radius significantly
@@ -396,8 +404,11 @@ const findTextInCode = (text: string, fileContents: string, canFallbackToRemoveW
 	}
 
 	// Strategy 4: Fuzzy matching using Levenshtein distance (handles minor typos and changes)
+	// WARNING: Fuzzy matching can produce false positives - only used as last resort with high threshold
 	const fuzzyMatch = findBestFuzzyMatch(text, fileContents, opts?.startingAtLine);
-	if (fuzzyMatch && fuzzyMatch.score >= 0.85) {
+	if (fuzzyMatch && fuzzyMatch.score >= 0.92) {
+		// Log warning when fuzzy matching is used - helps debug potential false matches
+		console.warn(`[editCodeService] Fuzzy match used (${Math.round(fuzzyMatch.score * 100)}% similarity). This may indicate mismatched search text.`);
 		// FIX: Use the actual matched text from the file, not the search text
 		// Fuzzy matching may have found a text with minor differences
 		const fuzzyMatchLines = fileContents.substring(0, fuzzyMatch.idx).split('\n').length - 1
@@ -426,6 +437,9 @@ class EditCodeService extends Disposable implements IEditCodeService {
 
 	diffAreaOfId: Record<string, DiffArea> = {}; // diffareaId -> diffArea
 	diffOfId: Record<string, Diff> = {}; // diffid -> diff (redundant with diffArea._diffOfId)
+
+	// CONCURRENT EDIT PROTECTION: Track URIs currently being edited
+	private _editsInProgress: Set<string> = new Set();
 
 	// PERFORMANCE: Debounce timers for diff computation per URI
 	private _debouncedRefreshTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
@@ -1508,100 +1522,226 @@ class EditCodeService extends Disposable implements IEditCodeService {
 
 	public instantlyRewriteFile({ uri, newContent, onProgress }: { uri: URI, newContent: string, onProgress?: (data: string) => void }) {
 		onProgress?.(`Starting rewrite of: ${uri.fsPath}...`);
-		// start diffzone
-		const res = this._startStreamingDiffZone({
-			uri,
-			streamRequestIdRef: { current: null },
-			startBehavior: 'keep-conflicts',
-			linkedCtrlKZone: null,
-			onWillUndo: () => { },
-		})
-		if (!res) return
-		const { diffZone, onFinishEdit } = res
 
+		// === CONCURRENT EDIT PROTECTION ===
+		const uriKey = uri.toString();
+		if (this._editsInProgress.has(uriKey)) {
+			throw new Error(`❌ REWRITE FAILED: Another edit is in progress for this file.
 
-		const onDone = () => {
-			diffZone._streamState = { isStreaming: false, }
-			this._onDidChangeStreamingInDiffZone.fire({ uri, diffareaid: diffZone.diffareaid })
-			this._refreshStylesAndDiffsInURI(uri)
-			onFinishEdit()
+📄 File: ${uri.fsPath}
 
-			// auto accept
-			if (this._settingsService.state.globalSettings.autoAcceptLLMChanges) {
-				this.acceptOrRejectAllDiffAreas({ uri, removeCtrlKs: false, behavior: 'accept' })
+💡 Please wait for the current edit to complete and try again.`);
+		}
+
+		// === INPUT VALIDATION ===
+		// Check for binary content being written
+		if (newContent.includes('\0')) {
+			throw new Error(`❌ REWRITE FAILED: Cannot write binary content.
+
+📄 File: ${uri.fsPath}
+
+💡 The new content contains null bytes, which indicates binary data.
+   Binary files like images, executables, and compiled files cannot be edited as text.`);
+		}
+
+		// Warn about very large content
+		const MAX_CONTENT_SIZE = 10 * 1024 * 1024; // 10MB
+		if (newContent.length > MAX_CONTENT_SIZE) {
+			console.warn(`[editCodeService] Writing large content (${Math.round(newContent.length / 1024 / 1024)}MB) to ${uri.fsPath}`);
+		}
+
+		// Check if existing file is binary (for existing files)
+		const { model } = this._voidModelService.getModel(uri);
+		if (model) {
+			const existingContent = model.getValue(EndOfLinePreference.LF);
+			if (existingContent.includes('\0')) {
+				throw new Error(`❌ REWRITE FAILED: Cannot overwrite binary file.
+
+📄 File: ${uri.fsPath}
+
+💡 This file appears to be a binary file (contains null bytes).
+   Binary files cannot be edited as text. Use appropriate tools for this file type.`);
 			}
 		}
 
-		onProgress?.(`Applying new content to: ${uri.fsPath}...`);
-		this._writeURIText(uri, newContent, 'wholeFileRange', { shouldRealignDiffAreas: true })
-		onProgress?.(`Successfully rewrote: ${uri.fsPath}`);
-		onDone()
+		// Mark edit as in progress
+		this._editsInProgress.add(uriKey);
+
+		try {
+			// start diffzone
+			const res = this._startStreamingDiffZone({
+				uri,
+				streamRequestIdRef: { current: null },
+				startBehavior: 'keep-conflicts',
+				linkedCtrlKZone: null,
+				onWillUndo: () => { },
+			})
+			if (!res) return
+			const { diffZone, onFinishEdit } = res
+
+
+			const onDone = () => {
+				diffZone._streamState = { isStreaming: false, }
+				this._onDidChangeStreamingInDiffZone.fire({ uri, diffareaid: diffZone.diffareaid })
+				this._refreshStylesAndDiffsInURI(uri)
+				onFinishEdit()
+
+				// auto accept
+				if (this._settingsService.state.globalSettings.autoAcceptLLMChanges) {
+					this.acceptOrRejectAllDiffAreas({ uri, removeCtrlKs: false, behavior: 'accept' })
+				}
+			}
+
+			onProgress?.(`Applying new content to: ${uri.fsPath}...`);
+			this._writeURIText(uri, newContent, 'wholeFileRange', { shouldRealignDiffAreas: true })
+			onProgress?.(`Successfully rewrote: ${uri.fsPath}`);
+			onDone()
+		} finally {
+			// Always remove from in-progress set
+			this._editsInProgress.delete(uriKey);
+		}
 	}
 
 	public instantlyReplaceString({ uri, oldString, newString, onProgress }: { uri: URI, oldString: string, newString: string, onProgress?: (data: string) => void }) {
 		onProgress?.(`Replacing text in: ${uri.fsPath}...`);
+
+		// === INPUT VALIDATION ===
+		// Check for empty old_string
+		if (!oldString || oldString.length === 0) {
+			throw new Error(`❌ EDIT FAILED: old_string cannot be empty.
+
+💡 SOLUTIONS:
+1. **Use rewrite_file instead** - To create or completely replace file content
+2. **Provide the text to replace** - old_string must contain the exact text you want to replace`);
+		}
+
+		// Check for no-op edit (same strings)
+		if (oldString === newString) {
+			onProgress?.(`Skipped: old_string and new_string are identical. No changes made.`);
+			return;
+		}
+
+		// Check for excessively large search string
+		const MAX_SEARCH_STRING_SIZE = 100 * 1024; // 100KB
+		if (oldString.length > MAX_SEARCH_STRING_SIZE) {
+			throw new Error(`❌ EDIT FAILED: old_string is too large (${Math.round(oldString.length / 1024)}KB).
+
+💡 SOLUTION: Use rewrite_file instead for large replacements.`);
+		}
+
+		// === CONCURRENT EDIT PROTECTION ===
+		const uriKey = uri.toString();
+		if (this._editsInProgress.has(uriKey)) {
+			throw new Error(`❌ EDIT FAILED: Another edit is in progress for this file.
+
+📄 File: ${uri.fsPath}
+
+💡 Please wait for the current edit to complete and try again.`);
+		}
 
 		const { model } = this._voidModelService.getModel(uri);
 		if (!model) {
 			throw new Error(`File not found: ${uri.fsPath}`);
 		}
 
+		// === LINE ENDING NORMALIZATION ===
+		// Normalize both to LF for consistent comparison (handles CRLF vs LF differences)
+		const normalizedOldString = normalizeLineEndings(oldString);
 		const content = model.getValue(EndOfLinePreference.LF);
+		const normalizedContent = normalizeLineEndings(content);
 
-		// Find the first occurrence of oldString
-		const index = content.indexOf(oldString);
+		// === BINARY FILE PROTECTION ===
+		// Check for null bytes (strong indicator of binary content)
+		if (content.includes('\0')) {
+			throw new Error(`❌ EDIT FAILED: Cannot edit binary file.
+
+📄 File: ${uri.fsPath}
+
+💡 This file appears to be a binary file (contains null bytes).
+   Binary files like images, executables, and compiled files cannot be edited as text.
+   Use appropriate tools for this file type.`);
+		}
+
+		// Warn about large files
+		const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+		if (content.length > MAX_FILE_SIZE) {
+			console.warn(`[editCodeService] Large file (${Math.round(content.length / 1024 / 1024)}MB) - edit operations may be slower`);
+		}
+
+		// Find the first occurrence of oldString (using normalized strings)
+		const index = normalizedContent.indexOf(normalizedOldString);
 		if (index === -1) {
-			const preview = oldString.length > 200 ? oldString.substring(0, 200) + '...' : oldString;
-			throw new Error(`Could not find text to replace in file.\n\nSearch text:\n${preview}`);
+			throw new Error(this._errStringNotFound(oldString, content));
 		}
 
-		// Check for multiple occurrences
-		const secondIndex = content.indexOf(oldString, index + 1);
+		// Check for multiple occurrences - this is an error, not a warning
+		const secondIndex = normalizedContent.indexOf(normalizedOldString, index + 1);
 		if (secondIndex !== -1) {
-			console.warn(`[editCodeService] Found multiple occurrences of search text. Replacing only the first occurrence.`);
+			throw new Error(this._errStringNotUnique(oldString, content, index, secondIndex));
 		}
 
-		// Calculate positions using Monaco's API
-		const startPosition = model.getPositionAt(index);
-		const endPosition = model.getPositionAt(index + oldString.length);
+		// Mark edit as in progress
+		this._editsInProgress.add(uriKey);
 
-		// start diffzone for tracking
-		const res = this._startStreamingDiffZone({
-			uri,
-			streamRequestIdRef: { current: null },
-			startBehavior: 'keep-conflicts',
-			linkedCtrlKZone: null,
-			onWillUndo: () => { },
-		})
-		if (!res) {
-			throw new Error('Failed to create diff zone for tracking');
-		}
-		const { diffZone, onFinishEdit } = res
+		try {
+			// Calculate positions using Monaco's API (use original content for position calculation)
+			const startPosition = model.getPositionAt(index);
+			const endPosition = model.getPositionAt(index + normalizedOldString.length);
 
-		// Create the range for the replacement
-		const range = {
-			startLineNumber: startPosition.lineNumber,
-			startColumn: startPosition.column,
-			endLineNumber: endPosition.lineNumber,
-			endColumn: endPosition.column
-		};
+			// start diffzone for tracking
+			const res = this._startStreamingDiffZone({
+				uri,
+				streamRequestIdRef: { current: null },
+				startBehavior: 'keep-conflicts',
+				linkedCtrlKZone: null,
+				onWillUndo: () => { },
+			})
+			if (!res) {
+				throw new Error('Failed to create diff zone for tracking');
+			}
+			const { diffZone, onFinishEdit } = res
 
-		// Apply the edit using Monaco's pushEditOperations
-		this.weAreWriting = true;
-		model.pushEditOperations([], [{ range, text: newString }], () => null);
-		this.weAreWriting = false;
+			// === STALE CONTENT VALIDATION ===
+			// Re-check that content hasn't changed since we read it
+			const currentContent = model.getValue(EndOfLinePreference.LF);
+			if (normalizeLineEndings(currentContent) !== normalizedContent) {
+				// Clean up diff zone before throwing
+				diffZone._streamState = { isStreaming: false };
+				throw new Error(`❌ EDIT FAILED: File was modified during edit operation.
 
-		onProgress?.(`Successfully replaced text in: ${uri.fsPath}`);
+📄 File: ${uri.fsPath}
 
-		// Finish diff zone tracking
-		diffZone._streamState = { isStreaming: false, }
-		this._onDidChangeStreamingInDiffZone.fire({ uri, diffareaid: diffZone.diffareaid })
-		this._refreshStylesAndDiffsInURI(uri)
-		onFinishEdit()
+💡 The file content changed between reading and editing. Please retry the edit.`);
+			}
 
-		// Auto accept if enabled
-		if (this._settingsService.state.globalSettings.autoAcceptLLMChanges) {
-			this.acceptOrRejectAllDiffAreas({ uri, removeCtrlKs: false, behavior: 'accept' });
+			// Create the range for the replacement
+			const range = {
+				startLineNumber: startPosition.lineNumber,
+				startColumn: startPosition.column,
+				endLineNumber: endPosition.lineNumber,
+				endColumn: endPosition.column
+			};
+
+			// Apply the edit using Monaco's pushEditOperations
+			this.weAreWriting = true;
+			model.pushEditOperations([], [{ range, text: newString }], () => null);
+			this.weAreWriting = false;
+
+			onProgress?.(`Successfully replaced text in: ${uri.fsPath}`);
+
+			// Finish diff zone tracking
+			diffZone._streamState = { isStreaming: false, }
+			this._onDidChangeStreamingInDiffZone.fire({ uri, diffareaid: diffZone.diffareaid })
+			this._refreshStylesAndDiffsInURI(uri)
+			onFinishEdit()
+
+			// Auto accept if enabled
+			if (this._settingsService.state.globalSettings.autoAcceptLLMChanges) {
+				this.acceptOrRejectAllDiffAreas({ uri, removeCtrlKs: false, behavior: 'accept' });
+			}
+		} finally {
+			// Always remove from in-progress set
+			this._editsInProgress.delete(uriKey);
 		}
 	}
 
@@ -1955,6 +2095,88 @@ class EditCodeService extends Disposable implements IEditCodeService {
 		return numCharsInFile
 	}
 
+
+	/**
+	 * Generates a human-readable error message when the search string is not found.
+	 * Includes similar blocks from the file to help the LLM correct its mistake.
+	 */
+	private _errStringNotFound = (searchText: string, fileContents: string): string => {
+		const preview = searchText.length > 300 ? searchText.substring(0, 300) + '...' : searchText;
+		const similarBlocks = findSimilarBlocks(searchText, fileContents, 3);
+		const similarBlocksStr = similarBlocks.length > 0
+			? `\n\n🔎 Did you mean one of these similar blocks from the file?\n\n${similarBlocks.map((block, i) => `Option ${i + 1}:\n${tripleTick[0]}\n${block}\n${tripleTick[1]}`).join('\n\n')}\n`
+			: '';
+
+		return `\u{274C} EDIT FAILED: The old_string was not found in the file.
+
+\u{1F50D} You tried to find:
+${tripleTick[0]}
+${preview}
+${tripleTick[1]}
+${similarBlocksStr}
+\u{1F4A1} SOLUTIONS (in order of preference):
+
+1. **Fix the old_string** - Use the exact text from above:
+   - Copy one of the similar blocks shown above if they match your intent
+   - Match exact whitespace, indentation, and punctuation
+   - Include enough surrounding context (2-3 lines before/after)
+
+2. **Read the file again** - Get current content first, then retry:
+   - File may have changed since you last read it
+   - Copy EXACT text including all whitespace and comments
+
+3. **Use rewrite_file instead** - More reliable for complex changes:
+   - Provide the complete new file content
+   - No need to match exact whitespace
+   - Works better for large refactors`;
+	}
+
+	/**
+	 * Generates a human-readable error message when the search string appears multiple times.
+	 * Shows the line numbers of all occurrences to help the LLM add context.
+	 */
+	private _errStringNotUnique = (searchText: string, fileContents: string, firstIndex: number, secondIndex: number): string => {
+		const preview = searchText.length > 300 ? searchText.substring(0, 300) + '...' : searchText;
+
+		// Find line numbers of all occurrences (not just first two)
+		const occurrences: number[] = [];
+		let searchPos = 0;
+		while (searchPos < fileContents.length) {
+			const idx = fileContents.indexOf(searchText, searchPos);
+			if (idx === -1) break;
+			const lineNum = fileContents.substring(0, idx).split('\n').length;
+			occurrences.push(lineNum);
+			searchPos = idx + 1;
+		}
+
+		const occurrencesStr = occurrences.length <= 10
+			? occurrences.join(', ')
+			: `${occurrences.slice(0, 10).join(', ')} ... and ${occurrences.length - 10} more`;
+
+		return `\u{274C} EDIT FAILED: The old_string appears ${occurrences.length} time(s) in the file.
+
+\u{1F50D} This string is not unique:
+${tripleTick[0]}
+${preview}
+${tripleTick[1]}
+
+\u{1F4DD} Found on lines: ${occurrencesStr}
+
+\u{1F4A1} SOLUTIONS (in order of preference):
+
+1. **Add more context** - Include more surrounding lines to make the match unique:
+   - Add 2-3 lines before the code you want to replace
+   - Add 2-3 lines after the code
+   - Ensure the expanded block appears only once in the file
+
+2. **Use rewrite_file instead** - Simpler and more reliable for this change:
+   - Provide the complete new file content
+   - No need to worry about uniqueness
+
+3. **Replace all occurrences** - If you intended to replace ALL instances:
+   - You must make multiple separate edit_file calls, one for each occurrence
+   - Or use rewrite_file to replace the entire file`;
+	}
 
 	/**
 	 * Generates a human-readable error message for an invalid ORIGINAL search block.
