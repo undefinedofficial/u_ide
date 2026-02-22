@@ -6,33 +6,13 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ACoderAuthState, ACoderModelResponse, IACoderOAuthMainService } from './aCoderOAuthServiceTypes.js';
+
+// Extract model type from the response for convenience
+export type ACoderModelInfo = ACoderModelResponse['models'][0];
 
 /**
- * Authentication state for A-Coder provider
- */
-export interface ACoderAuthState {
-	/** Whether the user is authenticated */
-	isAuthenticated: boolean;
-	/** The user's email address from OAuth */
-	userEmail?: string;
-	/** The OAuth provider used (google or github) */
-	authProvider?: 'google' | 'github';
-	/** The user ID from A-Coder backend */
-	userId?: string;
-	/** When the token expires (Unix timestamp in seconds) */
-	expiresAt?: number;
-}
-
-/**
- * Model information from A-Coder backend
- */
-export interface ACoderModelInfo {
-	id: string;
-	name: string;
-	contextLength: number;
-	supportsTools: boolean;
-	isHidden?: boolean;
-}
+ * Model listing from A-Coder backend
 
 /**
  * Service for managing A-Coder OAuth authentication.
@@ -115,10 +95,6 @@ export interface IACoderOAuthService {
 }
 
 export const IACoderOAuthService = createDecorator<IACoderOAuthService>('aCoderOAuthService');
-
-// Import main service interface after this interface is defined to avoid circular dependency
-import { IACoderOAuthMainService } from '../electron-main/aCoderOAuthMainService.js';
-import type { ACoderModelResponse } from '../electron-main/aCoderOAuthMainService.js';
 
 /**
  * Implementation of A-Coder OAuth service (browser-side)

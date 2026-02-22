@@ -42,3 +42,6 @@ export const WORKSPACE_HUB_PORT_KEY = 'void.workspaceHubPort';
 
 // A-Coder OAuth config
 export const ACODER_AUTH_STORAGE_KEY = 'void.aCoderAuthStorage';
+
+// What's New modal - tracks last seen version
+export const WHATS_NEW_LAST_VERSION_KEY = 'void.whatsNew.lastVersion';

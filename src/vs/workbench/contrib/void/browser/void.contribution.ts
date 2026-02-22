@@ -102,3 +102,7 @@ import './fileAnalyticsService.js'
 import './editorAnalyticsService.js'
 import './layoutAnalyticsService.js'
 import './commandAnalyticsService.js'
+
+// What's New modal service
+import './whatsNewModalService.js'
+import './whatsNewContribution.js'

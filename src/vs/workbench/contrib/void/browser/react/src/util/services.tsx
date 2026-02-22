@@ -59,7 +59,8 @@ import { OPT_OUT_KEY } from '../../../../common/storageKeys.js'
 import { IAgentManagerService } from '../../../agentManager.contribution.js'
 import { ILearningProgressService } from '../../../../common/learningProgressService.js'
 import { WorkspaceConnection, WorkspaceThreadSummary } from '../../../../common/workspaceRegistryTypes.js'
-import { IACoderOAuthService, ACoderAuthState, ACoderModelInfo } from '../../../../common/aCoderOAuthService.js'
+// import { IACoderOAuthService, ACoderAuthState, ACoderModelInfo } from '../../../../common/aCoderOAuthService.js'
+import { IWhatsNewModalService } from '../../../whatsNewModalService.js'
 
 
 // normally to do this you'd use a useEffect that calls .onDidChangeState(), but useEffect mounts too late and misses initial state changes
@@ -89,12 +90,12 @@ const activeURIListeners: Set<(uri: URI | null) => void> = new Set();
 
 const mcpListeners: Set<() => void> = new Set()
 
-// A-Coder OAuth state
-let aCoderAuthState: ACoderAuthState = { isAuthenticated: false }
-const aCoderAuthStateListeners: Set<(s: ACoderAuthState) => void> = new Set()
+// A-Coder OAuth state (disabled for now)
+// let aCoderAuthState: ACoderAuthState = { isAuthenticated: false }
+// const aCoderAuthStateListeners: Set<(s: ACoderAuthState) => void> = new Set()
 
-let aCoderModels: ACoderModelInfo[] = []
-const aCoderModelsListeners: Set<(m: ACoderModelInfo[]) => void> = new Set()
+// let aCoderModels: ACoderModelInfo[] = []
+// const aCoderModelsListeners: Set<(m: ACoderModelInfo[]) => void> = new Set()
 
 // Compression event state
 export interface CompressionEvent {
@@ -175,10 +176,11 @@ export const _registerServices = (accessor: ServicesAccessor) => {
 		voidCommandBarService: accessor.get(IVoidCommandBarService),
 		modelService: accessor.get(IModelService),
 		mcpService: accessor.get(IMCPService),
-		aCoderOAuthService: accessor.get(IACoderOAuthService),
+		// aCoderOAuthService: accessor.get(IACoderOAuthService),
 	}
 
-	const { settingsStateService, chatThreadsStateService, refreshModelService, themeService, editCodeService, voidCommandBarService, modelService, mcpService, aCoderOAuthService } = stateServices
+	const { settingsStateService, chatThreadsStateService, refreshModelService, themeService, editCodeService, voidCommandBarService, modelService, mcpService } = stateServices
+	// const { aCoderOAuthService } = stateServices
 
 
 
@@ -251,22 +253,22 @@ export const _registerServices = (accessor: ServicesAccessor) => {
 		})
 	)
 
-	// A-Coder OAuth state listeners
-	aCoderAuthState = aCoderOAuthService.authState
-	disposables.push(
-		aCoderOAuthService.onDidChangeAuthState(state => {
-			aCoderAuthState = state
-			aCoderAuthStateListeners.forEach(l => l(state))
-		})
-	)
+	// A-Coder OAuth state listeners (disabled for now)
+	// aCoderAuthState = aCoderOAuthService.authState
+	// disposables.push(
+	// 	aCoderOAuthService.onDidChangeAuthState(state => {
+	// 		aCoderAuthState = state
+	// 		aCoderAuthStateListeners.forEach(l => l(state))
+	// 	})
+	// )
 
-	aCoderModels = aCoderOAuthService.getCachedModels() || []
-	disposables.push(
-		aCoderOAuthService.onDidUpdateModels(models => {
-			aCoderModels = models
-			aCoderModelsListeners.forEach(l => l(models))
-		})
-	)
+	// aCoderModels = aCoderOAuthService.getCachedModels() || []
+	// disposables.push(
+	// 	aCoderOAuthService.onDidUpdateModels(models => {
+	// 		aCoderModels = models
+	// 		aCoderModelsListeners.forEach(l => l(models))
+	// 	})
+	// )
 
 
 	return disposables
@@ -325,7 +327,8 @@ const getReactAccessor = (accessor: ServicesAccessor) => {
 
 		ILearningProgressService: accessor.get(ILearningProgressService),
 		IStorageService: accessor.get(IStorageService),
-		IACoderOAuthService: accessor.get(IACoderOAuthService),
+		// IACoderOAuthService: accessor.get(IACoderOAuthService),
+		IWhatsNewModalService: accessor.get(IWhatsNewModalService),
 
 	} as const
 	return reactAccessor
@@ -715,27 +718,27 @@ export const useMultiWorkspaceSearch = (query: string) => {
 }
 
 /**
- * Hook to get A-Coder OAuth authentication state
+ * Hook to get A-Coder OAuth authentication state (disabled for now)
  */
-export const useACoderOAuthState = () => {
-	const [s, ss] = useState(aCoderAuthState)
-	useEffect(() => {
-		ss(aCoderAuthState)
-		aCoderAuthStateListeners.add(ss)
-		return () => { aCoderAuthStateListeners.delete(ss) }
-	}, [ss])
-	return s
-}
+// export const useACoderOAuthState = () => {
+// 	const [s, ss] = useState(aCoderAuthState)
+// 	useEffect(() => {
+// 		ss(aCoderAuthState)
+// 		aCoderAuthStateListeners.add(ss)
+// 		return () => { aCoderAuthStateListeners.delete(ss) }
+// 	}, [ss])
+// 	return s
+// }
 
 /**
- * Hook to get A-Coder models
+ * Hook to get A-Coder models (disabled for now)
  */
-export const useACoderModels = () => {
-	const [models, setModels] = useState<ACoderModelInfo[]>(aCoderModels)
-	useEffect(() => {
-		setModels(aCoderModels)
-		aCoderModelsListeners.add(setModels)
-		return () => { aCoderModelsListeners.delete(setModels) }
-	}, [])
-	return models
-}
+// export const useACoderModels = () => {
+// 	const [models, setModels] = useState<ACoderModelInfo[]>(aCoderModels)
+// 	useEffect(() => {
+// 		setModels(aCoderModels)
+// 		aCoderModelsListeners.add(setModels)
+// 		return () => { aCoderModelsListeners.delete(setModels) }
+// 	}, [])
+// 	return models
+// }

@@ -7,8 +7,8 @@ import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { ProviderName, SettingName, displayInfoOfSettingName, providerNames, VoidStatefulModelInfo, customSettingNamesOfProvider, RefreshableProviderName, refreshableProviderNames, displayInfoOfProviderName, nonlocalProviderNames, localProviderNames, GlobalSettingName, featureNames, displayInfoOfFeatureName, isProviderNameDisabled, FeatureName, hasDownloadButtonsOnModelsProviderNames, subTextMdOfProviderName } from '../../../../common/voidSettingsTypes.js'
 import ErrorBoundary from '../sidebar-tsx/ErrorBoundary.js'
 import { VoidButtonBgDarken, VoidCustomDropdownBox, VoidInputBox2, VoidSimpleInputBox, VoidSwitch } from '../util/inputs.js'
-import { useAccessor, useClipboardService, useIsDark, useIsOptedOut, useRefreshModelListener, useRefreshModelState, useSettingsState, useACoderOAuthState, useACoderModels } from '../util/services.js'
-import { IACoderOAuthService, type ACoderModelInfo } from '../../../../common/aCoderOAuthService.js'
+import { useAccessor, useClipboardService, useIsDark, useIsOptedOut, useRefreshModelListener, useRefreshModelState, useSettingsState, /* useACoderOAuthState, useACoderModels */ } from '../util/services.js'
+// import { IACoderOAuthService, type ACoderModelInfo } from '../../../../common/aCoderOAuthService.js'
 import { X, RefreshCw, Loader2, Check, Asterisk, Plus, Cpu, Cloud, Settings2, Info, LayoutGrid, Smartphone, Database, Zap, Sparkles, Box, Globe, ShieldCheck, ArrowRightLeft, Search, Copy, LogIn, LogOut, User } from 'lucide-react'
 import { URI } from '../../../../../../../base/common/uri.js'
 import { VSBuffer } from '../../../../../../../base/common/buffer.js'
@@ -22,6 +22,7 @@ import Severity from '../../../../../../../base/common/severity.js'
 import { getModelCapabilities, modelOverrideKeys, ModelOverrides } from '../../../../common/modelCapabilities.js';
 import { TransferEditorType, TransferFilesInfo } from '../../../extensionTransferTypes.js';
 import { MCPServer } from '../../../../common/mcpServiceTypes.js';
+import { IWhatsNewModalService } from '../../../whatsNewModalService.js';
 import { useMCPServiceState } from '../util/services.js';
 import { OPT_OUT_KEY } from '../../../../common/storageKeys.js';
 import { StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
@@ -731,129 +732,129 @@ export const SettingsForProvider = ({ providerName, showProviderTitle, showProvi
 }
 
 
-// A-Coder Provider Card - Special UI for OAuth authentication
-const ACoderProviderCard = () => {
-	const accessor = useAccessor()
-	const metricsService = accessor.get('IMetricsService')
-	const oauthService = accessor.get('IACoderOAuthService')
-	const authState = useACoderOAuthState()
-	const models = useACoderModels()
+// A-Coder Provider Card - Special UI for OAuth authentication (disabled for now)
+// const ACoderProviderCard = () => {
+// 	const accessor = useAccessor()
+// 	const metricsService = accessor.get('IMetricsService')
+// 	const oauthService = accessor.get('IACoderOAuthService')
+// 	const authState = useACoderOAuthState()
+// 	const models = useACoderModels()
 
-	const [isLoading, setIsLoading] = useState(false)
+// 	const [isLoading, setIsLoading] = useState(false)
 
-	const handleGoogleAuth = useCallback(async () => {
-		setIsLoading(true)
-		metricsService.capture('Click', { action: 'A-Coder Google OAuth' })
-		try {
-			await oauthService.initiateGoogleAuth()
-		} catch (error) {
-			console.error('Google OAuth failed:', error)
-		} finally {
-			setIsLoading(false)
-		}
-	}, [oauthService, metricsService])
+// 	const handleGoogleAuth = useCallback(async () => {
+// 		setIsLoading(true)
+// 		metricsService.capture('Click', { action: 'A-Coder Google OAuth' })
+// 		try {
+// 			await oauthService.initiateGoogleAuth()
+// 		} catch (error) {
+// 			console.error('Google OAuth failed:', error)
+// 		} finally {
+// 			setIsLoading(false)
+// 		}
+// 	}, [oauthService, metricsService])
 
-	const handleGitHubAuth = useCallback(async () => {
-		setIsLoading(true)
-		metricsService.capture('Click', { action: 'A-Coder GitHub OAuth' })
-		try {
-			await oauthService.initiateGitHubAuth()
-		} catch (error) {
-			console.error('GitHub OAuth failed:', error)
-		} finally {
-			setIsLoading(false)
-		}
-	}, [oauthService, metricsService])
+// 	const handleGitHubAuth = useCallback(async () => {
+// 		setIsLoading(true)
+// 		metricsService.capture('Click', { action: 'A-Coder GitHub OAuth' })
+// 		try {
+// 			await oauthService.initiateGitHubAuth()
+// 		} catch (error) {
+// 			console.error('GitHub OAuth failed:', error)
+// 		} finally {
+// 			setIsLoading(false)
+// 		}
+// 	}, [oauthService, metricsService])
 
-	const handleSignOut = useCallback(async () => {
-		metricsService.capture('Click', { action: 'A-Coder Sign Out' })
-		try {
-			await oauthService.signOut()
-		} catch (error) {
-			console.error('Sign out failed:', error)
-		}
-	}, [oauthService, metricsService])
+// 	const handleSignOut = useCallback(async () => {
+// 		metricsService.capture('Click', { action: 'A-Coder Sign Out' })
+// 		try {
+// 			await oauthService.signOut()
+// 		} catch (error) {
+// 			console.error('Sign out failed:', error)
+// 		}
+// 	}, [oauthService, metricsService])
 
-	if (!authState.isAuthenticated) {
-		return (
-			<div className="space-y-3">
-				<div className='flex items-center w-full gap-4'>
-					<h3 className='text-sm font-semibold text-void-fg-1 uppercase tracking-wider'>A-Coder</h3>
-				</div>
-				<div className="space-y-2">
-					<p className="text-sm text-void-fg-3">Sign in to use A-Coder models for free</p>
-					<div className="flex gap-2 flex-wrap">
-						<VoidButtonBgDarken
-							onClick={handleGoogleAuth}
-							disabled={isLoading}
-							className="flex items-center gap-2"
-						>
-							{isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
-							<span>Sign in with Google</span>
-						</VoidButtonBgDarken>
-						<VoidButtonBgDarken
-							onClick={handleGitHubAuth}
-							disabled={isLoading}
-							className="flex items-center gap-2"
-						>
-							{isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
-							<span>Sign in with GitHub</span>
-						</VoidButtonBgDarken>
-					</div>
-					<p className="text-xs text-void-fg-4">
-						By signing in, you agree to use A-Coder models responsibly.
-					</p>
-				</div>
-			</div>
-		)
-	}
+// 	if (!authState.isAuthenticated) {
+// 		return (
+// 			<div className="space-y-3">
+// 				<div className='flex items-center w-full gap-4'>
+// 					<h3 className='text-sm font-semibold text-void-fg-1 uppercase tracking-wider'>A-Coder</h3>
+// 				</div>
+// 				<div className="space-y-2">
+// 					<p className="text-sm text-void-fg-3">Sign in to use A-Coder models for free</p>
+// 					<div className="flex gap-2 flex-wrap">
+// 						<VoidButtonBgDarken
+// 							onClick={handleGoogleAuth}
+// 							disabled={isLoading}
+// 							className="flex items-center gap-2"
+// 						>
+// 							{isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+// 							<span>Sign in with Google</span>
+// 						</VoidButtonBgDarken>
+// 						<VoidButtonBgDarken
+// 							onClick={handleGitHubAuth}
+// 							disabled={isLoading}
+// 							className="flex items-center gap-2"
+// 						>
+// 							{isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+// 							<span>Sign in with GitHub</span>
+// 						</VoidButtonBgDarken>
+// 					</div>
+// 					<p className="text-xs text-void-fg-4">
+// 						By signing in, you agree to use A-Coder models responsibly.
+// 					</p>
+// 				</div>
+// 			</div>
+// 		)
+// 	}
 
-	return (
-		<div className="space-y-3">
-			<div className='flex items-center w-full gap-4'>
-				<h3 className='text-sm font-semibold text-void-fg-1 uppercase tracking-wider'>A-Coder</h3>
-			</div>
-			<div className="space-y-2">
-				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-2 text-sm text-void-fg-2">
-						<User className="w-4 h-4" />
-						<span>Signed in as {authState.userEmail}</span>
-					</div>
-					<VoidButtonBgDarken
-						onClick={handleSignOut}
-						className="flex items-center gap-1 text-xs"
-					>
-						<LogOut className="w-3 h-3" />
-						<span>Sign out</span>
-					</VoidButtonBgDarken>
-				</div>
+// 	return (
+// 		<div className="space-y-3">
+// 			<div className='flex items-center w-full gap-4'>
+// 				<h3 className='text-sm font-semibold text-void-fg-1 uppercase tracking-wider'>A-Coder</h3>
+// 			</div>
+// 			<div className="space-y-2">
+// 				<div className="flex items-center justify-between">
+// 					<div className="flex items-center gap-2 text-sm text-void-fg-2">
+// 						<User className="w-4 h-4" />
+// 						<span>Signed in as {authState.userEmail}</span>
+// 					</div>
+// 					<VoidButtonBgDarken
+// 						onClick={handleSignOut}
+// 						className="flex items-center gap-1 text-xs"
+// 					>
+// 						<LogOut className="w-3 h-3" />
+// 						<span>Sign out</span>
+// 					</VoidButtonBgDarken>
+// 				</div>
 
-				{/* Show models if available */}
-				{models.length > 0 && (
-					<div className="pt-2">
-						<p className="text-xs text-void-fg-3 mb-1">Available models:</p>
-						<div className="flex flex-wrap gap-1">
-							{models.filter(m => !m.isHidden).map(model => (
-								<span
-									key={model.id}
-									className="px-2 py-0.5 bg-void-bg-2 text-void-fg-2 rounded-sm text-xs"
-								>
-									{model.name}
-								</span>
-							))}
-						</div>
-					</div>
-				)}
+// 				{/* Show models if available */}
+// 				{models.length > 0 && (
+// 					<div className="pt-2">
+// 						<p className="text-xs text-void-fg-3 mb-1">Available models:</p>
+// 						<div className="flex flex-wrap gap-1">
+// 							{models.filter(m => !m.isHidden).map(model => (
+// 								<span
+// 									key={model.id}
+// 									className="px-2 py-0.5 bg-void-bg-2 text-void-fg-2 rounded-sm text-xs"
+// 								>
+// 									{model.name}
+// 								</span>
+// 							))}
+// 						</div>
+// 					</div>
+// 				)}
 
-				{models.length === 0 && (
-					<p className="text-xs text-void-fg-4">
-						No models available. Models will be fetched after authentication.
-					</p>
-				)}
-			</div>
-		</div>
-	)
-}
+// 				{models.length === 0 && (
+// 					<p className="text-xs text-void-fg-4">
+// 						No models available. Models will be fetched after authentication.
+// 					</p>
+// 				)}
+// 			</div>
+// 		</div>
+// 	)
+// }
 
 
 export const VoidProviderSettings = ({ providerNames }: { providerNames: ProviderName[] }) => {
@@ -861,7 +862,8 @@ export const VoidProviderSettings = ({ providerNames }: { providerNames: Provide
 		{providerNames.map(providerName =>
 			<SettingBox key={providerName}>
 				{providerName === 'aCoder' ? (
-					<ACoderProviderCard />
+					// <ACoderProviderCard />
+					<p className="text-sm text-void-fg-3">A-Coder provider coming soon</p>
 				) : (
 					<SettingsForProvider providerName={providerName} showProviderTitle={true} showProviderSuggestions={true} />
 				)}
@@ -1361,6 +1363,7 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 	const mcpService = accessor.get('IMCPService')
 	const storageService = accessor.get('IStorageService')
 	const metricsService = accessor.get('IMetricsService')
+	const whatsNewModalService = accessor.get('IWhatsNewModalService')
 	const isOptedOut = useIsOptedOut()
 
 	const onDownload = (t: 'Chats' | 'Settings') => {
@@ -2305,9 +2308,19 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 									<p className="text-xs text-void-fg-3 mb-4 font-mono">
 										Version: {productService.voidVersion || productService.version} ({productService.voidRelease || '0000'})
 									</p>
-									<p className="text-sm text-void-fg-3 mb-8 max-w-lg mx-auto leading-relaxed">
+									<p className="text-sm text-void-fg-3 mb-4 max-w-lg mx-auto leading-relaxed">
 										The open-source, AI-powered code editor built for the next generation of software development.
 									</p>
+
+									<div className="max-w-2xl mx-auto mb-6">
+										<button
+											onClick={() => whatsNewModalService.openModal(`${productService.voidVersion || productService.version} (${productService.voidRelease || '0000'})`)}
+											className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-void-accent hover:bg-void-accent/90 text-white font-medium rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] shadow-md"
+										>
+											<Sparkles size={18} />
+											<span>What's New</span>
+										</button>
+									</div>
 
 									<div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
 										<a href="https://github.com/hamishfromatech/a-coder" target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 p-4 rounded-xl bg-void-bg-2 hover:bg-void-bg-3 border border-void-border-2 transition-all hover:scale-[1.02] active:scale-[0.98]">
