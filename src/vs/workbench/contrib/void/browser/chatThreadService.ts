@@ -1456,7 +1456,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			let lastParsedLength = 0;
 
 			let lastUpdateTime = 0;
-			const UI_UPDATE_THROTTLE_MS = 100; // ~10 FPS - smoother for CPU, still good for reading
+			const UI_UPDATE_THROTTLE_MS = 50; // ~20 FPS - smoother for streaming, still CPU-friendly
 
 			let shouldRetryLLM = true
 			let nAttempts = 0
