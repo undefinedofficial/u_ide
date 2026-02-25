@@ -1020,6 +1020,8 @@ const sendAnthropicChat = async ({ messages, providerName, onText, onFinalMessag
 					doneParams: [],
 					id: tc.id || generateUuid()
 				})),
+			// Pass raw text for repetition detection (Anthropic uses native tools, so no XML stripping)
+			_rawTextBeforeStripping: fullText,
 		})
 	}
 	// there are no events for tool_use, it comes in at the end
@@ -1066,6 +1068,8 @@ const sendAnthropicChat = async ({ messages, providerName, onText, onFinalMessag
 							doneParams: [],
 							id: tc.id || generateUuid()
 						})),
+					// Pass raw text for repetition detection (Anthropic uses native tools, so no XML stripping)
+					_rawTextBeforeStripping: fullText,
 				})
 			}
 			else if (e.delta.type === 'thinking_delta') {
@@ -1083,6 +1087,8 @@ const sendAnthropicChat = async ({ messages, providerName, onText, onFinalMessag
 							doneParams: [],
 							id: tc.id || generateUuid()
 						})),
+					// Pass raw text for repetition detection (Anthropic uses native tools, so no XML stripping)
+					_rawTextBeforeStripping: fullText,
 				})
 			}
 			else if (e.delta.type === 'input_json_delta') { // tool use
