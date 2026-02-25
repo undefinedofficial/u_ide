@@ -18,10 +18,40 @@ module.exports = {
 								'0%, 100%': { opacity: '1' },
 								'50%': { opacity: '0.6' },
 							},
+							'slide-up': {
+								'0%': { opacity: '0', transform: 'translateY(10px)' },
+								'100%': { opacity: '1', transform: 'translateY(0)' },
+							},
+							'slide-in-right': {
+								'0%': { opacity: '0', transform: 'translateX(-10px)' },
+								'100%': { opacity: '1', transform: 'translateX(0)' },
+							},
+							'fade-in-scale': {
+								'0%': { opacity: '0', transform: 'scale(0.97)' },
+								'100%': { opacity: '1', transform: 'scale(1)' },
+							},
+							'float': {
+								'0%, 100%': { transform: 'translateY(0)' },
+								'50%': { transform: 'translateY(-4px)' },
+							},
+							'glow-pulse': {
+								'0%, 100%': { boxShadow: '0 0 20px rgba(99, 102, 241, 0.3)' },
+								'50%': { boxShadow: '0 0 30px rgba(99, 102, 241, 0.5)' },
+							},
+							'shimmer': {
+								'0%': { transform: 'translateX(-100%)' },
+								'100%': { transform: 'translateX(100%)' },
+							},
 						},
 						animation: {
 							'text-shimmer': 'text-shimmer 2.5s ease-out infinite',
 							'pulse-gentle': 'pulse-gentle 1.5s ease-in-out infinite',
+							'slide-up': 'slide-up 300ms ease-out forwards',
+							'slide-in-right': 'slide-in-right 300ms ease-out forwards',
+							'fade-in-scale': 'fade-in-scale 200ms ease-out forwards',
+							'float': 'float 3s ease-in-out infinite',
+							'glow-pulse': 'glow-pulse 2s ease-in-out infinite',
+							'shimmer': 'shimmer 2s infinite',
 						},
 						typography: theme => ({				DEFAULT: {
 					css: {
@@ -45,23 +75,41 @@ module.exports = {
 				},
 			}),
 			fontSize: {
-				xs: '10px',
-				sm: '11px',
-				root: '13px',
-				lg: '14px',
-				xl: '16px',
-				'2xl': '18px',
-				'3xl': '20px',
-				'4xl': '24px',
-				'5xl': '30px',
-				'6xl': '36px',
-				'7xl': '48px',
-				'8xl': '64px',
-				'9xl': '72px',
+				xs: ['10px', { lineHeight: '1.4', letterSpacing: '0.01em' }],
+				sm: ['11px', { lineHeight: '1.45', letterSpacing: '0.005em' }],
+				root: ['13px', { lineHeight: '1.5', letterSpacing: '0' }],
+				lg: ['14px', { lineHeight: '1.5', letterSpacing: '0' }],
+				xl: ['16px', { lineHeight: '1.4', letterSpacing: '-0.01em' }],
+				'2xl': ['18px', { lineHeight: '1.35', letterSpacing: '-0.01em', fontWeight: '500' }],
+				'3xl': ['20px', { lineHeight: '1.3', letterSpacing: '-0.02em', fontWeight: '600' }],
+				'4xl': ['24px', { lineHeight: '1.25', letterSpacing: '-0.02em', fontWeight: '600' }],
+				'5xl': ['30px', { lineHeight: '1.2', letterSpacing: '-0.02em', fontWeight: '700' }],
+				'6xl': ['36px', { lineHeight: '1.15', letterSpacing: '-0.03em', fontWeight: '700' }],
+				'7xl': ['48px', { lineHeight: '1.1', letterSpacing: '-0.03em', fontWeight: '700' }],
+				'8xl': ['64px', { lineHeight: '1.05', letterSpacing: '-0.04em', fontWeight: '800' }],
+				'9xl': ['72px', { lineHeight: '1', letterSpacing: '-0.04em', fontWeight: '800' }],
+			},
+			boxShadow: {
+				'void-sm': 'var(--void-shadow-sm)',
+				'void-md': 'var(--void-shadow-md)',
+				'void-lg': 'var(--void-shadow-lg)',
+				'void-xl': 'var(--void-shadow-xl)',
+				'void-inner': 'var(--void-shadow-inner)',
+				'void-glow': 'var(--void-accent-glow)',
+				'void-glow-strong': 'var(--void-accent-glow-strong)',
+				'void-glow-subtle': 'var(--void-accent-glow-subtle)',
+			},
+			borderRadius: {
+				'void-sm': '6px',
+				'void-md': '8px',
+				'void-lg': '12px',
+				'void-xl': '16px',
+				'void-2xl': '20px',
 			},
 			// common colors to use, ordered light to dark
 
 			colors: {
+				// Core backgrounds
 				'void-bg-1': 'var(--void-bg-1)',
 				'void-bg-1-alt': 'var(--void-bg-1-alt)',
 				'void-bg-2': 'var(--void-bg-2)',
@@ -71,23 +119,45 @@ module.exports = {
 				'void-bg-4': 'var(--void-bg-4)',
 				'void-bg-4-hover': 'var(--void-bg-4-hover)',
 
+				// Depth system (elevation layers)
+				'void-depth-base': 'var(--void-depth-base)',
+				'void-depth-elevated': 'var(--void-depth-elevated)',
+				'void-depth-floating': 'var(--void-depth-floating)',
+				'void-depth-modal': 'var(--void-depth-modal)',
 
+				// Foregrounds
 				'void-fg-0': 'var(--void-fg-0)',
 				'void-fg-1': 'var(--void-fg-1)',
 				'void-fg-2': 'var(--void-fg-2)',
 				'void-fg-3': 'var(--void-fg-3)',
-				// 'void-fg-4': 'var(--vscode-tab-inactiveForeground)',
 				'void-fg-4': 'var(--void-fg-4)',
 
+				// Warning
 				'void-warning': 'var(--void-warning)',
 
+				// Borders
 				'void-border-1': 'var(--void-border-1)',
 				'void-border-2': 'var(--void-border-2)',
 				'void-border-3': 'var(--void-border-3)',
 				'void-border-4': 'var(--void-border-4)',
 
+				// Ring and links
 				'void-ring-color': 'var(--void-ring-color)',
 				'void-link-color': 'var(--void-link-color)',
+
+				// Accent colors (premium brand colors)
+				'void-accent': {
+					DEFAULT: 'var(--void-accent-start)',
+					start: 'var(--void-accent-start)',
+					end: 'var(--void-accent-end)',
+					hover: 'var(--void-accent-hover)',
+					active: 'var(--void-accent-active)',
+				},
+
+				// Status colors
+				'void-success': 'var(--void-success)',
+				'void-error': 'var(--void-error)',
+				'void-info': 'var(--void-info)',
 
 				vscode: {
 					// see: https://code.visualstudio.com/api/extension-guides/webview#theming-webview-content

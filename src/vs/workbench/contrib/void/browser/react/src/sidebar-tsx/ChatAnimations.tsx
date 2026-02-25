@@ -62,15 +62,19 @@ export const TypingIndicator = ({
 
 	// Advance message every few seconds with smooth cross-fade
 	useEffect(() => {
+		let transitionTimer: ReturnType<typeof setTimeout> | null = null;
 		const interval = window.setInterval(() => {
 			setIsInitialShow(false); // After first interval, it's no longer initial
 			setIsTransitioning(true);
-			setTimeout(() => {
+			transitionTimer = setTimeout(() => {
 				setMessageIndex(prev => (prev + 1) % allMessages.length);
 				setIsTransitioning(false);
 			}, 300); // Half of transition duration
 		}, 8000); // Increased delay to 8s so it doesn't happen as frequently
-		return () => window.clearInterval(interval);
+		return () => {
+			window.clearInterval(interval);
+			if (transitionTimer) clearTimeout(transitionTimer);
+		};
 	}, [allMessages.length]); // Only depend on length
 
 	// Update display message when index or allMessages changes

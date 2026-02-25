@@ -56,4 +56,4 @@ export class CommandAnalyticsService extends Disposable implements ICommandAnaly
 	}
 }
 
-registerSingleton(ICommandAnalyticsService, CommandAnalyticsService, InstantiationType.Eager);
+registerSingleton(ICommandAnalyticsService, CommandAnalyticsService, InstantiationType.Delayed);

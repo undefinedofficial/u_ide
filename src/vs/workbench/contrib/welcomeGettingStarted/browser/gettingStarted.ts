@@ -868,7 +868,7 @@ export class GettingStartedPage extends EditorPane {
 		}));
 
 		const header = $('.header', {},
-			$('div', { class: '@@void-void-icon', style: 'width: 80px; height: 80px; margin-bottom: 16px; background-size: contain; background-repeat: no-repeat; opacity: 0.9;' }),
+			$('div', { class: 'void-void-icon', style: 'width: 80px; height: 80px; margin-bottom: 16px; background-size: contain; background-repeat: no-repeat; opacity: 0.9;' }),
 			$('h1.product-name.caption', { style: 'font-weight: 600; letter-spacing: -0.02em; margin-bottom: 8px;' }, "A-Coder"),
 			$('p.subtitle.description', { style: 'font-size: 1.2em; opacity: 0.8; font-weight: 400;' }, "The open-source, AI-powered code editor")
 		);

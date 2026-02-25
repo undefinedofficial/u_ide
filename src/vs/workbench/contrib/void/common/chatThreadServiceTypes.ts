@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
-import { VoidFileSnapshot } from './editCodeServiceTypes.js';
+import { VoidFileSnapshot, DiffBasedCheckpoint } from './editCodeServiceTypes.js';
 import { AnthropicReasoning, RawToolParamsObj } from './sendLLMMessageTypes.js';
 import { ToolCallParams, ToolName, ToolResult } from './toolsServiceTypes.js';
 
@@ -35,14 +35,22 @@ export type DecorativeCanceledTool = {
 }
 
 
-// checkpoints
+// MEMORY OPTIMIZATION: Diff-based checkpoints to reduce memory usage
+// Instead of storing full file snapshots, we store diffs from the previous checkpoint
 export type CheckpointEntry = {
 	role: 'checkpoint';
 	type: 'user_edit' | 'tool_edit';
-	voidFileSnapshotOfURI: { [fsPath: string]: VoidFileSnapshot | undefined };
+	// MEMORY OPTIMIZATION: New diff-based storage (preferred for memory efficiency)
+	// Stores only the changes from the previous checkpoint instead of full file content
+	diffBasedCheckpointsOfURI?: { [fsPath: string]: DiffBasedCheckpoint | undefined };
+	// Reference to previous checkpoint index for diff chain reconstruction
+	previousCheckpointIdx?: number | null;
+	// Legacy full snapshot storage (for backwards compatibility)
+	voidFileSnapshotOfURI?: { [fsPath: string]: VoidFileSnapshot | undefined };
 
 	userModifications: {
-		voidFileSnapshotOfURI: { [fsPath: string]: VoidFileSnapshot | undefined };
+		diffBasedCheckpointsOfURI?: { [fsPath: string]: DiffBasedCheckpoint | undefined };
+		voidFileSnapshotOfURI?: { [fsPath: string]: VoidFileSnapshot | undefined };
 	};
 }
 

@@ -65,11 +65,11 @@ export const defaultProviderSettings = {
 		region: 'us-east-1', // add region setting
 		endpoint: '', // optionally allow overriding default
 	},
-	// A-Coder provider - free models with OAuth sign-in
+	// DISABLED: A-Coder provider - free models with OAuth sign-in
 	// No user-configurable settings - base URL and API key managed server-side
-	aCoder: {
-		// No settings - managed internally via OAuth
-	},
+	// aCoder: {
+	// 	// No settings - managed internally via OAuth
+	// },
 
 } as const
 
@@ -159,8 +159,8 @@ export const defaultModelsOfProvider = {
 	microsoftAzure: [],
 	awsBedrock: [],
 	liteLLM: [],
-	// A-Coder models are populated dynamically from API after OAuth authentication
-	aCoder: [],
+	// DISABLED: A-Coder OAuth provider
+	// aCoder: [],
 
 
 } as const satisfies Record<ProviderName, string[]>
@@ -1928,9 +1928,8 @@ const openRouterSettings: VoidStaticProviderInfo = {
 }
 
 
-// ---------------- A-CODER ----------------
-// A-Coder uses OpenAI-compatible API at https://llm.chutes.ai/v1
-// Models are fetched dynamically after OAuth authentication
+// DISABLED: A-Coder OAuth provider - commented out to prevent memory leaks
+/*
 const aCoderSettings: VoidStaticProviderInfo = {
 	modelOptions: {},
 	modelOptionsFallback: (modelName) => {
@@ -1945,6 +1944,22 @@ const aCoderSettings: VoidStaticProviderInfo = {
 		output: { nameOfFieldInDelta: 'reasoning_content' },
 	},
 }
+*/
+
+// DISABLED: A-Coder OAuth provider - commented out to prevent memory leaks
+// This stub is kept to satisfy TypeScript but is never used
+/*
+const aCoderSettings: VoidStaticProviderInfo = {
+	modelOptions: {},
+	modelOptionsFallback: (_modelName) => {
+		return null
+	},
+	providerReasoningIOSettings: {
+		input: { includeInPayload: () => ({}) },
+		output: { nameOfFieldInDelta: undefined },
+	},
+}
+*/
 
 
 
@@ -1975,8 +1990,8 @@ const modelSettingsOfProvider: { [providerName in ProviderName]: VoidStaticProvi
 	googleVertex: googleVertexSettings,
 	microsoftAzure: microsoftAzureSettings,
 	awsBedrock: awsBedrockSettings,
-	// A-Coder - free models with OAuth sign-in
-	aCoder: aCoderSettings,
+	// DISABLED: A-Coder OAuth provider - commented out to prevent memory leaks
+	// aCoder: aCoderSettings,
 } as const
 
 

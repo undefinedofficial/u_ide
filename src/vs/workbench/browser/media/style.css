@@ -318,3 +318,197 @@ body {
 	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
 	outline-offset: -1px;
 }
+
+/* ============================================
+   PREMIUM IDE STYLING ENHANCEMENTS
+   ============================================ */
+
+/* Smooth transitions on interactive elements */
+.monaco-workbench .monaco-action-bar .action-item {
+	transition: transform 150ms ease-out, opacity 150ms ease-out;
+}
+
+.monaco-workbench .monaco-action-bar .action-item:active {
+	transform: scale(0.97);
+}
+
+/* Editor tabs - premium styling */
+.monaco-workbench .tab {
+	transition: background-color 200ms ease-out, border-color 200ms ease-out;
+}
+
+.monaco-workbench .tab:hover {
+	background-color: var(--vscode-tab-hoverBackground, var(--vscode-tab-inactiveBackground));
+}
+
+.monaco-workbench .tab.active {
+	border-top: 2px solid var(--vscode-tab-activeBorder, var(--vscode-focusBorder));
+}
+
+/* Activity bar - glow effect on active item */
+.monaco-workbench .activitybar .action-item.checked {
+	filter: drop-shadow(0 0 8px var(--vscode-activityBar-activeBorder));
+}
+
+/* Sidebar - smooth transitions */
+.monaco-workbench .part.sidebar {
+	transition: width 200ms ease-out;
+}
+
+/* Status bar - premium styling */
+.monaco-workbench .part.statusbar {
+	border-top: 1px solid var(--vscode-statusBar-border);
+}
+
+/* Panels - smooth transitions */
+.monaco-workbench .part.panel {
+	transition: height 200ms ease-out;
+}
+
+/* Breadcrumbs - subtle styling */
+.monaco-workbench .monaco-breadcrumbs {
+	font-size: 12px;
+	letter-spacing: 0.01em;
+}
+
+/* Command palette - premium backdrop */
+.monaco-workbench .quick-input-widget {
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+}
+
+/* Menus - subtle animation */
+.monaco-workbench .monaco-menu .monaco-action-bar .action-item {
+	transition: background-color 150ms ease-out;
+}
+
+/* Input boxes - focus glow */
+.monaco-workbench input[type="text"]:focus,
+.monaco-workbench textarea:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+/* Scrollbars - premium styling */
+.monaco-workbench ::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+.monaco-workbench ::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.monaco-workbench ::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background);
+	border-radius: 5px;
+	border: 2px solid transparent;
+	background-clip: content-box;
+}
+
+.monaco-workbench ::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+	border-radius: 5px;
+	border: 2px solid transparent;
+	background-clip: content-box;
+}
+
+.monaco-workbench ::-webkit-scrollbar-thumb:active {
+	background: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+/* Selection - premium color */
+::selection {
+	background-color: var(--vscode-selection-background);
+	color: var(--vscode-selection-foreground);
+}
+
+/* Focus indicators - subtle glow */
+.monaco-workbench .synthetic-focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Tooltips - smooth appearance */
+.monaco-workbench .monaco-hover {
+	animation: fade-in 150ms ease-out;
+}
+
+@keyframes fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* ============================================
+   PREMIUM NATIVE IDE STYLING
+   ============================================ */
+
+/* Smooth transitions for all interactive elements */
+.monaco-workbench .monaco-action-bar .action-item,
+.monaco-workbench .monaco-list .monaco-list-row,
+.monaco-workbench .part > .title {
+	transition: background-color 150ms ease-out, opacity 150ms ease-out;
+}
+
+/* Enhanced focus indicators with glow */
+.monaco-workbench :focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Button hover lift effect */
+.monaco-workbench button:not(.disabled):hover,
+.monaco-workbench .monaco-button:hover {
+	transform: translateY(-0.5px);
+}
+
+/* Tab premium styling */
+.monaco-workbench .tab {
+	border-radius: 6px 6px 0 0;
+	margin: 0 2px;
+}
+
+.monaco-workbench .tab.active {
+	box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Activity bar item hover glow */
+.monaco-workbench .activitybar .action-item:hover .action-label.codicon {
+	text-shadow: 0 0 8px var(--vscode-activityBar-foreground);
+}
+
+/* Sidebar section headers with premium styling */
+.monaco-workbench .sidebar .monaco-split-view2 > .monaco-scrollable-element > .split-view-container > .split-view-view:first-child > .header {
+	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+}
+
+/* Status bar segments */
+.monaco-workbench .part.statusbar {
+	border-top: 1px solid var(--vscode-statusBar-border);
+}
+
+.monaco-workbench .part.statusbar .statusbar-item:hover {
+	background-color: var(--vscode-statusBarItem-hoverBackground);
+}
+
+/* Enhanced scrollbar styling */
+.monaco-workbench .scrollbar .slider {
+	border-radius: 3px;
+}
+
+/* Command center premium styling */
+.monaco-workbench .part.titlebar .command-center {
+	border-radius: 6px;
+	transition: background-color 150ms ease-out;
+}
+
+.monaco-workbench .part.titlebar .command-center:hover {
+	background-color: var(--vscode-commandCenter-activeBackground);
+}

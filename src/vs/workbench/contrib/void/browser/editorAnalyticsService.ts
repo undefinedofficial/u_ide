@@ -96,4 +96,4 @@ export class EditorAnalyticsService extends Disposable implements IEditorAnalyti
 	}
 }
 
-registerSingleton(IEditorAnalyticsService, EditorAnalyticsService, InstantiationType.Eager);
+registerSingleton(IEditorAnalyticsService, EditorAnalyticsService, InstantiationType.Delayed);

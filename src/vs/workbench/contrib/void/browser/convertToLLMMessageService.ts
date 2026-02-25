@@ -944,7 +944,7 @@ ${messages.prefix}`
 }
 
 
-registerSingleton(IConvertToLLMMessageService, ConvertToLLMMessageService, InstantiationType.Eager);
+registerSingleton(IConvertToLLMMessageService, ConvertToLLMMessageService, InstantiationType.Delayed);
 
 
 

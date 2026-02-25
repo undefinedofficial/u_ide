@@ -13,10 +13,30 @@ import { IMainProcessService } from '../../../../platform/ipc/common/mainProcess
 export class TokenCountingService {
 	private readonly _modelRatios = new Map<string, number>();
 
+	// MEMORY OPTIMIZATION: Cache for recent counts to avoid redundant IPC
+	private _countCache = new Map<string, number>();
+	private readonly MAX_CACHE_SIZE = 50;
+
+	// PERFORMANCE: Cache for partial message histories to avoid redundant IPC
+	private _historyCache = new Map<string, { count: number, lastMessageHash: string }>();
+	private readonly MAX_HISTORY_CACHE_SIZE = 20;
+
 	constructor(
 		@IMainProcessService private readonly mainProcessService: IMainProcessService,
 	) {
 		console.log('[TokenCountingService] Using tiktoken via IPC with character-based fallback');
+	}
+
+	private _getCached(text: string, modelName: string): number | undefined {
+		return this._countCache.get(`${modelName}:${text.length}:${text.substring(0, 50)}`);
+	}
+
+	private _setCached(text: string, modelName: string, count: number): void {
+		if (this._countCache.size >= this.MAX_CACHE_SIZE) {
+			const firstKey = this._countCache.keys().next().value;
+			if (firstKey) this._countCache.delete(firstKey);
+		}
+		this._countCache.set(`${modelName}:${text.length}:${text.substring(0, 50)}`, count);
 	}
 
 	/**
@@ -44,60 +64,36 @@ export class TokenCountingService {
 
 	/**
 	 * Count tokens in a single text string
-	 * Uses tiktoken via IPC; falls back to character estimation if IPC fails.
-	 * This method is synchronous and uses estimated values.
-	 * For exact async counting, use countTextTokensAsync().
+	 * Synchronous version returns estimate to avoid blocking UI.
 	 */
 	public countTextTokens(text: string, modelName: string): number {
-		// Try async IPC in a fire-and-forget way; if it fails, fall back to estimate.
-		// We don't await here to keep this method synchronous for existing callers.
-		this.countTextTokensAsync(text, modelName).then(
-			() => { }, // success: nothing needed; result is cached internally if you want to add caching later
-			() => { } // error: already handled by fallback
-		);
-
-		// Synchronous fallback estimate
-		return Math.ceil(text.length / 4);
+		// MEMORY OPTIMIZATION: Return estimate immediately without triggering fire-and-forget IPC.
+		// Frequent synchronous calls during typing or rendering shouldn't flood the IPC channel.
+		const multiplier = this._getTokenCountMultiplier(modelName);
+		return Math.ceil((text.length / 4) * multiplier);
 	}
 
 	/**
 	 * Count tokens in a chat message
-	 * Uses tiktoken via IPC; falls back to character estimation if IPC fails.
-	 * This method is synchronous and uses estimated values.
-	 * For exact async counting, use countMessageTokensAsync().
+	 * Synchronous version returns estimate to avoid blocking UI.
 	 */
 	public countMessageTokens(message: LLMChatMessage, modelName: string): number {
-		// Try async IPC for accuracy
-		this.countMessageTokensAsync(message, modelName).then(
-			() => { },
-			() => { }
-		);
-
-		// Synchronous fallback estimate
-		const messageStr = JSON.stringify(message);
-		return Math.ceil(messageStr.length / 4) + 4;
+		const multiplier = this._getTokenCountMultiplier(modelName);
+		return Math.ceil(this._estimateSingleMessageTokens(message) * multiplier);
 	}
 
 	/**
 	 * Count tokens in an array of chat messages
-	 * Uses tiktoken via IPC; falls back to character estimation if IPC fails.
-	 * This method is synchronous and uses estimated values.
-	 * For exact async counting, use countMessagesTokensAsync().
+	 * Synchronous version returns estimate to avoid blocking UI.
 	 */
 	public countMessagesTokens(messages: LLMChatMessage[], modelName: string): number {
-		// Try async IPC for accuracy
-		this.countMessagesTokensAsync(messages, modelName).then(
-			() => { },
-			() => { }
-		);
-
-		// Synchronous fallback estimate
+		const multiplier = this._getTokenCountMultiplier(modelName);
 		let totalTokens = 0;
 		for (const message of messages) {
-			totalTokens += this.countMessageTokens(message, modelName);
+			totalTokens += this._estimateSingleMessageTokens(message);
 		}
 		totalTokens += 3;
-		return totalTokens;
+		return Math.ceil(totalTokens * multiplier);
 	}
 
 	/**
@@ -122,11 +118,16 @@ export class TokenCountingService {
 	 * Falls back to character estimation on IPC error.
 	 */
 	public async countTextTokensAsync(text: string, modelName: string): Promise<number> {
+		const cached = this._getCached(text, modelName);
+		if (cached !== undefined) return cached;
+
 		const multiplier = this._getTokenCountMultiplier(modelName);
 		try {
 			const channel = this.mainProcessService.getChannel('void-channel-token-counting');
 			const count = await channel.call('countTokens', { text, modelName });
-			return Math.ceil((typeof count === 'number' ? count : Math.ceil(text.length / 4)) * multiplier);
+			const finalCount = Math.ceil((typeof count === 'number' ? count : Math.ceil(text.length / 4)) * multiplier);
+			this._setCached(text, modelName, finalCount);
+			return finalCount;
 		} catch (error) {
 			console.warn('[TokenCountingService] IPC token counting failed, using character estimate:', error);
 			return Math.ceil((text.length / 4) * multiplier);
@@ -218,7 +219,23 @@ export class TokenCountingService {
 	 * Falls back to character estimation on IPC error.
 	 */
 	public async countMessagesTokensAsync(messages: LLMChatMessage[], modelName: string): Promise<number> {
+		if (messages.length === 0) return 0;
+
 		const multiplier = this._getTokenCountMultiplier(modelName);
+
+		// PERFORMANCE: Check history cache for O(1) count if only last message changed
+		if (messages.length > 1) {
+			const historyKey = `${modelName}:${messages.length}`;
+			const cached = this._historyCache.get(historyKey);
+			const lastMsg = messages[messages.length - 1];
+			const lastMsgContent = this._extractContent(lastMsg);
+			const lastMsgHash = `${lastMsgContent.length}:${lastMsgContent.substring(0, 50)}`;
+
+			if (cached && cached.lastMessageHash === lastMsgHash) {
+				return cached.count;
+			}
+		}
+
 		try {
 			const channel = this.mainProcessService.getChannel('void-channel-token-counting');
 			const plainMessages = messages.map(msg => ({
@@ -227,7 +244,23 @@ export class TokenCountingService {
 			}));
 			const count = await channel.call('countMessagesTokens', { messages: plainMessages, modelName });
 			const baseCount = typeof count === 'number' ? count : this._estimateMessagesTokens(messages);
-			return Math.ceil(baseCount * multiplier);
+			const finalCount = Math.ceil(baseCount * multiplier);
+
+			// Update history cache
+			if (messages.length > 1) {
+				const historyKey = `${modelName}:${messages.length}`;
+				const lastMsg = messages[messages.length - 1];
+				const lastMsgContent = this._extractContent(lastMsg);
+				const lastMsgHash = `${lastMsgContent.length}:${lastMsgContent.substring(0, 50)}`;
+
+				if (this._historyCache.size >= this.MAX_HISTORY_CACHE_SIZE) {
+					const firstKey = this._historyCache.keys().next().value;
+					if (firstKey) this._historyCache.delete(firstKey);
+				}
+				this._historyCache.set(historyKey, { count: finalCount, lastMessageHash: lastMsgHash });
+			}
+
+			return finalCount;
 		} catch (error) {
 			console.warn('[TokenCountingService] IPC token counting failed, using character estimate:', error);
 			return Math.ceil(this._estimateMessagesTokens(messages) * multiplier);
@@ -236,15 +269,57 @@ export class TokenCountingService {
 
 	/**
 	 * Internal helper: character-based estimate for messages (fallback).
+	 * Optimized to avoid full JSON.stringify which is slow for large objects.
 	 */
 	private _estimateMessagesTokens(messages: LLMChatMessage[]): number {
 		let totalTokens = 0;
 		for (const message of messages) {
-			const messageStr = JSON.stringify(message);
-			totalTokens += Math.ceil(messageStr.length / 4) + 4;
+			totalTokens += this._estimateSingleMessageTokens(message);
 		}
 		totalTokens += 3;
 		return totalTokens;
+	}
+
+	/**
+	 * Estimate tokens for a single message without full JSON serialization.
+	 */
+	private _estimateSingleMessageTokens(message: LLMChatMessage): number {
+		let contentLen = 0;
+
+		// Role is short (user/assistant/system)
+		const roleLen = this._extractRole(message).length;
+
+		// Content is the main part
+		if ('content' in message) {
+			if (typeof message.content === 'string') {
+				contentLen = message.content.length;
+			} else if (Array.isArray(message.content)) {
+				for (const part of message.content) {
+					if (typeof part === 'string') contentLen += (part as string).length;
+					else if ('text' in part) contentLen += (part as any).text?.length || 0;
+					else if ('thinking' in part) contentLen += (part as any).thinking?.length || 0;
+					else if ('type' in part && ((part as any).type === 'tool_use' || (part as any).type === 'tool_result')) {
+						// Small overhead for tool metadata + serialized input/content
+						const p = part as any;
+						contentLen += (p.name?.length || 0) + (JSON.stringify(p.input || p.content || '').length);
+					}
+				}
+			}
+		} else if ('parts' in message && Array.isArray(message.parts)) {
+			for (const part of message.parts) {
+				if ('text' in part) contentLen += part.text?.length || 0;
+				else contentLen += JSON.stringify(part).length; // Fallback for complex parts
+			}
+		}
+
+		// Tool calls (OpenAI format)
+		if ('tool_calls' in message && Array.isArray(message.tool_calls)) {
+			for (const tc of message.tool_calls) {
+				contentLen += (tc.function?.name?.length || 0) + (tc.function?.arguments?.length || 0) + 10;
+			}
+		}
+
+		return Math.ceil((roleLen + contentLen + 20) / 4) + 4;
 	}
 
 

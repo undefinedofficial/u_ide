@@ -28,7 +28,7 @@ import { shorten } from '../../../../base/common/labels.js';
 import { IVoidModelService } from '../common/voidModelService.js';
 import { findLast, findLastIdx } from '../../../../base/common/arraysFind.js';
 import { IEditCodeService } from './editCodeServiceInterface.js';
-import { VoidFileSnapshot } from '../common/editCodeServiceTypes.js';
+import { VoidFileSnapshot, DiffBasedCheckpoint, createDiffBasedCheckpoint, applyDiffBasedCheckpoint } from '../common/editCodeServiceTypes.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { truncate } from '../../../../base/common/strings.js';
 import { THREAD_STORAGE_KEY } from '../common/storageKeys.js';
@@ -50,8 +50,36 @@ const CHAT_RETRIES = 3 // Number of retries for LLM errors (including empty resp
 const RETRY_DELAY = 2000 // Delay between retries in milliseconds
 export const AUTO_CONTINUE_CHAR_THRESHOLD = 200; // Still used by UI auto-continue
 
+// MEMORY OPTIMIZATION: Maximum messages per thread to prevent unbounded memory growth
+// Each message can be several KB with tool results, images, etc.
+const MAX_MESSAGES_PER_THREAD = 15;
+
+// MEMORY OPTIMIZATION: Maximum checkpoints per thread to prevent memory bloat
+const MAX_CHECKPOINTS_PER_THREAD = 5;
+
+// MEMORY OPTIMIZATION: Maximum tool call history per thread to prevent unbounded memory growth
+// Tool calls can store large params and results
+const MAX_TOOL_CALL_HISTORY_PER_THREAD = 100;
+
+// MEMORY OPTIMIZATION: Maximum length of tool result strings to prevent memory bloat
+const MAX_TOOL_RESULT_LENGTH = 10000;
+
+// MEMORY OPTIMIZATION: Maximum images per message to prevent memory bloat
+// Base64 images can be several MB each
+const MAX_IMAGES_PER_MESSAGE = 5;
+
+// MEMORY OPTIMIZATION: Maximum message queue size per thread
+const MAX_MESSAGE_QUEUE_PER_THREAD = 10;
+
+// MEMORY OPTIMIZATION: Maximum total size of all images in a message (10MB)
+const MAX_TOTAL_IMAGE_SIZE_MB = 10;
+
 const splitThinkTags = (input: string): { displayText: string; reasoningText: string } => {
 	if (!input) {
+		return { displayText: '', reasoningText: '' }
+	}
+	// Treat the special placeholder as empty content
+	if (input === '(empty message)') {
 		return { displayText: '', reasoningText: '' }
 	}
 
@@ -70,7 +98,7 @@ const splitThinkTags = (input: string): { displayText: string; reasoningText: st
 			if (openIdx === -1) break
 
 			const closeIdx = currentText.indexOf(closeTag, openIdx + openTag.length)
-			
+
 			if (closeIdx !== -1) {
 				// Found closed tag
 				const content = currentText.substring(openIdx + openTag.length, closeIdx).trim()
@@ -81,6 +109,9 @@ const splitThinkTags = (input: string): { displayText: string; reasoningText: st
 				// Found unclosed tag - take everything until the end
 				const content = currentText.substring(openIdx + openTag.length).trim()
 				if (content) reasoningParts.push(content)
+
+				// Keep the open tag if it's not closed, so user sees it's streaming
+				// but only return the text BEFORE the tag as display content
 				currentText = currentText.substring(0, openIdx)
 				break // No more closed tags possible after an unclosed one
 			}
@@ -103,15 +134,22 @@ const mergeReasoningContent = (existing?: string | null, fromTags?: string | nul
 	const secondary = (fromTags ?? '').trim()
 	if (!primary) return secondary
 	if (!secondary) return primary
-	
-	// Optimization: skip expensive includes if strings are very different in length
-	// or if they are obviously different
-	if (primary.length >= secondary.length) {
+
+	// PERFORMANCE OPTIMIZATION: Avoid expensive includes on large strings.
+	// If the strings are similar in length, they might be the same.
+	if (primary === secondary) return primary
+
+	// If one is significantly longer, it likely contains the other.
+	// We only check for inclusion if the length difference is small or if strings are small.
+	if (primary.length < 1000 && secondary.length < 1000) {
 		if (primary.includes(secondary)) return primary
-	} else {
 		if (secondary.includes(primary)) return secondary
 	}
-	
+
+	// Otherwise, we assume they are different and append them.
+	// To prevent unbounded growth, we don't re-append the same secondary many times.
+	// This is a heuristic: if primary ends with the start of secondary, we might want to merge,
+	// but simple appending is safer and faster for most cases.
 	return `${primary}\n\n${secondary}`.trim()
 }
 
@@ -497,14 +535,15 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 	state: ThreadsState // allThreads is persisted, currentThread is not
 
 	// Message queue: stores pending messages per thread
-	private readonly messageQueue: { [threadId: string]: Array<{ userMessage: string, selections?: StagingSelectionItem[], images?: ImageAttachment[] }> } = {}
+	private messageQueue: { [threadId: string]: Array<{ userMessage: string, selections?: StagingSelectionItem[], images?: ImageAttachment[] }> } = {}
 
 	// Task planning: stores task plans per thread
-	private readonly taskPlans: { [threadId: string]: TaskPlan[] } = {}
+	private taskPlans: { [threadId: string]: TaskPlan[] } = {}
 
 	// PERFORMANCE: Debounce timer for storage
 	private _storeThreadsDebounceTimer: any = null;
-	private readonly MAX_THREADS_IN_STORAGE = 20;
+	private readonly MAX_THREADS_IN_STORAGE = 5;
+	private _cleanupInterval: any = null;
 
 	// used in checkpointing
 	// private readonly _userModifiedFilesToCheckInCheckpoints = new LRUCache<string, null>(50)
@@ -583,6 +622,10 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			clearTimeout(this._storeThreadsDebounceTimer);
 			this._storeAllThreadsNow(this.state.allThreads);
 		}
+		if (this._cleanupInterval) {
+			clearInterval(this._cleanupInterval);
+			this._cleanupInterval = null;
+		}
 		super.dispose();
 	}
 
@@ -612,6 +655,11 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		this._onDidChangeCurrentThread.fire()
 	}
 	resetState = () => {
+		// MEMORY FIX: Clean up all auxiliary data when resetting state
+		this.toolCallHistory = {};
+		this.messageQueue = {};
+		this.taskPlans = {};
+
 		this.state = { allThreads: {}, currentThreadId: null as unknown as string } // see constructor
 		this.openNewThread()
 		this._onDidChangeCurrentThread.fire()
@@ -661,17 +709,37 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 		const prunedThreads: ChatThreads = {};
 		// Keep the 20 most recent threads
-		sortedThreadIds.slice(0, this.MAX_THREADS_IN_STORAGE).forEach(id => {
+		const threadIdsToKeep = sortedThreadIds.slice(0, this.MAX_THREADS_IN_STORAGE);
+		threadIdsToKeep.forEach(id => {
 			prunedThreads[id] = normalizedThreads[id];
 		});
-		
-		// Convert Sets to Arrays for JSON serialization
-		const serializableThreads: any = { ...prunedThreads };
-		for (const threadId in serializableThreads) {
-			const thread = serializableThreads[threadId];
-			if (thread && thread.filesWithUserChanges instanceof Set) {
-				thread.filesWithUserChanges = Array.from(thread.filesWithUserChanges);
+
+		// MEMORY FIX: Clean up auxiliary data for pruned threads
+		const threadIdsToPrune = sortedThreadIds.slice(this.MAX_THREADS_IN_STORAGE);
+		for (const threadId of threadIdsToPrune) {
+			delete this.toolCallHistory[threadId];
+			delete this.messageQueue[threadId];
+			delete this.taskPlans[threadId];
+
+			// ALSO: If we are pruning the current thread (unlikely but possible), clear it
+			if (this.state.currentThreadId === threadId) {
+				this.openNewThread();
 			}
+		}
+
+		// Convert Sets to Arrays for JSON serialization
+		const serializableThreads: any = {}; // Start with empty object
+		for (const id of threadIdsToKeep) {
+			const thread = normalizedThreads[id];
+			if (!thread) continue;
+
+			// Clone the thread to avoid modifying the original state
+			const threadClone = { ...thread };
+			if (threadClone.filesWithUserChanges instanceof Set) {
+				threadClone.filesWithUserChanges = Array.from(threadClone.filesWithUserChanges) as any;
+			}
+
+			serializableThreads[id] = threadClone;
 		}
 
 		const serializedThreads = JSON.stringify(serializableThreads);
@@ -769,6 +837,12 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		}
 		this.streamState[threadId] = state
 		this._onDidChangeStreamState.fire({ threadId })
+
+		// MEMORY OPTIMIZATION: If state is undefined, delete the key to free memory
+		// This ensures the llmInfo with large strings is garbage collected
+		if (state === undefined) {
+			delete this.streamState[threadId];
+		}
 	}
 
 
@@ -982,7 +1056,74 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 
 	// Track tool call history for loop detection
-	private toolCallHistory: { [threadId: string]: Array<{ name: string, params: any, result: any, type: string }> } = {};
+	private toolCallHistory: { [threadId: string]: Array<{ name: string, params: any, result: any, type: string, _paramsKey?: string }> } = {};
+
+	private _truncateToolResult(result: any): any {
+		if (typeof result === 'string') {
+			if (result.length > MAX_TOOL_RESULT_LENGTH) {
+				return result.substring(0, MAX_TOOL_RESULT_LENGTH) + `... (truncated to ${MAX_TOOL_RESULT_LENGTH} characters)`;
+			}
+			return result;
+		}
+
+		if (result && typeof result === 'object') {
+			// If it's a ToolResult object (e.g. from read_file)
+			if ('content' in result && typeof result.content === 'string') {
+				if (result.content.length > MAX_TOOL_RESULT_LENGTH) {
+					return {
+						...result,
+						content: result.content.substring(0, MAX_TOOL_RESULT_LENGTH) + `... (truncated to ${MAX_TOOL_RESULT_LENGTH} characters)`
+					};
+				}
+			}
+
+			// Handle MCP tool results which often have a 'content' array
+			if ('content' in result && Array.isArray(result.content)) {
+				return {
+					...result,
+					content: result.content.map((item: any) => {
+						if (item && typeof item === 'object' && 'text' in item && typeof item.text === 'string') {
+							if (item.text.length > MAX_TOOL_RESULT_LENGTH) {
+								return { ...item, text: item.text.substring(0, MAX_TOOL_RESULT_LENGTH) + `... (truncated to ${MAX_TOOL_RESULT_LENGTH} characters)` };
+							}
+						}
+						return item;
+					})
+				};
+			}
+		}
+
+		return result;
+	}
+
+	// MEMORY OPTIMIZATION: Fast param comparison without JSON.stringify
+	// Creates a hash key for params to avoid expensive stringify operations
+	private _getToolParamsKey(toolName: string, params: any): string {
+		if (!params) return toolName;
+		// Fast path: extract key identifying fields instead of full stringify
+		if (typeof params === 'object') {
+			// For common tool params, use specific key fields
+			if (params.uri?.fsPath) {
+				return `${toolName}:${params.uri.fsPath}`;
+			}
+			if (params.query) {
+				return `${toolName}:${params.query}`;
+			}
+			if (params.command) {
+				return `${toolName}:${params.command}`;
+			}
+			// Fallback: use tool name + first few keys
+			const keyParts = Object.keys(params).slice(0, 3).map(k => {
+				const v = params[k];
+				if (typeof v === 'string') return `${k}=${v.slice(0, 50)}`;
+				if (typeof v === 'number') return `${k}=${v}`;
+				if (v?.fsPath) return `${k}=${v.fsPath}`;
+				return `${k}=obj`;
+			});
+			return `${toolName}:${keyParts.join(',')}`;
+		}
+		return `${toolName}:${String(params)}`;
+	}
 
 	// Predictive progress messages based on tool name
 	private getPredictiveProgressMessage(toolName: string, params: any): string {
@@ -1036,10 +1177,15 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			// LOOP DETECTION: Check if we've tried this exact failing call recently
 			const history = this.toolCallHistory[threadId] || [];
 			const lastCall = history[history.length - 1];
-			if (lastCall && lastCall.name === toolName && JSON.stringify(lastCall.params) === JSON.stringify(toolParams) && lastCall.type !== 'success') {
-				// We are repeating a failing call. Add a note to help the agent break out.
-				console.warn(`[chatThreadService] Loop detected for tool ${toolName}.`);
-				// We don't block it here, but we will ensure the result contains a hint for the agent.
+			// MEMORY OPTIMIZATION: Use fast key comparison instead of JSON.stringify
+			const currentParamsKey = this._getToolParamsKey(toolName, toolParams);
+			if (lastCall && lastCall.name === toolName && lastCall.type !== 'success') {
+				const lastParamsKey = lastCall._paramsKey || this._getToolParamsKey(lastCall.name, lastCall.params);
+				if (lastParamsKey === currentParamsKey) {
+					// We are repeating a failing call. Add a note to help the agent break out.
+					console.warn(`[chatThreadService] Loop detected for tool ${toolName}.`);
+					// We don't block it here, but we will ensure the result contains a hint for the agent.
+				}
 			}
 
 			if (toolName === 'edit_file') { this._addToolEditCheckpoint({ threadId, uri: (toolParams as BuiltinToolCallParams['edit_file']).uri }) }
@@ -1138,7 +1284,15 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 			// LOOP DETECTION HINT: If we are repeating a failing call, add a hint for the agent
 			const history = this.toolCallHistory[threadId] || [];
-			const isRepeat = history.some(h => h.name === toolName && JSON.stringify(h.params) === JSON.stringify(toolParams) && h.type !== 'success');
+			// MEMORY OPTIMIZATION: Use fast key comparison instead of JSON.stringify on entire history
+			const currentParamsKey = this._getToolParamsKey(toolName, toolParams);
+			// Only check last 10 calls for performance
+			const recentHistory = history.slice(-10);
+			const isRepeat = recentHistory.some(h => {
+				if (h.name !== toolName || h.type === 'success') return false;
+				const historyParamsKey = h._paramsKey || this._getToolParamsKey(h.name, h.params);
+				return historyParamsKey === currentParamsKey;
+			});
 			if (isRepeat) {
 				toolResultStr += "\n\nNOTE: I've noticed you've tried this exact call before with a similar result. Please consider if you need to change your parameters, try a different tool, or ask the user for more information if you are stuck.";
 			}
@@ -1149,7 +1303,11 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 			// Update history
 			if (!this.toolCallHistory[threadId]) this.toolCallHistory[threadId] = [];
-			this.toolCallHistory[threadId].push({ name: toolName, params: toolParams, result: errorMessage, type: 'error' });
+			this.toolCallHistory[threadId].push({ name: toolName, params: toolParams, result: this._truncateToolResult(errorMessage), type: 'error', _paramsKey: this._getToolParamsKey(toolName, toolParams) });
+			// MEMORY OPTIMIZATION: Prune history if it exceeds max limit
+			if (this.toolCallHistory[threadId].length > MAX_TOOL_CALL_HISTORY_PER_THREAD) {
+				this.toolCallHistory[threadId] = this.toolCallHistory[threadId].slice(-MAX_TOOL_CALL_HISTORY_PER_THREAD);
+			}
 
 			// Auto-update task status when tools fail
 			this._updateTaskStatusFromToolExecution(threadId, toolName, 'error')
@@ -1167,7 +1325,15 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 		// Update history
 		if (!this.toolCallHistory[threadId]) this.toolCallHistory[threadId] = [];
-		this.toolCallHistory[threadId].push({ name: toolName, params: toolParams, result: toolResult, type: 'success' });
+
+		// MEMORY OPTIMIZATION: Truncate large tool results in history to prevent excessive memory usage
+		const resultToStore = this._truncateToolResult(toolResult);
+
+		this.toolCallHistory[threadId].push({ name: toolName, params: toolParams, result: resultToStore, type: 'success', _paramsKey: this._getToolParamsKey(toolName, toolParams) });
+		// MEMORY OPTIMIZATION: Prune history if it exceeds max limit
+		if (this.toolCallHistory[threadId].length > MAX_TOOL_CALL_HISTORY_PER_THREAD) {
+			this.toolCallHistory[threadId] = this.toolCallHistory[threadId].slice(-MAX_TOOL_CALL_HISTORY_PER_THREAD);
+		}
 
 		// Auto-update task status when tools complete successfully
 		this._updateTaskStatusFromToolExecution(threadId, toolName, 'success')
@@ -1290,7 +1456,7 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 			let lastParsedLength = 0;
 
 			let lastUpdateTime = 0;
-			const UI_UPDATE_THROTTLE_MS = 60; // ~16 FPS - smooth enough for reading, avoids renderer lag
+			const UI_UPDATE_THROTTLE_MS = 100; // ~10 FPS - smoother for CPU, still good for reading
 
 			let shouldRetryLLM = true
 			let nAttempts = 0
@@ -1321,13 +1487,34 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 					logging: { loggingName: `Chat - ${chatMode}`, loggingExtras: { threadId, nMessagesSent, chatMode } },
 					separateSystemMessage: separateSystemMessage,
 					onText: (params) => {
-						let { fullText, fullReasoning, toolCalls, _rawTextBeforeStripping } = params;
+						let { fullText, fullReasoning, textDelta, reasoningDelta, toolCalls, _rawTextBeforeStripping } = params;
 						// Backward compatibility for Main process running old code
 						if (!toolCalls && (params as any).toolCall) {
 							toolCalls = [(params as any).toolCall];
 						}
 
-						const parsed = partitionReasoningContent(fullText, fullReasoning)
+						let parsed: { displayText: string, reasoningText: string };
+
+						// PERFORMANCE: Use deltas if available to avoid O(N^2) processing
+						const currentStreamState = this.streamState[threadId];
+						if (textDelta !== undefined || reasoningDelta !== undefined) {
+							const prevLlmInfo = currentStreamState?.isRunning === 'LLM' ? currentStreamState.llmInfo : undefined;
+							const prevDisplayText = prevLlmInfo?.displayContentSoFar ?? '';
+							const prevReasoningText = prevLlmInfo?.reasoningSoFar ?? '';
+
+							// Note: fullText and fullReasoning are still used as fallback or for final consistency
+							parsed = {
+								displayText: textDelta !== undefined ? prevDisplayText + textDelta : fullText,
+								reasoningText: reasoningDelta !== undefined ? prevReasoningText + reasoningDelta : fullReasoning
+							};
+						} else {
+							parsed = partitionReasoningContent(fullText, fullReasoning)
+						}
+
+						// If parsed content is empty and we have raw text, try to partition the raw text
+						if (!parsed.displayText && !parsed.reasoningText && _rawTextBeforeStripping) {
+							parsed = partitionReasoningContent(_rawTextBeforeStripping, fullReasoning);
+						}
 
 						// Parse ReAct phases for enhanced UI detection
 						const textToParse = _rawTextBeforeStripping || fullText;
@@ -1383,7 +1570,19 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 						// Throttle UI updates
 						const now = Date.now();
 						const hasNewNativeToolCall = !!toolCalls && (toolCalls.length !== (this.streamState[threadId]?.llmInfo?.toolCallsSoFar?.length ?? 0));
-						const hasUpdatedXMLToolCall = !!reactResult?.toolCalls && (JSON.stringify(reactResult.toolCalls) !== JSON.stringify(this.streamState[threadId]?.llmInfo?.toolCallsSoFar));
+
+						// MEMORY OPTIMIZATION: Only stringify compare if lengths match (avoid expensive stringify on every char)
+						let hasUpdatedXMLToolCall = false;
+						if (reactResult?.toolCalls) {
+							const prevToolCalls = this.streamState[threadId]?.llmInfo?.toolCallsSoFar;
+							// Quick length check first
+							if (!prevToolCalls || reactResult.toolCalls.length !== prevToolCalls.length) {
+								hasUpdatedXMLToolCall = true;
+							} else if (reactResult.isComplete) {
+								// Only do expensive stringify comparison when complete, not on every char
+								hasUpdatedXMLToolCall = JSON.stringify(reactResult.toolCalls) !== JSON.stringify(prevToolCalls);
+							}
+						}
 						
 						const isCriticalUpdate = hasNewNativeToolCall || hasUpdatedXMLToolCall || reactResult?.isComplete;
 						
@@ -1789,12 +1988,108 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 	}
 
 
-	private _getCheckpointInfo = (checkpointMessage: ChatMessage & { role: 'checkpoint' }, fsPath: string, opts: { includeUserModifiedChanges: boolean }) => {
-		const voidFileSnapshot = checkpointMessage.voidFileSnapshotOfURI ? checkpointMessage.voidFileSnapshotOfURI[fsPath] ?? null : null
-		if (!opts.includeUserModifiedChanges) { return { voidFileSnapshot, } }
+	private _getCheckpointInfo = (checkpointMessage: ChatMessage & { role: 'checkpoint' }, fsPath: string, opts: { includeUserModifiedChanges: boolean }): { voidFileSnapshot: VoidFileSnapshot | null } | undefined => {
+		// Try new diff-based format first
+		const diffCheckpoint = checkpointMessage.diffBasedCheckpointsOfURI?.[fsPath];
+		if (diffCheckpoint) {
+			// For diff-based checkpoints, we need to reconstruct the full content
+			// by walking back through the checkpoint chain
+			const fullContent = this._reconstructFileContentFromDiffs(checkpointMessage, fsPath);
+			if (fullContent !== null) {
+				return {
+					voidFileSnapshot: {
+						snapshottedDiffAreaOfId: diffCheckpoint.snapshottedDiffAreaOfId,
+						entireFileCode: fullContent
+					}
+				};
+			}
+			return undefined;
+		}
 
-		const userModifiedVoidFileSnapshot = fsPath in checkpointMessage.userModifications.voidFileSnapshotOfURI ? checkpointMessage.userModifications.voidFileSnapshotOfURI[fsPath] ?? null : null
-		return { voidFileSnapshot: userModifiedVoidFileSnapshot ?? voidFileSnapshot, }
+		// Fall back to legacy format
+		const voidFileSnapshot = checkpointMessage.voidFileSnapshotOfURI?.[fsPath] ?? null;
+		if (!voidFileSnapshot) return undefined;
+
+		if (!opts.includeUserModifiedChanges) {
+			return { voidFileSnapshot };
+		}
+
+		const userModifiedSnapshot = checkpointMessage.userModifications?.voidFileSnapshotOfURI?.[fsPath];
+		return { voidFileSnapshot: userModifiedSnapshot ?? voidFileSnapshot };
+	}
+
+	/**
+	 * Reconstruct file content by walking back through diff-based checkpoints
+	 * and applying diffs from the earliest full snapshot
+	 */
+	private _reconstructFileContentFromDiffs(checkpointMessage: ChatMessage & { role: 'checkpoint' }, fsPath: string): string | null {
+		const diffCheckpoint = checkpointMessage.diffBasedCheckpointsOfURI?.[fsPath];
+		if (!diffCheckpoint) return null;
+
+		// If this is a full snapshot, just return the content directly
+		if (diffCheckpoint.isFullSnapshot) {
+			return diffCheckpoint.fileContentDiffs[0]?.newText || null;
+		}
+
+		// For diff-based checkpoints, we need to walk back to find the first full snapshot
+		// This is a simplified version - in practice we might want to cache reconstructed contents
+		const threadId = this.state.currentThreadId;
+		const thread = this.state.allThreads[threadId];
+		if (!thread) return null;
+
+		// Find the checkpoint index
+		const checkpointIdx = thread.messages.findIndex(m => m === checkpointMessage);
+		if (checkpointIdx === -1) return null;
+
+		// Walk back to find a full snapshot
+		let currentContent: string | null = null;
+		const diffsToApply: typeof diffCheckpoint.fileContentDiffs = [];
+
+		for (let i = checkpointIdx; i >= 0; i--) {
+			const message = thread.messages[i];
+			if (message.role !== 'checkpoint') continue;
+
+			const checkpoint = message.diffBasedCheckpointsOfURI?.[fsPath];
+			if (!checkpoint) {
+				// Check legacy format
+				const legacySnapshot = message.voidFileSnapshotOfURI?.[fsPath];
+				if (legacySnapshot) {
+					currentContent = legacySnapshot.entireFileCode;
+					break;
+				}
+				continue;
+			}
+
+			if (checkpoint.isFullSnapshot) {
+				currentContent = checkpoint.fileContentDiffs[0]?.newText || '';
+				break;
+			}
+
+			// Collect diffs to apply (in reverse order)
+			diffsToApply.unshift(...checkpoint.fileContentDiffs);
+		}
+
+		// If we found a base content, apply all collected diffs
+		if (currentContent !== null) {
+			// Apply diffs in order
+			for (const diff of diffsToApply) {
+				currentContent = applyDiffBasedCheckpoint(currentContent, {
+					...diffCheckpoint,
+					fileContentDiffs: [diff],
+					isFullSnapshot: false
+				});
+			}
+			// Finally apply the target checkpoint's diffs
+			for (const diff of diffCheckpoint.fileContentDiffs) {
+				currentContent = applyDiffBasedCheckpoint(currentContent, {
+					...diffCheckpoint,
+					fileContentDiffs: [diff],
+					isFullSnapshot: false
+				});
+			}
+		}
+
+		return currentContent;
 	}
 
 	private _computeNewCheckpointInfo({ threadId }: { threadId: string }) {
@@ -1802,52 +2097,76 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		if (!thread) return
 
 		const lastCheckpointIdx = findLastIdx(thread.messages, (m) => m.role === 'checkpoint') ?? -1
-		if (lastCheckpointIdx === -1) return
 
-		const voidFileSnapshotOfURI: { [fsPath: string]: VoidFileSnapshot | undefined } = {}
+		// MEMORY OPTIMIZATION: Store diffs instead of full snapshots
+		const diffBasedCheckpointsOfURI: { [fsPath: string]: DiffBasedCheckpoint | undefined } = {}
+		const previousCheckpointContents: { [fsPath: string]: string } = {}
 
 		// Only process files that have actually changed to save compute
 		for (const fsPath of thread.filesWithUserChanges) {
 			const { model } = this._voidModelService.getModelFromFsPath(fsPath)
 			if (!model) continue
-			
+
+			const newSnapshot = this._editCodeService.getVoidFileSnapshot(URI.file(fsPath))
+			let previousSnapshot: VoidFileSnapshot | null = null
+
 			// Find the last checkpoint for this specific file to compare
-			const { lastIdxOfURI } = this._getCheckpointsBetween({ threadId, loIdx: 0, hiIdx: lastCheckpointIdx })
-			const lastCheckpointIdxForFile = lastIdxOfURI[fsPath]
-			
-			if (lastCheckpointIdxForFile !== undefined) {
-				const lastCheckpoint = thread.messages[lastCheckpointIdxForFile]
-				if (lastCheckpoint.role === 'checkpoint') {
-					const res = this._getCheckpointInfo(lastCheckpoint, fsPath, { includeUserModifiedChanges: false })
-					const oldSnapshot = res?.voidFileSnapshot
-					const newSnapshot = this._editCodeService.getVoidFileSnapshot(URI.file(fsPath))
-					
-					if (oldSnapshot === newSnapshot) continue
-					voidFileSnapshotOfURI[fsPath] = newSnapshot
+			if (lastCheckpointIdx !== -1) {
+				const { lastIdxOfURI } = this._getCheckpointsBetween({ threadId, loIdx: 0, hiIdx: lastCheckpointIdx })
+				const lastCheckpointIdxForFile = lastIdxOfURI[fsPath]
+
+				if (lastCheckpointIdxForFile !== undefined) {
+					const lastCheckpoint = thread.messages[lastCheckpointIdxForFile]
+					if (lastCheckpoint.role === 'checkpoint') {
+						// Get previous content from diff-based checkpoint
+						const prevDiffCheckpoint = lastCheckpoint.diffBasedCheckpointsOfURI?.[fsPath];
+						if (prevDiffCheckpoint && previousCheckpointContents[fsPath]) {
+							// Reconstruct previous snapshot from diff
+							const prevContent = previousCheckpointContents[fsPath];
+							const prevFullContent = applyDiffBasedCheckpoint(prevContent, prevDiffCheckpoint);
+							previousSnapshot = {
+								snapshottedDiffAreaOfId: prevDiffCheckpoint.snapshottedDiffAreaOfId,
+								entireFileCode: prevFullContent
+							};
+						} else {
+							// Fall back to legacy format
+							const res = this._getCheckpointInfo(lastCheckpoint, fsPath, { includeUserModifiedChanges: false })
+							if (res?.voidFileSnapshot) {
+								previousSnapshot = res.voidFileSnapshot
+								previousCheckpointContents[fsPath] = res.voidFileSnapshot.entireFileCode;
+							}
+						}
+					}
 				}
-			} else {
-				// New file in history
-				voidFileSnapshotOfURI[fsPath] = this._editCodeService.getVoidFileSnapshot(URI.file(fsPath))
+			}
+
+			// Create diff-based checkpoint
+			const diffCheckpoint = createDiffBasedCheckpoint(previousSnapshot, newSnapshot)
+
+			// Only store if there are actual changes or if it's the first checkpoint for this file
+			if (diffCheckpoint.fileContentDiffs.length > 0 || !previousSnapshot) {
+				diffBasedCheckpointsOfURI[fsPath] = diffCheckpoint
 			}
 		}
 
-		return { voidFileSnapshotOfURI }
+		return { diffBasedCheckpointsOfURI, previousCheckpointIdx: lastCheckpointIdx >= 0 ? lastCheckpointIdx : null }
 	}
 
 
 	private _addUserCheckpoint({ threadId }: { threadId: string }) {
-		const { voidFileSnapshotOfURI } = this._computeNewCheckpointInfo({ threadId }) ?? {}
-		
+		const { diffBasedCheckpointsOfURI, previousCheckpointIdx } = this._computeNewCheckpointInfo({ threadId }) ?? {}
+
 		// Only add checkpoint if there are actual changes
-		if (voidFileSnapshotOfURI && Object.keys(voidFileSnapshotOfURI).length > 0) {
+		if (diffBasedCheckpointsOfURI && Object.keys(diffBasedCheckpointsOfURI).length > 0) {
 			this._addCheckpoint(threadId, {
 				role: 'checkpoint',
 				type: 'user_edit',
-				voidFileSnapshotOfURI: voidFileSnapshotOfURI ?? {},
-				userModifications: { voidFileSnapshotOfURI: {}, },
+				diffBasedCheckpointsOfURI: diffBasedCheckpointsOfURI ?? {},
+				previousCheckpointIdx: previousCheckpointIdx,
+				userModifications: { diffBasedCheckpointsOfURI: {}, },
 			})
 		}
-		
+
 		// Clear tracking after checkpointing (even if no changes found, we've processed them)
 		this._clearUserChanges(threadId)
 	}
@@ -1857,12 +2176,41 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		if (!thread) return
 		const { model } = this._voidModelService.getModel(uri)
 		if (!model) return // should never happen
-		const diffAreasSnapshot = this._editCodeService.getVoidFileSnapshot(uri)
+
+		// Find the last checkpoint to compute diff from
+		const lastCheckpointIdx = findLastIdx(thread.messages, (m) => m.role === 'checkpoint') ?? -1
+		let previousSnapshot: VoidFileSnapshot | null = null
+
+		if (lastCheckpointIdx !== -1) {
+			const lastCheckpoint = thread.messages[lastCheckpointIdx]
+			if (lastCheckpoint.role === 'checkpoint') {
+				// Try to get previous content from the last checkpoint
+				const prevDiffCheckpoint = lastCheckpoint.diffBasedCheckpointsOfURI?.[uri.fsPath];
+				if (prevDiffCheckpoint) {
+					// For tool edits, we always store full snapshot since it's a single file
+					// and we need to ensure we have the complete state for restoration
+					previousSnapshot = {
+						snapshottedDiffAreaOfId: prevDiffCheckpoint.snapshottedDiffAreaOfId,
+						entireFileCode: prevDiffCheckpoint.isFullSnapshot
+							? prevDiffCheckpoint.fileContentDiffs[0]?.newText || model.getValue()
+							: model.getValue() // Fallback
+					};
+				} else if (lastCheckpoint.voidFileSnapshotOfURI?.[uri.fsPath]) {
+					// Fall back to legacy format
+					previousSnapshot = lastCheckpoint.voidFileSnapshotOfURI[uri.fsPath]!;
+				}
+			}
+		}
+
+		const currentSnapshot = this._editCodeService.getVoidFileSnapshot(uri)
+		const diffCheckpoint = createDiffBasedCheckpoint(previousSnapshot, currentSnapshot)
+
 		this._addCheckpoint(threadId, {
 			role: 'checkpoint',
 			type: 'tool_edit',
-			voidFileSnapshotOfURI: { [uri.fsPath]: diffAreasSnapshot },
-			userModifications: { voidFileSnapshotOfURI: {} },
+			diffBasedCheckpointsOfURI: { [uri.fsPath]: diffCheckpoint },
+			previousCheckpointIdx: lastCheckpointIdx >= 0 ? lastCheckpointIdx : null,
+			userModifications: { diffBasedCheckpointsOfURI: {} },
 		})
 	}
 
@@ -1886,8 +2234,17 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		for (let i = loIdx; i <= hiIdx; i += 1) {
 			const message = thread.messages[i]
 			if (message?.role !== 'checkpoint') continue
-			for (const fsPath in message.voidFileSnapshotOfURI) { // do not include userModified.beforeStrOfURI here, jumping should not include those changes
-				lastIdxOfURI[fsPath] = i
+			// Check new diff-based format first
+			if (message.diffBasedCheckpointsOfURI) {
+				for (const fsPath in message.diffBasedCheckpointsOfURI) {
+					lastIdxOfURI[fsPath] = i
+				}
+			}
+			// Fall back to legacy format
+			if (message.voidFileSnapshotOfURI) {
+				for (const fsPath in message.voidFileSnapshotOfURI) {
+					lastIdxOfURI[fsPath] = i
+				}
 			}
 		}
 		return { lastIdxOfURI }
@@ -1906,13 +2263,13 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		return [checkpoint, currCheckpointIdx]
 	}
 	private _addUserModificationsToCurrCheckpoint({ threadId }: { threadId: string }) {
-		const { voidFileSnapshotOfURI } = this._computeNewCheckpointInfo({ threadId }) ?? {}
+		const { diffBasedCheckpointsOfURI } = this._computeNewCheckpointInfo({ threadId }) ?? {}
 		const res = this._readCurrentCheckpoint(threadId)
 		if (!res) return
 		const [checkpoint, checkpointIdx] = res
 		this._editMessageInThread(threadId, checkpointIdx, {
 			...checkpoint,
-			userModifications: { voidFileSnapshotOfURI: voidFileSnapshotOfURI ?? {}, },
+			userModifications: { diffBasedCheckpointsOfURI: diffBasedCheckpointsOfURI ?? {}, },
 		})
 	}
 
@@ -2102,21 +2459,50 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 		// Process images FIRST if present (before adding message)
 		let visionAnalysis: string | undefined;
-		if (images && images.length > 0 && this._settingsService.state.globalSettings.enableVisionSupport) {
-			// Show typing indicator while processing images
-			this._setStreamState(threadId, { isRunning: 'idle', interrupt: 'not_needed' });
+		// MEMORY OPTIMIZATION: Validate and limit images to prevent memory bloat
+		if (images && images.length > 0) {
+			// Limit number of images
+			if (images.length > MAX_IMAGES_PER_MESSAGE) {
+				console.warn(`[Memory] Limiting images from ${images.length} to ${MAX_IMAGES_PER_MESSAGE}`);
+				images = images.slice(0, MAX_IMAGES_PER_MESSAGE);
+			}
 
-			try {
-				visionAnalysis = await this._visionService.processImages(images, userMessage);
-			} catch (error) {
-				console.error(`[chatThreadService] Error processing images:`, error);
+			// Check total image size
+			const totalSizeMB = images.reduce((sum, img) => sum + (img.base64?.length || 0) * 0.75 / 1024 / 1024, 0);
+			if (totalSizeMB > MAX_TOTAL_IMAGE_SIZE_MB) {
+				console.warn(`[Memory] Total image size ${totalSizeMB.toFixed(2)}MB exceeds limit of ${MAX_TOTAL_IMAGE_SIZE_MB}MB`);
 				this._notificationService.notify({
 					severity: Severity.Warning,
-					message: `Failed to process images: ${error instanceof Error ? error.message : 'Unknown error'}`,
+					message: `Images too large (${totalSizeMB.toFixed(1)}MB). Please use smaller images or fewer images.`,
 				});
-			} finally {
-				// Clear stream state after processing
-				this._setStreamState(threadId, undefined);
+				images = []; // Clear images if too large
+			}
+
+			if (images.length > 0 && this._settingsService.state.globalSettings.enableVisionSupport) {
+				// Show typing indicator while processing images
+				this._setStreamState(threadId, { isRunning: 'idle', interrupt: 'not_needed' });
+
+				try {
+					visionAnalysis = await this._visionService.processImages(images, userMessage);
+				} catch (error) {
+					console.error(`[chatThreadService] Error processing images:`, error);
+					this._notificationService.notify({
+						severity: Severity.Warning,
+						message: `Failed to process images: ${error instanceof Error ? error.message : 'Unknown error'}`,
+					});
+				} finally {
+					// Clear stream state after processing
+					this._setStreamState(threadId, undefined);
+				}
+			}
+
+			// MEMORY OPTIMIZATION: Clear base64 image data after processing to prevent memory bloat
+			// The visionAnalysis text is preserved, but the large base64 data is discarded
+			if (images.length > 0) {
+				images = images.map(img => ({
+					...img,
+					base64: '[processed]' // Replace base64 with placeholder
+				}));
 			}
 		}
 
@@ -2256,6 +2642,11 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 	private _queueMessage(threadId: string, message: { userMessage: string, selections?: StagingSelectionItem[], images?: ImageAttachment[] }) {
 		if (!this.messageQueue[threadId]) {
 			this.messageQueue[threadId] = [];
+		}
+		// MEMORY OPTIMIZATION: Limit queue size to prevent unbounded memory growth
+		if (this.messageQueue[threadId].length >= MAX_MESSAGE_QUEUE_PER_THREAD) {
+			console.warn(`[Memory] Message queue for thread ${threadId} is full (${MAX_MESSAGE_QUEUE_PER_THREAD}). Dropping oldest message.`);
+			this.messageQueue[threadId].shift(); // Remove oldest message
 		}
 		this.messageQueue[threadId].push(message);
 		console.log(`[chatThreadService] Queued message for thread ${threadId}. Queue length: ${this.messageQueue[threadId].length}`);
@@ -2725,6 +3116,11 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		const newThreads = { ...currentThreads };
 		delete newThreads[threadId];
 
+		// MEMORY FIX: Clean up associated data structures to prevent memory leaks
+		delete this.toolCallHistory[threadId];
+		delete this.messageQueue[threadId];
+		delete this.taskPlans[threadId];
+
 		// store the updated threads
 		this._storeAllThreads(newThreads);
 		this._setState({ ...this.state, allThreads: newThreads })
@@ -2751,17 +3147,37 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 		const { allThreads } = this.state
 		const oldThread = allThreads[threadId]
 		if (!oldThread) return // should never happen
+
+		// MEMORY OPTIMIZATION: Prune old messages if exceeding max limit
+		let messages = [...oldThread.messages, message];
+
+		// Limit total messages
+		if (messages.length > MAX_MESSAGES_PER_THREAD) {
+			messages = messages.slice(-MAX_MESSAGES_PER_THREAD);
+			console.log(`[Memory] Pruned thread ${threadId} total messages to ${messages.length}`);
+		}
+
+		// MEMORY OPTIMIZATION: Limit number of checkpoints to prevent snapshot bloat
+		const checkpointIndices = messages.reduce((acc, msg, idx) => {
+			if (msg.role === 'checkpoint') acc.push(idx);
+			return acc;
+		}, [] as number[]);
+
+		if (checkpointIndices.length > MAX_CHECKPOINTS_PER_THREAD) {
+			const numToRemove = checkpointIndices.length - MAX_CHECKPOINTS_PER_THREAD;
+			const indicesToRemove = new Set(checkpointIndices.slice(0, numToRemove));
+			messages = messages.filter((_, idx) => !indicesToRemove.has(idx));
+			console.log(`[Memory] Pruned ${numToRemove} old checkpoints from thread ${threadId}`);
+		}
+
 		// update state and store it
 		const newThreads = {
 			...allThreads,
 			[oldThread.id]: {
 				...oldThread,
 				lastModified: new Date().toISOString(),
-				messages: [
-					...oldThread.messages,
-					message
-				],
-			}
+				messages,
+			},
 		}
 		this._storeAllThreads(newThreads)
 		this._setState({ allThreads: newThreads }) // the current thread just changed (it had a message added to it)
@@ -3274,4 +3690,4 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 
 }
 
-registerSingleton(IChatThreadService, ChatThreadService, InstantiationType.Eager);
+registerSingleton(IChatThreadService, ChatThreadService, InstantiationType.Delayed);

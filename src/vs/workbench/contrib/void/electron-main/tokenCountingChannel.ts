@@ -13,7 +13,19 @@ import { encodingForModel } from 'js-tiktoken';
  */
 export class TokenCountingChannel implements IServerChannel {
 	private encoderCache: Map<string, any> = new Map();
-	private readonly MAX_ENCODERS = 5;
+	private readonly MAX_ENCODERS = 1; // MEMORY OPTIMIZATION: Reduce to 1 to save RAM in main process
+	private readonly CACHE_CLEAR_INTERVAL = 10 * 60 * 1000; // 10 minutes
+	private cacheClearTimer: NodeJS.Timeout | null = null;
+
+	constructor() {
+		// Periodically clear the cache to ensure memory is released if not used
+		this.cacheClearTimer = setInterval(() => {
+			if (this.encoderCache.size > 0) {
+				console.log('[TokenCountingChannel] Periodic cache clear to save memory');
+				this.encoderCache.clear();
+			}
+		}, this.CACHE_CLEAR_INTERVAL);
+	}
 
 	private getEncoder(modelName: string) {
 		if (this.encoderCache.has(modelName)) {
@@ -106,5 +118,9 @@ export class TokenCountingChannel implements IServerChannel {
 	dispose(): void {
 		// Clear encoder cache
 		this.encoderCache.clear();
+		if (this.cacheClearTimer) {
+			clearInterval(this.cacheClearTimer);
+			this.cacheClearTimer = null;
+		}
 	}
 }

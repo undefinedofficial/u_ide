@@ -22,28 +22,32 @@ export const VoidOnboarding = () => {
 
 	const isDark = useIsDark()
 
+	if (isOnboardingComplete) {
+		return null;
+	}
+
 	return (
 		<div className={`@@void-scope ${isDark ? 'dark' : ''}`}>
 			<div
 				className={`
 					fixed inset-0 z-[99999]
-					bg-void-bg-1/40 backdrop-blur-[32px]
+					bg-void-bg-1/60 backdrop-blur-[12px]
 					overflow-y-auto
-					transition-all duration-1000 ${isOnboardingComplete ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}
+					transition-all duration-1000 opacity-100 pointer-events-auto
 				`}
-				style={{ 
-					minHeight: '100vh', 
-					display: 'flex', 
-					alignItems: 'center', 
+				style={{
+					minHeight: '100vh',
+					display: 'flex',
+					alignItems: 'center',
 					justifyContent: 'center',
-					background: isDark 
-						? '#000000' 
+					background: isDark
+						? '#000000'
 						: 'radial-gradient(circle at center, rgba(255, 255, 255, 0.7) 0%, rgba(240, 240, 240, 0.9) 100%)'
 				}}
 			>
 				{/* Sophisticated Vignette */}
 				{isDark ? null : <div className="fixed inset-0 pointer-events-none shadow-[inset_0_0_150px_rgba(0,0,0,0.3)] z-[-1]" />}
-				
+
 				<ErrorBoundary>
 					<VoidOnboardingContent />
 				</ErrorBoundary>
@@ -61,12 +65,9 @@ const VoidIcon = () => {
 	useEffect(() => {
 		// void icon style
 		const updateTheme = () => {
-			const theme = themeService.getColorTheme().type
-			const isDark = theme === ColorScheme.DARK || theme === ColorScheme.HIGH_CONTRAST_DARK
 			if (divRef.current) {
 				divRef.current.style.maxWidth = '220px'
 				divRef.current.style.opacity = '50%'
-				divRef.current.style.filter = isDark ? '' : 'invert(1)' //brightness(.5)
 			}
 		}
 		updateTheme()

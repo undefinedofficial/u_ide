@@ -22,7 +22,6 @@ import Severity from '../../../../../../../base/common/severity.js'
 import { getModelCapabilities, modelOverrideKeys, ModelOverrides } from '../../../../common/modelCapabilities.js';
 import { TransferEditorType, TransferFilesInfo } from '../../../extensionTransferTypes.js';
 import { MCPServer } from '../../../../common/mcpServiceTypes.js';
-import { IWhatsNewModalService } from '../../../whatsNewModalService.js';
 import { useMCPServiceState } from '../util/services.js';
 import { OPT_OUT_KEY } from '../../../../common/storageKeys.js';
 import { StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
@@ -34,31 +33,37 @@ type Tab =
 // --- Shared Components ---
 
 export const SettingRow = ({ label, description, children, className = '' }: { label: React.ReactNode, description?: React.ReactNode, children: React.ReactNode, className?: string }) => (
-	<div className={`flex items-center justify-between gap-4 ${className}`}>
-		<div className="flex flex-col gap-0.5">
-			<span className="text-sm font-medium text-void-fg-1">{label}</span>
-			{description && <div className="text-xs text-void-fg-3">{description}</div>}
+	<div className={`flex items-start justify-between gap-10 py-3 ${className}`}>
+		<div className="flex flex-col gap-1.5 flex-1 min-w-0">
+			<span className="text-[13px] font-medium text-void-fg-1">{label}</span>
+			{description && <div className="text-[12px] text-void-fg-3 leading-relaxed opacity-80">{description}</div>}
 		</div>
-		<div className="flex-shrink-0">{children}</div>
+		<div className="flex-shrink-0 pt-0.5">{children}</div>
 	</div>
 )
 
+// Cursor-inspired minimal setting components
 export const SettingBox = ({ children, className = '' }: { children: React.ReactNode, className?: string }) => (
-	<div className={`p-3 bg-void-bg-2/50 rounded-lg border border-void-border-2 ${className}`}>
+	<div className={`p-5 void-card ${className}`}>
 		{children}
 	</div>
 )
 
-export const SettingCard = ({ title, description, children, className = '', isDark }: { title: string, description?: string, children: React.ReactNode, className?: string, isDark: boolean }) => (
-	<div className={`p-6 rounded-xl border border-void-border-2 ${isDark ? 'bg-void-bg-1' : 'bg-void-bg-1'} ${className}`}>
-		<div className="mb-4">
-			<h3 className="text-base font-medium text-void-fg-1">{title}</h3>
-			{description && <p className="text-sm text-void-fg-3 mt-1">{description}</p>}
+export const SettingCard = ({ title, description, children, className = '' }: { title: string, description?: string, children: React.ReactNode, className?: string }) => (
+	<div className={`py-10 first:pt-0 ${className}`}>
+		<div className="mb-8">
+			<h3 className="text-[18px] font-semibold text-void-fg-1 tracking-tight">{title}</h3>
+			{description && <p className="text-[13px] text-void-fg-3 mt-1.5 leading-relaxed opacity-90">{description}</p>}
 		</div>
-		<div className="space-y-4">
+		<div className="space-y-6">
 			{children}
 		</div>
 	</div>
+)
+
+// Divider for separating sections
+export const SettingDivider = () => (
+	<div className="h-px bg-void-border-2/50 my-8" />
 )
 
 export const AnimatedCheckmarkButton = ({ text, className }: { text?: string, className?: string }) => {
@@ -109,12 +114,12 @@ export const AnimatedCheckmarkButton = ({ text, className }: { text?: string, cl
 
 // premium button component
 const SettingsButton = ({ children, disabled, onClick, className, variant = 'secondary' }: { children: React.ReactNode; disabled?: boolean; onClick: () => void; className?: string, variant?: 'primary' | 'secondary' | 'danger' }) => {
-	const baseClasses = "px-3 py-1 rounded-[2px] text-[13px] font-normal transition-all duration-100 flex items-center justify-center gap-2 active:opacity-80";
+	const baseClasses = "px-4 py-2 rounded-lg text-[13px] font-medium transition-all duration-200 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none";
 
 	const variants = {
-		primary: "bg-void-vscode-button-bg hover:bg-void-vscode-button-hover-bg text-void-vscode-button-fg disabled:opacity-50",
-		secondary: "bg-void-vscode-button-secondary-bg hover:bg-void-vscode-button-secondary-hover-bg text-void-vscode-button-secondary-fg disabled:opacity-50",
-		danger: "bg-void-vscode-error-fg text-white hover:brightness-110 disabled:opacity-50"
+		primary: "bg-void-accent hover:bg-void-accent/90 text-white shadow-sm hover:shadow-md",
+		secondary: "void-btn-secondary hover:border-void-border-1 text-void-fg-1",
+		danger: "bg-void-error/10 border border-void-error/20 text-void-error hover:bg-void-error hover:text-white"
 	};
 
 	return (
@@ -201,7 +206,7 @@ const RefreshModelButton = ({ providerName }: { providerName: RefreshableProvide
 	const { title: providerTitle } = displayInfoOfProviderName(providerName)
 
 	return (
-		<div className="flex items-center justify-between p-3 bg-void-bg-2 rounded-lg border border-void-border-2">
+		<div className="flex items-center justify-between p-3 void-card">
 			<span className="text-sm text-void-fg-2">
 				{justFinished === 'finished' ? `${providerTitle} Models are up-to-date!`
 				: justFinished === 'error' ? `${providerTitle} not found!`
@@ -377,7 +382,7 @@ export const ModelDump = ({ filteredProviders }: { filteredProviders?: ProviderN
 		};
 
 		return (
-			<div className="ml-8 mr-3 mb-2 p-3 bg-void-bg-2 border border-void-border-2 rounded-md text-sm">
+			<div className="ml-8 mr-3 mb-2 p-3 void-card text-sm">
 				<div className="flex justify-between items-start mb-2">
 					<div>
 						<span className="font-medium">{modelName}</span>
@@ -857,16 +862,28 @@ export const SettingsForProvider = ({ providerName, showProviderTitle, showProvi
 // }
 
 
+// DISABLED: A-Coder OAuth provider - commented out to prevent memory leaks
+// export const VoidProviderSettings = ({ providerNames }: { providerNames: ProviderName[] }) => {
+// 	return <div className="space-y-4">
+// 		{providerNames.map(providerName =>
+// 			<SettingBox key={providerName}>
+// 				{providerName === 'aCoder' ? (
+// 					// <ACoderProviderCard />
+// 					<p className="text-sm text-void-fg-3">A-Coder provider coming soon</p>
+// 				) : (
+// 					<SettingsForProvider providerName={providerName} showProviderTitle={true} showProviderSuggestions={true} />
+// 				)}
+// 			</SettingBox>
+// 		)}
+// 	</div>
+// }
+
+// Re-enabled without aCoder OAuth
 export const VoidProviderSettings = ({ providerNames }: { providerNames: ProviderName[] }) => {
 	return <div className="space-y-4">
 		{providerNames.map(providerName =>
 			<SettingBox key={providerName}>
-				{providerName === 'aCoder' ? (
-					// <ACoderProviderCard />
-					<p className="text-sm text-void-fg-3">A-Coder provider coming soon</p>
-				) : (
-					<SettingsForProvider providerName={providerName} showProviderTitle={true} showProviderSuggestions={true} />
-				)}
+				<SettingsForProvider providerName={providerName} showProviderTitle={true} showProviderSuggestions={true} />
 			</SettingBox>
 		)}
 	</div>
@@ -1060,7 +1077,7 @@ const MCPServerComponent = ({ name, server }: { name: string, server: MCPServer 
 	const removeUniquePrefix = (name: string) => name
 
 	return (
-		<div className="border border-void-border-2 bg-void-bg-1 py-3 px-4 rounded-sm my-2">
+		<div className="void-card py-3 px-4 my-2">
 			<div className="flex items-center justify-between">
 				{/* Left side - status and name */}
 				<div className="flex items-center gap-2">
@@ -1256,12 +1273,12 @@ const SkillsList = () => {
 		<div className="space-y-4">
 			<div className="flex flex-col gap-2">
 				{skills.length === 0 ? (
-					<div className="text-void-fg-3 text-sm italic p-4 text-center bg-void-bg-1 border border-void-border-2 rounded-sm">
+					<div className="text-void-fg-3 text-sm italic p-4 text-center void-card">
 						No custom skills found. Add one below to enhance your AI's capabilities.
 					</div>
 				) : (
 					skills.map(skill => (
-						<div key={skill.name} className="border border-void-border-2 bg-void-bg-1 py-3 px-4 rounded-sm group">
+						<div key={skill.name} className="void-card p-4 group">
 							<div className="flex items-center justify-between">
 								<div className="flex items-center gap-3">
 									<div className="p-1.5 bg-void-accent/10 rounded-md">
@@ -1286,7 +1303,7 @@ const SkillsList = () => {
 			</div>
 
 			{isAddOpen ? (
-				<div className="p-4 bg-void-bg-2/50 border border-void-border-2 rounded-lg space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+					<div className="p-4 void-card-elevated space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
 					<div className="space-y-2">
 						<label className="text-xs font-medium text-void-fg-3 uppercase tracking-wide">Skill Name</label>
 						<VoidSimpleInputBox
@@ -1432,17 +1449,17 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 
 	return (
 		<div className={`@@void-scope ${isDark ? 'dark' : ''}`} style={{ height: '100%', width: '100%' }}>
-			<div className={`flex h-full w-full bg-void-bg-2`} style={{ height: '100%', width: '100%', overflow: 'hidden' }}>
+			<div className={`flex h-full w-full bg-void-depth-base`} style={{ height: '100%', width: '100%', overflow: 'hidden' }}>
 				{/* ──────────────  SIDEBAR  ────────────── */}
 				<aside
-					className={`w-64 h-full flex-shrink-0 flex flex-col border-r border-void-border-2
-						${isDark ? 'bg-void-bg-1' : 'bg-void-bg-1'}
+					className={`w-56 h-full flex-shrink-0 flex flex-col border-r border-void-border-2/50
+						${isDark ? 'bg-void-depth-elevated/30' : 'bg-void-depth-elevated/30'}
 					`}
 				>
 				{/* Logo */}
-				<div className="flex items-center gap-3 px-6 py-6 select-none">
-					<div className="void-void-icon w-8 h-8 rounded-full opacity-90" />
-					<div className="text-sm font-semibold text-void-fg-1 tracking-tight">A-Coder</div>
+				<div className="flex items-center gap-3 px-5 py-5 select-none">
+					<div className="@@void-void-icon w-7 h-7 rounded-full opacity-90" />
+					<div className="text-[13px] font-semibold text-void-fg-1 tracking-tight">A-Coder</div>
 				</div>
 
 				{/* Navigation */}
@@ -1460,113 +1477,85 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 									}
 								}}
 								className={`
-									w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200
+									w-full flex items-center gap-3 px-3 py-2 text-[13px] rounded-lg transition-all duration-200
 									${isActive
-										? 'bg-void-accent/10 text-void-accent'
-										: 'text-void-fg-3 hover:bg-void-bg-2 hover:text-void-fg-1'
+										? 'bg-void-accent/10 text-void-accent font-medium'
+										: 'text-void-fg-3 hover:bg-void-depth-floating/50 hover:text-void-fg-1'
 									}
 								`}
 							>
-								<Icon size={16} strokeWidth={isActive ? 2.5 : 2} />
+								<Icon size={15} strokeWidth={isActive ? 2.5 : 2} />
 								{label}
 							</button>
 						);
 					})}
 				</nav>
 
-				{/* Footer/Version if needed */}
-				<div className="p-4 border-t border-void-border-2 text-xs text-void-fg-4">
+				{/* Footer/Version */}
+				<div className="px-5 py-4 border-t border-void-border-2/50 text-[11px] text-void-fg-4">
 					v{productService.voidVersion || productService.version}
 				</div>
 			</aside>
 
 			{/* ───────────── MAIN PANE ───────────── */}
-			<main className={`flex-1 h-full overflow-y-auto bg-void-bg-3`}>
-				<div className="max-w-5xl mx-auto px-8 py-8 pb-32">
+			<main className={`flex-1 h-full overflow-y-auto bg-void-depth-base`}>
+				<div className="max-w-3xl mx-auto px-8 py-10 pb-32">
 
-					<div className="flex items-center justify-between mb-8">
-						<h1 className='text-3xl font-semibold text-void-fg-1 tracking-tight'>Settings</h1>
+					{/* Header */}
+					<div className="flex items-center justify-between mb-10">
+						<div>
+							<h1 className='text-[22px] font-semibold text-void-fg-1 tracking-tight'>Settings</h1>
+							<p className="text-[13px] text-void-fg-3 mt-1">Configure your A-Coder experience</p>
+						</div>
 						<ErrorBoundary>
-							<RedoOnboardingButton className="text-xs px-3 py-1.5 rounded-full border border-void-border-2 hover:bg-void-bg-2 transition-colors" />
+							<RedoOnboardingButton className="text-[11px] px-3 py-1.5 rounded-full border border-void-border-2/50 hover:bg-void-depth-elevated/50 transition-colors text-void-fg-3" />
 						</ErrorBoundary>
 					</div>
 
 					{/* Models section */}
-					<div className={shouldShowTab('models') ? 'space-y-8' : 'hidden'}>
+					<div className={shouldShowTab('models') ? '' : 'hidden'}>
 						<ErrorBoundary>
-							<section className="space-y-6">
-								<div className="mb-4">
-									<h2 className="text-xl font-medium text-void-fg-1">Models</h2>
-									<p className="text-sm text-void-fg-3 mt-1">Manage your AI models and providers.</p>
-								</div>
+							<SettingCard title="Models" description="Manage your AI models and providers." isDark={isDark}>
+								<SettingBox className="p-0 overflow-hidden">
+									<ModelDump />
+								</SettingBox>
 
-								<SettingCard
-									isDark={isDark}
-									title="Model Management"
-									description="Configure which models are available in the editor."
-								>
-									<SettingBox className="p-0 overflow-hidden">
-										<ModelDump />
-									</SettingBox>
-
-									<SettingBox className="space-y-4">
-										<AutoDetectLocalModelsToggle />
-										<div className="pt-4 border-t border-void-border-2">
-											<h4 className="text-xs font-medium text-void-fg-3 mb-3 uppercase tracking-wide">Available Provider Models</h4>
-											<RefreshableModels />
-										</div>
-									</SettingBox>
-								</SettingCard>
-							</section>
+								<SettingBox className="space-y-4">
+									<AutoDetectLocalModelsToggle />
+									<div className="pt-4 border-t border-void-border-2">
+										<h4 className="text-[11px] font-medium text-void-fg-3 mb-3 uppercase tracking-wide">Available Provider Models</h4>
+										<RefreshableModels />
+									</div>
+								</SettingBox>
+							</SettingCard>
 						</ErrorBoundary>
 					</div>
 
 					{/* Local Providers section */}
-					<div className={shouldShowTab('localProviders') ? 'space-y-8' : 'hidden'}>
+					<div className={shouldShowTab('localProviders') ? '' : 'hidden'}>
 						<ErrorBoundary>
-							<section className="space-y-6">
-								<div className="mb-6">
-									<h2 className="text-xl font-medium text-void-fg-1">Local Providers</h2>
-									<p className="text-sm text-void-fg-3 mt-1">Connect to models running on your own machine.</p>
-								</div>
+							<SettingCard title="Local Providers" description="Connect to models running on your own machine." isDark={isDark}>
+								<SettingBox className="mb-6">
+									<h3 className="text-[13px] font-medium mb-3 text-void-fg-1">Setup Instructions</h3>
+									<OllamaSetupInstructions sayWeAutoDetect={true} />
+								</SettingBox>
 
-								<SettingCard
-									isDark={isDark}
-									title="Local Configuration"
-									description="Configure local LLM providers like Ollama, vLLM, and LM Studio."
-								>
-									<SettingBox className="mb-6">
-										<h3 className="text-sm font-medium mb-3">Setup Instructions</h3>
-										<OllamaSetupInstructions sayWeAutoDetect={true} />
-									</SettingBox>
-
-									<SettingBox className="space-y-6">
-										<VoidProviderSettings providerNames={localProviderNames} />
-									</SettingBox>
-								</SettingCard>
-							</section>
+								<SettingBox className="space-y-6">
+									<VoidProviderSettings providerNames={localProviderNames} />
+								</SettingBox>
+							</SettingCard>
 						</ErrorBoundary>
 					</div>
 
 					{/* Main Providers section */}
-					<div className={shouldShowTab('providers') ? 'space-y-8' : 'hidden'}>
+					<div className={shouldShowTab('providers') ? '' : 'hidden'}>
+						<SettingDivider />
 						<ErrorBoundary>
-							<section className="space-y-6">
-								<div className="mb-6">
-									<h2 className="text-xl font-medium text-void-fg-1">Main Providers</h2>
-									<p className="text-sm text-void-fg-3 mt-1">Configure cloud-based AI providers.</p>
-								</div>
-
-								<SettingCard
-									isDark={isDark}
-									title="Cloud Configuration"
-									description="Manage API keys and endpoints for Anthropic, OpenAI, and other cloud services."
-								>
-									<SettingBox className="space-y-6">
-										<VoidProviderSettings providerNames={nonlocalProviderNames} />
-									</SettingBox>
-								</SettingCard>
-							</section>
+							<SettingCard title="Main Providers" description="Configure cloud-based AI providers." isDark={isDark}>
+								<SettingBox className="space-y-6">
+									<VoidProviderSettings providerNames={nonlocalProviderNames} />
+								</SettingBox>
+							</SettingCard>
 						</ErrorBoundary>
 					</div>
 
@@ -2001,122 +1990,141 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 										</div>
 
 										{/* General section */}
-					<div className={shouldShowTab('general') ? 'space-y-8' : 'hidden'}>
+					<div className={shouldShowTab('general') ? 'space-y-4' : 'hidden'}>
 						<ErrorBoundary>
-							<section className="space-y-6">
-								<div className="mb-6">
-									<h2 className="text-xl font-medium text-void-fg-1">General</h2>
-									<p className="text-sm text-void-fg-3 mt-1">System preferences and maintenance.</p>
+							<section className="space-y-2">
+								<div className="mb-8">
+									<h2 className="text-2xl font-bold text-void-fg-1 tracking-tight">General</h2>
+									<p className="text-[13px] text-void-fg-3 mt-1.5 opacity-80">System preferences and application maintenance.</p>
 								</div>
 
-								<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-									{/* One-Click Switch */}
+								{/* AI Instructions Card */}
+								<SettingCard
+									isDark={isDark}
+									title="Global Instructions"
+									description="These instructions are included with every AI request to customize behavior across all features."
+								>
+									<SettingBox>
+										<div className="space-y-5">
+											<AIInstructionsBox />
+											<div className="pt-4 border-t border-void-border-2/50">
+												<SettingRow
+													label="Custom System Prompt"
+													description="Append these instructions to the base system prompt. If disabled, only the base prompt is sent."
+												>
+													<VoidSwitch
+														size='sm'
+														value={!settingsState.globalSettings.disableSystemMessage}
+														onChange={(newValue) => voidSettingsService.setGlobalSetting('disableSystemMessage', !newValue)}
+													/>
+												</SettingRow>
+											</div>
+										</div>
+									</SettingBox>
+								</SettingCard>
+
+								<SettingDivider />
+
+								{/* Migration & Data Management Group */}
+								<div className="space-y-10">
 									<SettingCard
 										isDark={isDark}
-										title="Migrate Settings"
-										description="Quickly import your preferences from other editors."
+										title="Migration"
+										description="Import your extensions and preferences from other editors."
 									>
-										<SettingBox className="flex flex-col gap-3">
+										<div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 											<OneClickSwitchButton fromEditor="VS Code" />
 											<OneClickSwitchButton fromEditor="Cursor" />
 											<OneClickSwitchButton fromEditor="Windsurf" />
-										</SettingBox>
+										</div>
 									</SettingCard>
 
-									{/* Data Management */}
 									<SettingCard
 										isDark={isDark}
 										title="Data Management"
-										description="Import, export, or reset your local application data."
+										description="Export your data for backup or import it from another installation."
 									>
 										<div className="space-y-4">
 											<SettingBox>
-												<h4 className="text-xs font-medium text-void-fg-3 mb-3 uppercase tracking-wide">Settings</h4>
-												<div className="grid grid-cols-2 gap-2">
-													<input key={2 * s} ref={fileInputSettingsRef} type='file' accept='.json' className='hidden' onChange={handleUpload('Settings')} />
-													<SettingsButton className='w-full' onClick={() => fileInputSettingsRef.current?.click()}>Import</SettingsButton>
-													<SettingsButton className='w-full' onClick={() => onDownload('Settings')}>Export</SettingsButton>
+												<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+													<div>
+														<h4 className="text-[13px] font-medium text-void-fg-1">Application Settings</h4>
+														<p className="text-[12px] text-void-fg-3 opacity-80">Export or import your provider configurations and UI preferences.</p>
+													</div>
+													<div className="flex gap-2">
+														<input key={2 * s} ref={fileInputSettingsRef} type='file' accept='.json' className='hidden' onChange={handleUpload('Settings')} />
+														<SettingsButton className="min-w-[80px]" onClick={() => fileInputSettingsRef.current?.click()}>Import</SettingsButton>
+														<SettingsButton className="min-w-[80px]" onClick={() => onDownload('Settings')}>Export</SettingsButton>
+													</div>
 												</div>
 											</SettingBox>
+
 											<SettingBox>
-												<h4 className="text-xs font-medium text-void-fg-3 mb-3 uppercase tracking-wide">Chats</h4>
-												<div className="grid grid-cols-2 gap-2">
-													<input key={2 * s + 1} ref={fileInputChatsRef} type='file' accept='.json' className='hidden' onChange={handleUpload('Chats')} />
-													<SettingsButton className='w-full' onClick={() => fileInputChatsRef.current?.click()}>Import</SettingsButton>
-													<SettingsButton className='w-full' onClick={() => onDownload('Chats')}>Export</SettingsButton>
+												<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+													<div>
+														<h4 className="text-[13px] font-medium text-void-fg-1">Chat History</h4>
+														<p className="text-[12px] text-void-fg-3 opacity-80">Backup your conversations and tool usage history.</p>
+													</div>
+													<div className="flex gap-2">
+														<input key={2 * s + 1} ref={fileInputChatsRef} type='file' accept='.json' className='hidden' onChange={handleUpload('Chats')} />
+														<SettingsButton className="min-w-[80px]" onClick={() => fileInputChatsRef.current?.click()}>Import</SettingsButton>
+														<SettingsButton className="min-w-[80px]" onClick={() => onDownload('Chats')}>Export</SettingsButton>
+													</div>
 												</div>
 											</SettingBox>
+
 											<div className="pt-2">
-												<ConfirmButton className='w-full' onConfirm={() => voidSettingsService.resetState()}>
-													Reset All Settings
+												<ConfirmButton
+													className="w-full !py-3 !rounded-xl"
+													onConfirm={() => voidSettingsService.resetState()}
+												>
+													Reset All Application Data
 												</ConfirmButton>
 											</div>
 										</div>
 									</SettingCard>
 								</div>
 
-								<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-									{/* AI Instructions */}
-									<SettingCard
-										isDark={isDark}
-										title="Global System Instructions"
-										description="These instructions are included with every AI request to customize behavior."
-									>
+								<SettingDivider />
+
+								{/* Privacy & Maintenance */}
+								<SettingCard
+									isDark={isDark}
+									title="Privacy & Support"
+									description="Control your data sharing preferences and application state."
+								>
+									<div className="space-y-4">
 										<SettingBox>
-											<AIInstructionsBox />
-											<div className="mt-4 pt-4 border-t border-void-border-2">
-												<SettingRow label="Disable System Message" description="Stop sending the default system prompt.">
-													<VoidSwitch
-														size='sm'
-														value={!!settingsState.globalSettings.disableSystemMessage}
-														onChange={(newValue) => voidSettingsService.setGlobalSetting('disableSystemMessage', newValue)}
-													/>
-												</SettingRow>
-											</div>
+											<SettingRow
+												label="Anonymous Usage Reporting"
+												description="Help us improve A-Coder by sharing anonymous telemetry. We never collect code, file names, or personal data."
+											>
+												<VoidSwitch
+													size='sm'
+													value={!isOptedOut}
+													onChange={(newValue) => {
+														const storageService = accessor.get('IStorageService')
+														storageService.store(OPT_OUT_KEY, !newValue, StorageScope.APPLICATION, StorageTarget.USER)
+													}}
+												/>
+											</SettingRow>
 										</SettingBox>
-									</SettingCard>
 
-									{/* Privacy Card */}
-									<SettingCard
-										isDark={isDark}
-										title="Privacy & Analytics"
-										description="Control how A-Coder handles your data and telemetry."
-									>
-										<div className="space-y-4">
-											<SettingBox>
-												<SettingRow
-													label="Anonymous Usage Reporting"
-													description="Share anonymous usage data to help us improve A-Coder. We never collect code or personal information."
+										<SettingBox>
+											<SettingRow
+												label="Onboarding Experience"
+												description="Restart the welcome tour and initial configuration process."
+											>
+												<SettingsButton
+													className="px-6"
+													onClick={() => { voidSettingsService.setGlobalSetting('isOnboardingComplete', false) }}
 												>
-													<VoidSwitch
-														size='sm'
-														value={!isOptedOut}
-														onChange={(newValue) => {
-															const storageService = accessor.get('IStorageService')
-															storageService.store(OPT_OUT_KEY, !newValue, StorageScope.APPLICATION, StorageTarget.USER)
-														}}
-													/>
-												</SettingRow>
-											</SettingBox>
-
-											<SettingBox>
-												<SettingRow
-													label="Reset Onboarding"
-													description="Reset the onboarding process to see the welcome screen again."
-												>
-													<ErrorBoundary>
-														<div
-															className="text-xs px-3 py-1.5 rounded-md border border-void-border-2 hover:bg-void-bg-2 transition-colors bg-void-bg-1 text-void-fg-1 cursor-pointer font-medium"
-															onClick={() => { voidSettingsService.setGlobalSetting('isOnboardingComplete', false) }}
-														>
-															Reset
-														</div>
-													</ErrorBoundary>
-												</SettingRow>
-											</SettingBox>
-										</div>
-									</SettingCard>
-								</div>
+													Reset Tour
+												</SettingsButton>
+											</SettingRow>
+										</SettingBox>
+									</div>
+								</SettingCard>
 							</section>
 						</ErrorBoundary>
 					</div>
@@ -2202,7 +2210,7 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 												<label className="text-xs font-medium text-void-fg-3 uppercase tracking-wide mb-2 block">Port</label>
 												<input
 													type='number'
-													className='w-full bg-void-bg-2 text-void-fg-1 px-3 py-2 rounded-md border border-void-border-2 focus:border-void-accent outline-none transition-colors'
+													className='w-full void-input text-void-fg-1'
 													value={settingsState.globalSettings.apiPort}
 													onChange={(e) => {
 														const port = parseInt(e.target.value);
@@ -2216,7 +2224,7 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 												<label className="text-xs font-medium text-void-fg-3 uppercase tracking-wide mb-2 block">Tunnel URL (Optional)</label>
 												<input
 													type='text'
-													className='w-full bg-void-bg-2 text-void-fg-1 px-3 py-2 rounded-md border border-void-border-2 focus:border-void-accent outline-none transition-colors'
+													className='w-full void-input text-void-fg-1'
 													value={settingsState.globalSettings.apiTunnelUrl || ''}
 													onChange={(e) => voidSettingsService.setGlobalSetting('apiTunnelUrl', e.target.value || undefined)}
 													placeholder='https://acoder-api.example.com'
@@ -2313,13 +2321,15 @@ export const Settings = ({ initialTab }: { initialTab?: Tab }) => {
 									</p>
 
 									<div className="max-w-2xl mx-auto mb-6">
-										<button
-											onClick={() => whatsNewModalService.openModal(`${productService.voidVersion || productService.version} (${productService.voidRelease || '0000'})`)}
-											className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-void-accent hover:bg-void-accent/90 text-white font-medium rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] shadow-md"
+										<a
+											href="https://github.com/hamishfromatech/a-coder/releases"
+											target="_blank"
+											rel="noreferrer"
+											className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-void-accent hover:bg-void-accent/90 text-white font-medium rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] shadow-md no-underline"
 										>
 											<Sparkles size={18} />
 											<span>What's New</span>
-										</button>
+										</a>
 									</div>
 
 									<div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto">

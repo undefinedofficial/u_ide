@@ -267,7 +267,9 @@ const paragraphToLatexSegments = (paragraphText: string) => {
 
 
 export type RenderTokenOptions = { isApplyEnabled?: boolean, isLinkDetectionEnabled?: boolean }
-const RenderToken = ({ token, inPTag, codeURI, chatMessageLocation, tokenIdx, ...options }: { token: Token | string, inPTag?: boolean, codeURI?: URI, chatMessageLocation?: ChatMessageLocation, tokenIdx: string, } & RenderTokenOptions): React.ReactNode => {
+// Memoize RenderToken to avoid unnecessary work for tokens that haven't changed.
+// Since 'marked' returns new objects, we use a custom comparison if possible, or just memoize for React's optimization.
+const RenderToken = React.memo(({ token, inPTag, codeURI, chatMessageLocation, tokenIdx, ...options }: { token: Token | string, inPTag?: boolean, codeURI?: URI, chatMessageLocation?: ChatMessageLocation, tokenIdx: string, } & RenderTokenOptions): React.ReactNode => {
 	const accessor = useAccessor()
 	const languageService = accessor.get('ILanguageService')
 
@@ -572,7 +574,7 @@ const RenderToken = ({ token, inPTag, codeURI, chatMessageLocation, tokenIdx, ..
 			<span className='text-sm text-orange-500'>Unknown token rendered...</span>
 		</div>
 	)
-}
+})
 
 
 export const ChatMarkdownRender = ({ string, inPTag = false, chatMessageLocation, ...options }: { string: string, inPTag?: boolean, codeURI?: URI, chatMessageLocation: ChatMessageLocation | undefined } & RenderTokenOptions) => {

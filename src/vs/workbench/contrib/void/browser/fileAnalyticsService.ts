@@ -98,4 +98,4 @@ export class FileAnalyticsService extends Disposable implements IFileAnalyticsSe
 	}
 }
 
-registerSingleton(IFileAnalyticsService, FileAnalyticsService, InstantiationType.Eager);
+registerSingleton(IFileAnalyticsService, FileAnalyticsService, InstantiationType.Delayed);

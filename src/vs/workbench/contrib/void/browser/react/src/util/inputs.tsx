@@ -1463,7 +1463,7 @@ export const VoidCustomDropdownBox = <T extends NonNullable<any>>({
 								value={filterText}
 								onChange={(e) => setFilterText(e.target.value)}
 								placeholder="Search..."
-								className={`w-full px-2 py-1 text-xs rounded border bg-transparent focus:outline-none focus:ring-1 focus:ring-void-accent
+								className={`w-full px-2 py-1 text-xs rounded border bg-transparent focus:outline-none 
 									${isDark
 										? 'border-white/10 text-white placeholder-white/40'
 										: 'border-black/10 text-black placeholder-black/40'

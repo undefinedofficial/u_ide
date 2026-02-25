@@ -177,7 +177,7 @@ export class ConsistentItemService extends Disposable implements IConsistentItem
 
 }
 
-registerSingleton(IConsistentItemService, ConsistentItemService, InstantiationType.Eager);
+registerSingleton(IConsistentItemService, ConsistentItemService, InstantiationType.Delayed);
 
 
 
@@ -417,6 +417,6 @@ export class ConsistentEditorItemService extends Disposable {
 	}
 }
 
-registerSingleton(IConsistentEditorItemService, ConsistentEditorItemService, InstantiationType.Eager);
+registerSingleton(IConsistentEditorItemService, ConsistentEditorItemService, InstantiationType.Delayed);
 
 

@@ -247,7 +247,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				when: ContextKeyExpr.equals('view', VOID_VIEW_ID),
-				order: 1100 // Position it next to Agent Manager (which is at 1000)
+				order: 1100 // Position it next to Agent Manager
 			}]
 		});
 	}
@@ -266,7 +266,7 @@ registerAction2(class extends Action2 {
 			id: 'void.settingsAction',
 			title: `A-Coder's Settings`,
 			icon: { id: 'settings-gear' },
-			menu: [{ id: MenuId.ViewTitle, group: 'navigation', when: ContextKeyExpr.equals('view', VOID_VIEW_ID), }]
+			menu: [{ id: MenuId.ViewTitle, group: 'navigation', when: ContextKeyExpr.equals('view', VOID_VIEW_ID), order: 1200 }]
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -282,12 +282,12 @@ registerAction2(class extends Action2 {
 		super({
 			id: VOID_OPEN_AGENT_MANAGER_ACTION_ID,
 			title: localize2('voidOpenAgentManager', 'Open Agent Manager'),
-			icon: { id: 'layout-sidebar-right' },
+			icon: { id: 'window' },
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				when: ContextKeyExpr.equals('view', VOID_VIEW_ID),
-				order: 1000 // Put it at the end of the navigation group
+				order: 1000 // Put it first in this group
 			}]
 		});
 	}

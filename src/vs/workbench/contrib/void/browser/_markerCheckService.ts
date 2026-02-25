@@ -35,7 +35,9 @@ class MarkerCheckService extends Disposable implements IMarkerCheckService {
 			const errors = allMarkers.filter(marker => marker.severity === MarkerSeverity.Error);
 
 			if (errors.length > 0) {
-				for (const error of errors) {
+				// CPU OPTIMIZATION: Limit to first 3 errors to prevent long-running loops
+				const errorsToProcess = errors.slice(0, 3);
+				for (const error of errorsToProcess) {
 
 					console.log(`----------------------------------------------`);
 
@@ -98,7 +100,12 @@ class MarkerCheckService extends Disposable implements IMarkerCheckService {
 			}
 		}
 		const { window } = dom.getActiveWindow()
-		window.setInterval(check, 5000);
+		// CPU OPTIMIZATION: Increased interval from 5s to 60s and only run when window is focused
+		window.setInterval(async () => {
+			if (dom.getActiveWindow().document.hasFocus()) {
+				await check();
+			}
+		}, 60000);
 	}
 
 

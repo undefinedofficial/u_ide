@@ -271,8 +271,15 @@ export class ACoderOAuthMainService implements IACoderOAuthMainService {
 	 * Uses loopback address (127.0.0.1) as per RFC 8252
 	 */
 	private async startCallbackServer(): Promise<number> {
+		// Close existing server if any
+		if (this._callbackServer) {
+			console.log('[ACoderOAuth] Closing existing callback server');
+			this._callbackServer.close();
+			this._callbackServer = null;
+		}
+
 		return new Promise((resolve, reject) => {
-			this._callbackServer = http.createServer((req, res) => {
+			const server = http.createServer((req, res) => {
 				const url = new URL(req.url!, `http://${req.headers.host}`);
 
 				if (url.pathname === '/callback') {
@@ -307,20 +314,29 @@ export class ACoderOAuthMainService implements IACoderOAuthMainService {
 
 					// Close the server after handling the callback
 					setTimeout(() => {
-						this._callbackServer?.close();
-						this._callbackServer = null;
+						server.close();
+						if (this._callbackServer === server) {
+							this._callbackServer = null;
+						}
 					}, 1000);
 				}
 			});
 
+			this._callbackServer = server;
+
 			// Listen on a random port on loopback
-			this._callbackServer.listen(0, '127.0.0.1', () => {
-				const address = this._callbackServer!.address() as { port: number };
+			server.listen(0, '127.0.0.1', () => {
+				const address = server.address() as { port: number };
 				this._callbackPort = address.port;
 				resolve(this._callbackPort);
 			});
 
-			this._callbackServer.on('error', reject);
+			server.on('error', (err) => {
+				if (this._callbackServer === server) {
+					this._callbackServer = null;
+				}
+				reject(err);
+			});
 		});
 	}
 
@@ -362,24 +378,32 @@ export class ACoderOAuthMainService implements IACoderOAuthMainService {
 		console.log(`[ACoderOAuth] Opening OAuth URL: ${oauthUrl}`);
 
 		// Wait for the callback
-		const result = await oauthPromise;
+		try {
+			const result = await oauthPromise;
 
-		// Store the tokens
-		this._sessionToken = result.sessionToken;
-		this._refreshToken = result.refreshToken;
-		this._expiresAt = Math.floor(Date.now() / 1000) + result.expiresIn;
+			// Store the tokens
+			this._sessionToken = result.sessionToken;
+			this._refreshToken = result.refreshToken;
+			this._expiresAt = Math.floor(Date.now() / 1000) + result.expiresIn;
 
-		this.saveEncryptedTokens();
+			this.saveEncryptedTokens();
 
-		this.setAuthState({
-			isAuthenticated: true,
-			userEmail: result.userEmail,
-			authProvider: provider,
-			userId: result.userId,
-			expiresAt: this._expiresAt,
-		});
+			this.setAuthState({
+				isAuthenticated: true,
+				userEmail: result.userEmail,
+				authProvider: provider,
+				userId: result.userId,
+				expiresAt: this._expiresAt,
+			});
 
-		console.log(`[ACoderOAuth] Successfully authenticated as ${result.userEmail}`);
+			console.log(`[ACoderOAuth] Successfully authenticated as ${result.userEmail}`);
+		} finally {
+			this._currentFlow = null;
+			if (this._callbackServer) {
+				this._callbackServer.close();
+				this._callbackServer = null;
+			}
+		}
 	}
 
 	/**
@@ -597,6 +621,24 @@ export class ACoderOAuthMainService implements IACoderOAuthMainService {
 
 		// Start checking
 		this._refreshTimer = setTimeout(checkAndRefresh, 60000);
+	}
+
+	/**
+	 * Dispose the service and clean up resources
+	 * MEMORY FIX: Clear refresh timer to prevent memory leaks
+	 */
+	dispose(): void {
+		if (this._refreshTimer) {
+			clearTimeout(this._refreshTimer);
+			this._refreshTimer = null;
+		}
+		this._onDidChangeAuthState.dispose();
+		this._onDidUpdateModels.dispose();
+		// Close callback server if running
+		if (this._callbackServer) {
+			this._callbackServer.close();
+			this._callbackServer = null;
+		}
 	}
 }
 

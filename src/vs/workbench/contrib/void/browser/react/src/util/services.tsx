@@ -60,7 +60,6 @@ import { IAgentManagerService } from '../../../agentManager.contribution.js'
 import { ILearningProgressService } from '../../../../common/learningProgressService.js'
 import { WorkspaceConnection, WorkspaceThreadSummary } from '../../../../common/workspaceRegistryTypes.js'
 // import { IACoderOAuthService, ACoderAuthState, ACoderModelInfo } from '../../../../common/aCoderOAuthService.js'
-import { IWhatsNewModalService } from '../../../whatsNewModalService.js'
 
 
 // normally to do this you'd use a useEffect that calls .onDidChangeState(), but useEffect mounts too late and misses initial state changes
@@ -189,7 +188,8 @@ export const _registerServices = (accessor: ServicesAccessor) => {
 	disposables.push(
 		chatThreadsStateService.onDidChangeCurrentThread(() => {
 			chatThreadsState = chatThreadsStateService.state
-			chatThreadsStateListeners.forEach(l => l(chatThreadsState))
+			chatThreadsStateVersion++
+			chatThreadsStateVersionListeners.forEach(l => l(chatThreadsStateVersion))
 		})
 	)
 
@@ -328,7 +328,6 @@ const getReactAccessor = (accessor: ServicesAccessor) => {
 		ILearningProgressService: accessor.get(ILearningProgressService),
 		IStorageService: accessor.get(IStorageService),
 		// IACoderOAuthService: accessor.get(IACoderOAuthService),
-		IWhatsNewModalService: accessor.get(IWhatsNewModalService),
 
 	} as const
 	return reactAccessor
@@ -366,25 +365,25 @@ export const useSettingsState = () => {
 	return s
 }
 
+// Version counters to trigger re-renders without storing the whole state object in every component
+let chatThreadsStateVersion = 0
+const chatThreadsStateVersionListeners: Set<(v: number) => void> = new Set()
+
 export const useChatThreadsState = () => {
-	const [s, ss] = useState(chatThreadsState)
+	const [v, sv] = useState(chatThreadsStateVersion)
 	useEffect(() => {
-		ss(chatThreadsState)
-		chatThreadsStateListeners.add(ss)
-		return () => { chatThreadsStateListeners.delete(ss) }
-	}, [ss])
-	return s
-	// allow user to set state natively in react
-	// const ss: React.Dispatch<React.SetStateAction<ThreadsState>> = (action)=>{
-	// 	_ss(action)
-	// 	if (typeof action === 'function') {
-	// 		const newState = action(chatThreadsState)
-	// 		chatThreadsState = newState
-	// 	} else {
-	// 		chatThreadsState = action
-	// 	}
-	// }
-	// return [s, ss] as const
+		sv(chatThreadsStateVersion)
+		chatThreadsStateVersionListeners.add(sv)
+		return () => { chatThreadsStateVersionListeners.delete(sv) }
+	}, [sv])
+	return chatThreadsState
+}
+
+export const useCurrentThreadMessages = () => {
+	const state = useChatThreadsState()
+	const threadId = state.currentThreadId
+	const thread = state.allThreads[threadId]
+	return useMemo(() => thread?.messages || [], [thread, thread?.messages])
 }
 
 

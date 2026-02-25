@@ -175,7 +175,7 @@ class ExtensionTransferService extends Disposable implements IExtensionTransferS
 }
 
 
-registerSingleton(IExtensionTransferService, ExtensionTransferService, InstantiationType.Eager); // lazily loaded, even if Eager
+registerSingleton(IExtensionTransferService, ExtensionTransferService, InstantiationType.Delayed); // lazily loaded
 
 
 

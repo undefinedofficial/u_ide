@@ -5,11 +5,13 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Range, IRange } from '../../../../editor/common/core/range.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ThrottledDelayer } from '../../../../base/common/async.js';
+import * as dom from '../../../../base/browser/dom.js';
 
 
 // make sure snippet logic works
@@ -35,9 +37,15 @@ class ContextGatheringService extends Disposable implements IContextGatheringSer
 	_serviceBrand: undefined;
 	private readonly _NUM_LINES = 3;
 	private readonly _MAX_SNIPPET_LINES = 7;  // Reasonable size for context
+	private readonly _THROTTLE_DELAY = 1000;  // CPU OPTIMIZATION: Increased from 500ms
 	// Cache holds the most recent list of snippets.
 	private _cache: string[] = [];
 	private _snippetIntervals: IVisitedInterval[] = [];
+	private _lastPos: Position | null = null;
+
+	// MEMORY FIX: Track disposables per model so we can clean up when models are removed
+	private readonly _modelDisposables: Map<string, IDisposable> = new Map();
+	private readonly _delayer = new ThrottledDelayer<void>(this._THROTTLE_DELAY);
 
 	constructor(
 		@ILanguageFeaturesService private readonly _langFeaturesService: ILanguageFeaturesService,
@@ -47,28 +55,57 @@ class ContextGatheringService extends Disposable implements IContextGatheringSer
 		super();
 		this._modelService.getModels().forEach(model => this._subscribeToModel(model));
 		this._register(this._modelService.onModelAdded(model => this._subscribeToModel(model)));
+		// MEMORY FIX: Clean up disposables when models are removed to prevent memory leaks
+		this._register(this._modelService.onModelRemoved(model => this._unsubscribeFromModel(model)));
 	}
 
 	private _subscribeToModel(model: ITextModel): void {
 		console.log('Subscribing to model:', model.uri.toString());
-		this._register(model.onDidChangeContent(() => {
+		// MEMORY FIX: Store the disposable so we can dispose it when the model is removed
+		const disposable = model.onDidChangeContent(() => {
+			// CPU OPTIMIZATION: Only run if window is focused
+			if (!dom.getActiveWindow().document.hasFocus()) return;
+
 			const editor = this._codeEditorService.getFocusedCodeEditor();
 			if (editor && editor.getModel() === model) {
 				const pos = editor.getPosition();
-				console.log('updateCache called at position:', pos);
 				if (pos) {
-					this.updateCache(model, pos);
+					// CPU OPTIMIZATION: Only trigger if position has changed significantly
+					if (!this._lastPos || Math.abs(this._lastPos.lineNumber - pos.lineNumber) > 5) {
+						this._lastPos = pos;
+						this._delayer.trigger(() => this.updateCache(model, pos));
+					}
 				}
 			}
-		}));
+		});
+		this._modelDisposables.set(model.uri.toString(), disposable);
+	}
+
+	private _unsubscribeFromModel(model: ITextModel): void {
+		const uriString = model.uri.toString();
+		const disposable = this._modelDisposables.get(uriString);
+		if (disposable) {
+			disposable.dispose();
+			this._modelDisposables.delete(uriString);
+			console.log('Unsubscribed from model:', uriString);
+		}
+	}
+
+	override dispose(): void {
+		// MEMORY FIX: Clean up all model disposables
+		this._delayer.dispose();
+		this._modelDisposables.forEach(disposable => disposable.dispose());
+		this._modelDisposables.clear();
+		super.dispose();
 	}
 
 	public async updateCache(model: ITextModel, pos: Position): Promise<void> {
 		const snippets = new Set<string>();
 		this._snippetIntervals = []; // Reset intervals for new cache update
 
-		await this._gatherNearbySnippets(model, pos, this._NUM_LINES, 3, snippets, this._snippetIntervals);
-		await this._gatherParentSnippets(model, pos, this._NUM_LINES, 3, snippets, this._snippetIntervals);
+		// CPU OPTIMIZATION: Reduced depth from 3 to 2
+		await this._gatherNearbySnippets(model, pos, this._NUM_LINES, 2, snippets, this._snippetIntervals);
+		await this._gatherParentSnippets(model, pos, this._NUM_LINES, 2, snippets, this._snippetIntervals);
 
 		// Convert to array and filter overlapping snippets
 		this._cache = Array.from(snippets);
@@ -235,38 +272,8 @@ class ContextGatheringService extends Disposable implements IContextGatheringSer
 				console.warn('Symbol provider error:', e);
 			}
 		}
-		// Also check reference providers.
-		const refProviders = this._langFeaturesService.referenceProvider.ordered(model);
-		for (let line = range.startLineNumber; line <= range.endLineNumber; line++) {
-			const content = model.getLineContent(line);
-			const words = content.match(/[a-zA-Z_]\w*/g) || [];
-			for (const word of words) {
-				const startColumn = content.indexOf(word) + 1;
-				const pos = new Position(line, startColumn);
-				if (!this._positionInRange(pos, range)) continue;
-				for (const provider of refProviders) {
-					try {
-						const refs = await provider.provideReferences(model, pos, { includeDeclaration: true }, CancellationToken.None);
-						if (refs) {
-							const filtered = refs.filter(ref => this._rangesIntersect(ref.range, range));
-							for (const ref of filtered) {
-								symbols.push({
-									name: word,
-									detail: '',
-									kind: SymbolKind.Variable,
-									range: ref.range,
-									selectionRange: ref.range,
-									children: [],
-									tags: []
-								});
-							}
-						}
-					} catch (e) {
-						console.warn('Reference provider error:', e);
-					}
-				}
-			}
-		}
+		// CPU OPTIMIZATION: Removed iteration over every word and reference provider calls.
+		// documentSymbolProvider is much more efficient and usually sufficient.
 		return symbols;
 	}
 
@@ -351,4 +358,4 @@ class ContextGatheringService extends Disposable implements IContextGatheringSer
 	}
 }
 
-registerSingleton(IContextGatheringService, ContextGatheringService, InstantiationType.Eager);
+registerSingleton(IContextGatheringService, ContextGatheringService, InstantiationType.Delayed);

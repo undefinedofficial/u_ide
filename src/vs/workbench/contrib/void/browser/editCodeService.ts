@@ -46,7 +46,7 @@ import { FeatureName } from '../common/voidSettingsTypes.js';
 import { IVoidModelService } from '../common/voidModelService.js';
 import { deepClone } from '../../../../base/common/objects.js';
 import { acceptBg, acceptBorder, buttonFontSize, buttonTextColor, rejectBg, rejectBorder } from '../common/helpers/colors.js';
-import { DiffArea, Diff, CtrlKZone, VoidFileSnapshot, DiffAreaSnapshotEntry, diffAreaSnapshotKeys, DiffZone, TrackingZone, ComputedDiff } from '../common/editCodeServiceTypes.js';
+import { DiffArea, Diff, CtrlKZone, VoidFileSnapshot, DiffAreaSnapshotEntry, diffAreaSnapshotKeys, DiffZone, TrackingZone, ComputedDiff, DiffBasedCheckpoint, createDiffBasedCheckpoint, applyDiffBasedCheckpoint } from '../common/editCodeServiceTypes.js';
 import { IConvertToLLMMessageService } from './convertToLLMMessageService.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 // import { VOID_OPEN_SETTINGS_ACTION_ID } from './voidSettingsPane.js';
@@ -1127,7 +1127,7 @@ class EditCodeService extends Disposable implements IEditCodeService {
 	}
 
 
-	private _restoreVoidFileSnapshot = async (uri: URI, snapshot: VoidFileSnapshot) => {
+	private _restoreVoidFileSnapshot = async (uri: URI, snapshot: DiffBasedCheckpoint | VoidFileSnapshot) => {
 		// for each diffarea in this uri, stop streaming if currently streaming
 		for (const diffareaid in this.diffAreaOfId) {
 			const diffArea = this.diffAreaOfId[diffareaid]
@@ -1138,7 +1138,16 @@ class EditCodeService extends Disposable implements IEditCodeService {
 		// delete all diffareas on this uri (clearing their styles)
 		this._deleteAllDiffAreas(uri)
 
-		const { snapshottedDiffAreaOfId, entireFileCode: entireModelCode } = deepClone(snapshot) // don't want to destroy the snapshot
+		const { snapshottedDiffAreaOfId } = deepClone(snapshot) // don't want to destroy the snapshot
+
+		let entireModelCode: string
+		if ('entireFileCode' in snapshot) {
+			entireModelCode = snapshot.entireFileCode
+		} else {
+			const { model } = this._voidModelService.getModel(uri)
+			const currentContent = model ? model.getValue(EndOfLinePreference.LF) : ''
+			entireModelCode = applyDiffBasedCheckpoint(currentContent, snapshot)
+		}
 
 		// restore diffAreaOfId and diffAreasOfModelId
 		for (const diffareaid in snapshottedDiffAreaOfId) {
@@ -1178,20 +1187,32 @@ class EditCodeService extends Disposable implements IEditCodeService {
 
 	private _addToHistory(uri: URI, opts?: { onWillUndo?: () => void }) {
 		const beforeSnapshot: VoidFileSnapshot = this._getCurrentVoidFileSnapshot(uri)
-		let afterSnapshot: VoidFileSnapshot | null = null
+		let redoCheckpoint: DiffBasedCheckpoint | null = null
+		let undoCheckpoint: DiffBasedCheckpoint | null = null
 
 		const elt: IUndoRedoElement = {
 			type: UndoRedoElementType.Resource,
 			resource: uri,
 			label: 'A-Coder Agent',
 			code: 'undoredo.editCode',
-			undo: async () => { opts?.onWillUndo?.(); await this._restoreVoidFileSnapshot(uri, beforeSnapshot) },
-			redo: async () => { if (afterSnapshot) await this._restoreVoidFileSnapshot(uri, afterSnapshot) }
+			undo: async () => {
+				opts?.onWillUndo?.();
+				if (undoCheckpoint) {
+					await this._restoreVoidFileSnapshot(uri, undoCheckpoint)
+				}
+			},
+			redo: async () => {
+				if (redoCheckpoint) {
+					await this._restoreVoidFileSnapshot(uri, redoCheckpoint)
+				}
+			}
 		}
 		this._undoRedoService.pushElement(elt)
 
 		const onFinishEdit = async () => {
-			afterSnapshot = this._getCurrentVoidFileSnapshot(uri)
+			const afterSnapshot = this._getCurrentVoidFileSnapshot(uri)
+			redoCheckpoint = createDiffBasedCheckpoint(beforeSnapshot, afterSnapshot)
+			undoCheckpoint = createDiffBasedCheckpoint(afterSnapshot, beforeSnapshot)
 			await this._voidModelService.saveModel(uri)
 		}
 		return { onFinishEdit }
@@ -1203,7 +1224,7 @@ class EditCodeService extends Disposable implements IEditCodeService {
 	}
 
 
-	public restoreVoidFileSnapshot(uri: URI, snapshot: VoidFileSnapshot): void {
+	public restoreVoidFileSnapshot(uri: URI, snapshot: VoidFileSnapshot | DiffBasedCheckpoint): void {
 		this._restoreVoidFileSnapshot(uri, snapshot)
 	}
 
@@ -2938,11 +2959,18 @@ ${problematicCode}
 				const messageDonePromise = new Promise<void>((res, rej) => { resMessageDonePromise = res })
 
 
-				const onText = (params: { fullText: string; fullReasoning: string }) => {
-					const { fullText } = params
+				const onText = (params: { fullText: string; fullReasoning: string; textDelta?: string }) => {
+					const { fullText, textDelta } = params
 					// blocks are [done done done ... {writingFinal|writingOriginal}]
 					//               ^
 					//              currStreamingBlockNum
+
+					// PERFORMANCE: Avoid full extraction if only text changed and we're not at a block boundary
+					// This is a bit complex for S/R blocks, so we still extract if textDelta is large or contains markers
+					if (textDelta && !textDelta.includes('>>>>>>>') && !textDelta.includes('<<<<<<<') && !textDelta.includes('=======') && oldBlocks.length > 0) {
+						// optimization: just update the last block's final or orig if we're still in that block
+						// but for now, let's stick to full extraction to be safe, it's already much better with O(N) IPC
+					}
 
 					const blocks = extractSearchReplaceBlocks(fullText)
 
@@ -3468,7 +3496,7 @@ ${problematicCode}
 
 }
 
-registerSingleton(IEditCodeService, EditCodeService, InstantiationType.Eager);
+registerSingleton(IEditCodeService, EditCodeService, InstantiationType.Delayed);
 
 
 

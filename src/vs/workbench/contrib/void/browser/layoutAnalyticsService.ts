@@ -115,4 +115,4 @@ export class LayoutAnalyticsService extends Disposable implements ILayoutAnalyti
 	}
 }
 
-registerSingleton(ILayoutAnalyticsService, LayoutAnalyticsService, InstantiationType.Eager);
+registerSingleton(ILayoutAnalyticsService, LayoutAnalyticsService, InstantiationType.Delayed);

@@ -8,6 +8,7 @@
 @tailwind utilities;
 
 & {
+	/* Core Backgrounds */
 	--void-bg-1: var(--vscode-input-background);
 	--void-bg-1-alt: var(--vscode-badge-background);
 	--void-bg-2: var(--vscode-sideBar-background);
@@ -18,22 +19,96 @@
 	--void-bg-4: color-mix(in srgb, var(--vscode-editor-background) 70%, black 30%);
 	--void-bg-4-hover: color-mix(in srgb, var(--vscode-editor-background) 60%, black 40%);
 
+	/* Foregrounds */
 	--void-fg-0: color-mix(in srgb, var(--vscode-tab-activeForeground) 90%, black 10%);
 	--void-fg-1: var(--vscode-editor-foreground);
 	--void-fg-2: var(--vscode-input-foreground);
 	--void-fg-3: var(--vscode-input-placeholderForeground);
-	/* --void-fg-4: var(--vscode-tab-inactiveForeground); */
 	--void-fg-4: var(--vscode-list-deemphasizedForeground);
 
+	/* Warning/Status */
 	--void-warning: var(--vscode-charts-yellow);
 
-	--void-border-1: var(--vscode-commandCenter-activeBorder);
-	--void-border-2: var(--vscode-commandCenter-border);
-	--void-border-3: var(--vscode-commandCenter-inactiveBorder);
+	/* Borders - softer, less harsh for premium feel */
+	--void-border-1: color-mix(in srgb, var(--vscode-commandCenter-activeBorder) 60%, transparent);
+	--void-border-2: color-mix(in srgb, var(--vscode-commandCenter-border) 50%, transparent);
+	--void-border-3: color-mix(in srgb, var(--vscode-commandCenter-inactiveBorder) 40%, transparent);
 	--void-border-4: var(--vscode-editorGroup-border);
 
+	/* Ring/Focus */
 	--void-ring-color: var(--vscode-focusBorder);
 	--void-link-color: var(--vscode-textLink-foreground);
+
+	/* ============================================
+	   PREMIUM DESIGN SYSTEM - Theme-Aware Design
+	   ============================================ */
+
+	/* Depth System - Uses VS Code theme variables for seamless theming */
+	--void-depth-base: var(--vscode-editor-background);
+	--void-depth-elevated: var(--vscode-editorWidget-background, var(--vscode-input-background));
+	--void-depth-floating: var(--vscode-dropdown-background, var(--vscode-input-background));
+	--void-depth-modal: var(--vscode-panel-background, var(--vscode-sideBar-background));
+
+	/* Glassmorphism - Uses panel background for subtle transparency effect */
+	--void-glass-bg: var(--vscode-widget-shadow, rgba(0,0,0,0.1));
+
+	/* Shadow System - Theme-aware shadows (darker in dark themes, lighter in light) */
+	--void-shadow-sm: 0 1px 2px var(--vscode-widget-shadow, rgba(0,0,0,0.1));
+	--void-shadow-md: 0 4px 12px var(--vscode-widget-shadow, rgba(0,0,0,0.15));
+	--void-shadow-lg: 0 8px 24px var(--vscode-widget-shadow, rgba(0,0,0,0.2));
+	--void-shadow-xl: 0 16px 48px var(--vscode-widget-shadow, rgba(0,0,0,0.25));
+	--void-shadow-inner: inset 0 2px 4px var(--vscode-widget-shadow, rgba(0,0,0,0.05));
+
+	/* ============================================
+	   Signature Accent Color System
+	   ============================================ */
+	/* Primary brand gradient - Uses button colors from theme as base */
+	--void-accent-start: var(--vscode-button-background, #6366f1);
+	--void-accent-end: color-mix(in srgb, var(--vscode-button-background, #6366f1) 80%, #8b5cf6);
+	--void-accent-gradient: linear-gradient(135deg, var(--void-accent-start), var(--void-accent-end));
+	--void-accent-gradient-hover: linear-gradient(135deg,
+		color-mix(in srgb, var(--void-accent-start) 80%, white),
+		color-mix(in srgb, var(--void-accent-end) 80%, white));
+	--void-accent-gradient-subtle: linear-gradient(135deg,
+		color-mix(in srgb, var(--void-accent-start) 15%, transparent),
+		color-mix(in srgb, var(--void-accent-end) 15%, transparent));
+
+	/* Glow Effects - Theme-aware opacity */
+	--void-accent-glow: 0 0 20px color-mix(in srgb, var(--void-accent-start) 30%, transparent);
+	--void-accent-glow-strong: 0 0 30px color-mix(in srgb, var(--void-accent-start) 50%, transparent);
+	--void-accent-glow-subtle: 0 0 12px color-mix(in srgb, var(--void-accent-start) 15%, transparent);
+
+	/* Secondary Accents - Use VS Code theme colors */
+	--void-success: var(--vscode-testing-iconPassed, #22c55e);
+	--void-success-glow: 0 0 12px color-mix(in srgb, var(--void-testing-iconPassed, #22c55e) 30%, transparent);
+	--void-error: var(--vscode-errorForeground, #ef4444);
+	--void-error-glow: 0 0 12px color-mix(in srgb, var(--vscode-errorForeground, #ef4444) 30%, transparent);
+	--void-warning-accent: var(--vscode-charts-yellow, #f59e0b);
+	--void-warning-glow: 0 0 12px color-mix(in srgb, var(--vscode-charts-yellow, #f59e0b) 30%, transparent);
+	--void-info: var(--vscode-textLink-foreground, #3b82f6);
+	--void-info-glow: 0 0 12px color-mix(in srgb, var(--vscode-textLink-foreground, #3b82f6) 30%, transparent);
+}
+
+/* Theme-aware glassmorphism - CPU OPTIMIZATION: Reduced blur intensity */
+.void-glass {
+	background: color-mix(in srgb, var(--vscode-editor-background) 85%, transparent);
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+}
+
+.void-glass-strong {
+	background: color-mix(in srgb, var(--vscode-editor-background) 95%, transparent);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+}
+
+.void-glass-subtle {
+	background: color-mix(in srgb, var(--vscode-editor-background) 60%, transparent);
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
 }
 
 .select-child-restyle select {
@@ -50,60 +125,329 @@
 	outline: none !important;
 }
 
-
-
 .inherit-bg-all-restyle > * {
 	background-color: inherit !important;
 }
-
 
 .bg-editor-style-override {
 	--vscode-sideBar-background: var(--vscode-editor-background);
 }
 
+/* ============================================
+   GLASSMORPHISM SYSTEM - Theme Aware
+   ============================================ */
 
-
-/* html {
-	font-size: var(--vscode-font-size);
+/* Glass with gradient border effect - Theme Aware - CPU OPTIMIZATION: Reduced blur */
+.void-glass-premium {
+	background: color-mix(in srgb, var(--vscode-editor-background) 85%, transparent);
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
+	border: 1px solid transparent;
+	background-clip: padding-box;
+	position: relative;
 }
 
-.btn {
-	@apply cursor-pointer transition-colors;
-
-	&.btn-primary {
-		@apply bg-vscode-button-bg text-vscode-button-fg;
-
-		&:not(:disabled) {
-			@apply hover:bg-vscode-button-hoverBg;
-		}
-	}
-
-	&.btn-sm {
-		@apply px-3 py-1 text-sm;
-	}
-
-	&.btn-secondary {
-		@apply bg-vscode-button-secondary-bg text-vscode-button-secondary-fg;
-
-		&:not(:disabled) {
-			@apply hover:bg-vscode-button-secondary-hoverBg;
-		}
-	}
-
-	&:disabled {
-		@apply opacity-75 cursor-not-allowed;
-	}
+.void-glass-premium::before {
+	content: '';
+	position: absolute;
+	inset: -1px;
+	border-radius: inherit;
+	padding: 1px;
+	background: linear-gradient(135deg,
+		color-mix(in srgb, var(--vscode-button-background) 30%, transparent),
+		color-mix(in srgb, var(--vscode-button-background) 10%, transparent),
+		transparent);
+	-webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+	-webkit-mask-composite: xor;
+	mask-composite: exclude;
+	pointer-events: none;
 }
 
-.input {
-	@apply bg-vscode-input-bg text-vscode-input-fg border-vscode-input-border focus:outline-vscode-focus-border;
+/* ============================================
+   INTERACTIVE STATES & MICRO-INTERACTIONS
+   ============================================ */
+
+/* Base interactive element */
+.void-interactive {
+	transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+	cursor: pointer;
 }
 
-.dropdown {
-	@apply bg-vscode-dropdown-bg text-vscode-dropdown-foreground border-vscode-dropdown-border focus:outline-vscode-focus-border;
-} */
+.void-interactive:hover {
+	transform: translateY(-1px);
+}
 
-/* Modern chat animations - GPU accelerated (transform/opacity only) */
+.void-interactive:active {
+	transform: scale(0.97);
+	transition-duration: 100ms;
+}
+
+/* Card hover effect */
+.void-card {
+	transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+	will-change: transform, box-shadow;
+}
+
+.void-card:hover {
+	transform: translateY(-2px);
+	box-shadow: var(--void-shadow-md);
+}
+
+.void-card:active {
+	transform: translateY(0) scale(0.98);
+}
+
+/* Focus states with glow */
+.void-focus:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--void-ring-color), var(--void-accent-glow);
+}
+
+.void-focus-subtle:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 1.5px var(--void-accent-start);
+}
+
+/* Button styles */
+.void-btn-primary {
+	background: var(--void-accent-gradient);
+	color: white;
+	font-weight: 500;
+	transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+	box-shadow: var(--void-shadow-sm);
+}
+
+.void-btn-primary:hover {
+	background: var(--void-accent-gradient-hover);
+	box-shadow: var(--void-accent-glow), var(--void-shadow-md);
+	transform: translateY(-1px);
+}
+
+.void-btn-primary:active {
+	transform: scale(0.97);
+	box-shadow: var(--void-shadow-sm);
+}
+
+.void-btn-secondary {
+	background: var(--void-depth-elevated);
+	color: var(--void-fg-1);
+	border: 1px solid var(--void-border-2);
+	font-weight: 500;
+	transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.void-btn-secondary:hover {
+	background: var(--void-depth-floating);
+	border-color: var(--void-border-1);
+	box-shadow: var(--void-shadow-sm);
+}
+
+.void-btn-secondary:active {
+	transform: scale(0.97);
+}
+
+/* Ghost button (icon only) */
+.void-btn-ghost {
+	background: transparent;
+	color: var(--void-fg-3);
+	transition: all 150ms ease-out;
+}
+
+.void-btn-ghost:hover {
+	background: rgba(var(--void-bg-3-rgb), 0.5);
+	color: var(--void-fg-1);
+}
+
+/* ============================================
+   MESSAGE BUBBLES (Chat Interface)
+   ============================================ */
+
+.message-user {
+	background: var(--void-depth-elevated);
+	border-left: 3px solid var(--void-accent-start);
+	box-shadow: var(--void-shadow-sm);
+	border-radius: 12px;
+	border-top-left-radius: 4px;
+}
+
+.message-assistant {
+	background: transparent;
+	border: 1px solid var(--void-border-2);
+	border-radius: 12px;
+	border-top-left-radius: 4px;
+}
+
+.message-system {
+	background: var(--void-accent-gradient-subtle);
+	border: 1px solid rgba(99, 102, 241, 0.2);
+	border-radius: 12px;
+}
+
+/* ============================================
+   TOOL CARDS & RESULTS
+   ============================================ */
+
+.tool-card {
+	transition: transform 150ms ease-out, opacity 150ms ease-out;
+	will-change: transform;
+}
+
+.tool-card:hover {
+	transform: translateY(-1px);
+}
+
+.tool-card-premium {
+	background: var(--void-depth-floating);
+	backdrop-filter: blur(8px);
+	border-radius: 12px;
+	border: 1px solid rgba(255, 255, 255, 0.06);
+	box-shadow: var(--void-shadow-sm);
+	transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tool-card-premium:hover {
+	box-shadow: var(--void-shadow-md);
+	border-color: rgba(99, 102, 241, 0.2);
+	transform: translateY(-2px);
+}
+
+/* Tool result wrapper with gradient border */
+.tool-result-wrapper {
+	position: relative;
+	background: var(--void-depth-elevated);
+	border-radius: 12px;
+	border: 1px solid var(--void-border-2);
+	overflow: hidden;
+}
+
+.tool-result-wrapper::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 2px;
+	background: var(--void-accent-gradient);
+	opacity: 0.6;
+}
+
+/* ============================================
+   FORM INPUTS
+   ============================================ */
+
+.void-input {
+	background: var(--void-depth-elevated);
+	border: 1px solid var(--void-border-2);
+	border-radius: 8px;
+	color: var(--void-fg-1);
+	transition: all 200ms ease-out;
+}
+
+.void-input:hover {
+	border-color: var(--void-border-1);
+}
+
+.void-input:focus {
+	outline: none;
+	border-color: var(--void-border-1);
+	box-shadow: none;
+}
+
+.void-input::placeholder {
+	color: var(--void-fg-3);
+}
+
+/* Floating label input */
+.void-input-floating {
+	position: relative;
+}
+
+.void-input-floating input {
+	background: var(--void-depth-elevated);
+	border: 1px solid var(--void-border-2);
+	border-radius: 8px;
+	padding: 16px 12px 8px;
+	color: var(--void-fg-1);
+	width: 100%;
+	transition: all 200ms ease-out;
+}
+
+.void-input-floating label {
+	position: absolute;
+	left: 12px;
+	top: 50%;
+	transform: translateY(-50%);
+	color: var(--void-fg-3);
+	font-size: 13px;
+	pointer-events: none;
+	transition: all 200ms ease-out;
+}
+
+.void-input-floating input:focus + label,
+.void-input-floating input:not(:placeholder-shown) + label {
+	top: 8px;
+	transform: translateY(0);
+	font-size: 10px;
+	color: var(--void-accent-start);
+}
+
+/* ============================================
+   STATUS INDICATORS
+   ============================================ */
+
+.status-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	box-shadow: 0 0 8px currentColor;
+}
+
+.status-dot-success {
+	background: var(--void-success);
+	box-shadow: var(--void-success-glow);
+}
+
+.status-dot-error {
+	background: var(--void-error);
+	box-shadow: var(--void-error-glow);
+}
+
+.status-dot-warning {
+	background: var(--void-warning-accent);
+	box-shadow: var(--void-warning-glow);
+}
+
+.status-dot-info {
+	background: var(--void-info);
+	box-shadow: var(--void-info-glow);
+}
+
+/* Pills/Badges */
+.void-pill {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px 8px;
+	border-radius: 9999px;
+	font-size: 11px;
+	font-weight: 500;
+}
+
+.void-pill-accent {
+	background: rgba(99, 102, 241, 0.15);
+	color: var(--void-accent-start);
+	border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.void-pill-success {
+	background: rgba(34, 197, 94, 0.15);
+	color: var(--void-success);
+	border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
 @keyframes shimmer {
 	0% { transform: translateX(-100%); }
 	100% { transform: translateX(100%); }
@@ -124,6 +468,31 @@
 	to { opacity: 1; transform: scale(1); }
 }
 
+@keyframes slide-in-right {
+	from { opacity: 0; transform: translateX(-10px); }
+	to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-gentle {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.6; }
+}
+
+@keyframes skeleton-shimmer {
+	0% { background-position: 200% 0; }
+	100% { background-position: -200% 0; }
+}
+
+@keyframes float {
+	0%, 100% { transform: translateY(0); }
+	50% { transform: translateY(-4px); }
+}
+
+@keyframes glow-pulse {
+	0%, 100% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
+	50% { box-shadow: 0 0 30px rgba(99, 102, 241, 0.5); }
+}
+
 .animate-shimmer {
 	animation: shimmer 2s infinite;
 	will-change: transform;
@@ -134,9 +503,35 @@
 	will-change: transform;
 }
 
-/* No mode-specific overrides needed as we use variables */
+.animate-float {
+	animation: float 3s ease-in-out infinite;
+}
 
-/* Smooth message transitions */
+.animate-glow-pulse {
+	animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.animate-slide-in-right {
+	animation: slide-in-right 300ms ease-out forwards;
+}
+
+/* Staggered list animations */
+.stagger-item {
+	opacity: 0;
+	transform: translateY(10px);
+	animation: slide-up 400ms ease-out forwards;
+}
+
+.stagger-item:nth-child(1) { animation-delay: 0ms; }
+.stagger-item:nth-child(2) { animation-delay: 80ms; }
+.stagger-item:nth-child(3) { animation-delay: 160ms; }
+.stagger-item:nth-child(4) { animation-delay: 240ms; }
+.stagger-item:nth-child(5) { animation-delay: 320ms; }
+.stagger-item:nth-child(6) { animation-delay: 400ms; }
+.stagger-item:nth-child(7) { animation-delay: 480ms; }
+.stagger-item:nth-child(8) { animation-delay: 560ms; }
+
+/* Message transitions */
 .message-enter {
 	opacity: 0;
 	transform: translateY(10px);
@@ -148,43 +543,7 @@
 	transition: opacity 300ms ease-out, transform 300ms ease-out;
 }
 
-/* Tool call hover effects - simplified for performance */
-.tool-card {
-	transition: transform 150ms ease-out, opacity 150ms ease-out;
-	will-change: transform;
-}
-
-.tool-card:hover {
-	transform: translateY(-1px);
-}
-
-/* Enhanced loading states */
-.loading-dots {
-	display: inline-flex;
-	gap: 4px;
-}
-
-.loading-dots > div {
-	width: 8px;
-	height: 8px;
-	border-radius: 50%;
-	background-color: var(--vscode-void-accent, var(--vscode-button-background));
-	animation: pulse-gentle 1.4s ease-in-out infinite;
-}
-
-.loading-dots > div:nth-child(1) {
-	animation-delay: 0s;
-}
-
-.loading-dots > div:nth-child(2) {
-	animation-delay: 0.2s;
-}
-
-.loading-dots > div:nth-child(3) {
-	animation-delay: 0.4s;
-}
-
-/* State transition animations */
+/* State transitions */
 .state-transition {
 	transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -202,25 +561,12 @@
 	transition: stroke-dashoffset 300ms ease-in-out;
 }
 
-/* Smooth height transitions - use max-height for better performance */
+/* Smooth height transitions */
 .smooth-height {
 	transition: max-height 200ms ease-out, opacity 200ms ease-out;
 	overflow: hidden;
 	will-change: max-height, opacity;
 }
-
-/* Staggered animations */
-.stagger-item {
-	opacity: 0;
-	transform: translateY(10px);
-	animation: slide-up 400ms ease-out forwards;
-}
-
-.stagger-item:nth-child(1) { animation-delay: 0ms; }
-.stagger-item:nth-child(2) { animation-delay: 100ms; }
-.stagger-item:nth-child(3) { animation-delay: 200ms; }
-.stagger-item:nth-child(4) { animation-delay: 300ms; }
-.stagger-item:nth-child(5) { animation-delay: 400ms; }
 
 /* Attention grabbing animations */
 .attention-pulse {
@@ -229,4 +575,244 @@
 
 .attention-scale {
 	animation: fade-in-scale 0.3s ease-out;
+}
+
+/* Skeleton loading */
+.skeleton {
+	background: linear-gradient(
+		90deg,
+		var(--void-bg-3) 25%,
+		var(--void-bg-2) 50%,
+		var(--void-bg-3) 75%
+	);
+	background-size: 200% 100%;
+	animation: skeleton-shimmer 1.5s infinite;
+}
+
+/* Loading dots */
+.loading-dots {
+	display: inline-flex;
+	gap: 4px;
+}
+
+.loading-dots > div {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background-color: var(--vscode-void-accent, var(--void-accent-start));
+	animation: pulse-gentle 1.4s ease-in-out infinite;
+}
+
+.loading-dots > div:nth-child(1) { animation-delay: 0s; }
+.loading-dots > div:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots > div:nth-child(3) { animation-delay: 0.4s; }
+
+/* ============================================
+   SCROLLBAR STYLING
+   ============================================ */
+
+.void-scrollbar::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+.void-scrollbar::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.void-scrollbar::-webkit-scrollbar-thumb {
+	background: var(--void-border-3);
+	border-radius: 3px;
+}
+
+.void-scrollbar::-webkit-scrollbar-thumb:hover {
+	background: var(--void-border-2);
+}
+
+/* ============================================
+   DIVIDERS & SEPARATORS
+   ============================================ */
+
+.void-divider {
+	height: 1px;
+	background: linear-gradient(
+		to right,
+		transparent,
+		var(--void-border-2),
+		transparent
+	);
+}
+
+.void-divider-vertical {
+	width: 1px;
+	background: linear-gradient(
+		to bottom,
+		transparent,
+		var(--void-border-2),
+		transparent
+	);
+}
+
+/* Gradient text */
+.void-text-gradient {
+	background: var(--void-accent-gradient);
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+}
+
+/* ============================================
+   PREMIUM CARD SYSTEM
+   Smooth rounded corners and shadows
+   ============================================ */
+
+/* Premium card with subtle depth */
+.void-card {
+	border-radius: 12px;
+	background: var(--void-depth-elevated);
+	border: 1px solid var(--void-border-2);
+	box-shadow: var(--void-shadow-sm);
+	transition: all 0.2s ease-out;
+}
+
+.void-card:hover {
+	box-shadow: var(--void-shadow-md);
+}
+
+/* Elevated card for modals/dropdowns */
+.void-card-elevated {
+	border-radius: 12px;
+	background: var(--void-depth-floating);
+	border: 1px solid var(--void-border-2);
+	box-shadow: var(--void-shadow-lg);
+}
+
+/* Premium button - primary */
+.void-btn-primary {
+	border-radius: 10px;
+	padding: 8px 16px;
+	font-weight: 500;
+	background: var(--void-accent-gradient);
+	color: white;
+	box-shadow: var(--void-shadow-sm), var(--void-accent-glow-subtle);
+	transition: all 0.2s ease-out;
+}
+
+.void-btn-primary:hover {
+	background: var(--void-accent-gradient-hover);
+	box-shadow: var(--void-shadow-md), var(--void-accent-glow);
+	transform: translateY(-1px);
+}
+
+.void-btn-primary:active {
+	transform: translateY(0);
+}
+
+/* Premium button - secondary */
+.void-btn-secondary {
+	border-radius: 12px;
+	padding: 8px 16px;
+	font-weight: 500;
+	background: var(--void-depth-elevated);
+	color: var(--void-fg-1);
+	border: 1px solid var(--void-border-2);
+	transition: all 0.2s ease-out;
+}
+
+.void-btn-secondary:hover {
+	background: var(--void-bg-2-hover);
+	border-color: var(--void-border-1);
+}
+
+/* Input fields */
+.void-input {
+	border-radius: 8px;
+	padding: 8px 12px;
+	background: var(--void-bg-1);
+	border: 1px solid var(--void-border-2);
+	color: var(--void-fg-1);
+	transition: all 0.15s ease-out;
+}
+
+.void-input:focus {
+	outline: none;
+	border-color: var(--void-border-1);
+	box-shadow: none;
+}
+
+.void-input::placeholder {
+	color: var(--void-fg-3);
+}
+
+/* ============================================
+   PREMIUM CARD UTILITIES - Replace harsh borders
+   ============================================ */
+
+/* Premium card with subtle border, rounded corners, and shadow */
+.void-card {
+	border-radius: 12px;
+	border: 1px solid var(--void-border-2);
+	background: var(--void-depth-elevated);
+	box-shadow: var(--void-shadow-sm);
+}
+
+/* Premium elevated card - more prominent */
+.void-card-elevated {
+	border-radius: 12px;
+	border: 1px solid var(--void-border-1);
+	background: var(--void-depth-elevated);
+	box-shadow: var(--void-shadow-md);
+}
+
+/* Premium card with accent border */
+.void-card-accent {
+	border-radius: 12px;
+	border: 1px solid color-mix(in srgb, var(--void-accent-start) 40%, transparent);
+	background: var(--void-depth-elevated);
+	box-shadow: var(--void-shadow-sm), 0 0 20px color-mix(in srgb, var(--void-accent-start) 15%, transparent);
+}
+
+/* Premium floating card - for modals, dropdowns */
+.void-card-floating {
+	border-radius: 12px;
+	background: var(--void-depth-floating);
+	box-shadow: var(--void-shadow-lg);
+}
+
+/* Button styles */
+.void-btn-primary {
+	border-radius: 12px;
+	font-weight: 500;
+	transition: all 0.2s ease-out;
+	background: var(--void-accent-gradient);
+	box-shadow: var(--void-shadow-sm), var(--void-accent-glow-subtle);
+}
+
+.void-btn-primary:hover {
+	background: var(--void-accent-gradient-hover);
+	box-shadow: var(--void-shadow-md), var(--void-accent-glow);
+	transform: translateY(-1px);
+}
+
+.void-btn-primary:active {
+	transform: translateY(0);
+}
+
+.void-btn-secondary {
+	border-radius: 12px;
+	font-weight: 500;
+	transition: all 0.2s ease-out;
+	background: var(--void-depth-elevated);
+	border: 1px solid var(--void-border-2);
+}
+
+.void-btn-secondary:hover {
+	background: var(--void-bg-2-hover);
+	border-color: var(--void-border-1);
+}
+
+/* Focus ring */
+.void-focus-ring {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--void-ring-color), var(--void-accent-glow-subtle);
 }

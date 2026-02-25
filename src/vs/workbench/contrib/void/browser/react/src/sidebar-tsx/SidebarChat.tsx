@@ -83,7 +83,7 @@ const ImagePreview = ({ images, onRemove }: { images: ImageAttachment[], onRemov
 	if (images.length === 0) return null;
 
 	return (
-		<div className="flex flex-wrap gap-2 mb-2 p-2 bg-void-bg-2 rounded-md border border-void-border-3">
+		<div className="flex flex-wrap gap-2 mb-2 p-2 void-card">
 			{images.map((image, index) => (
 				<div key={index} className="relative group">
 					<img
@@ -175,7 +175,7 @@ const TaskPlanView = ({
 	}
 
 	return (
-		<div className="mb-4 border border-void-border-2 rounded-xl overflow-hidden shadow-sm">
+		<div className="mb-4 void-card-premium">
 			{/* Header */}
 			<div
 				className="flex items-center justify-between p-4 cursor-pointer hover:bg-void-bg-2-hover transition-all duration-200"
@@ -251,7 +251,7 @@ const TaskPlanView = ({
 								<select
 									value={task.status}
 									onChange={(e) => onUpdateTaskStatus(task.id, e.target.value as TaskPlan['status'])}
-									className="text-xs px-3 py-1.5 bg-void-bg-3 border border-void-border-2 rounded-lg text-void-fg-2 focus:outline-none focus:border-void-accent transition-colors"
+									className="text-xs px-3 py-1.5 void-input rounded-lg text-void-fg-2"
 								>
 									<option value="pending">Pending</option>
 									<option value="in_progress">In Progress</option>
@@ -288,7 +288,7 @@ const TaskPlanView = ({
 										}
 									}}
 									placeholder="Enter task description..."
-									className="flex-1 px-3 py-2 text-sm border border-void-border-2 rounded-lg text-void-fg-1 placeholder-void-fg-4 focus:outline-none focus:border-void-accent transition-colors"
+									className="void-input flex-1"
 									autoFocus
 								/>
 								<button
@@ -784,14 +784,14 @@ export const VoidChatArea: React.FC<VoidChatAreaProps> = ({
 		<div
 			ref={divRef}
 			className={`
-					flex flex-col p-3 relative input text-left shrink-0 w-full
+					flex flex-col p-3 relative text-left shrink-0 w-full
 					rounded-2xl border border-void-border-2
-					transition-all duration-200
-					focus-within:border-void-accent/50 focus-within:shadow-md focus-within:ring-1 focus-within:ring-void-accent/20
-					hover:border-void-border-1
+					transition-all duration-300 ease-out
+					focus-within:border-void-border-1
+					hover:border-void-border-1 hover:shadow-void-sm
 					max-h-[80vh] overflow-visible
-					${isDark ? 'bg-void-bg-1' : 'bg-void-bg-1'}
-					shadow-sm
+					${isDark ? 'bg-void-depth-elevated' : 'bg-void-depth-elevated'}
+					shadow-void-sm
 					${className}
 				`}
 			onClick={(e) => {
@@ -870,20 +870,22 @@ export const ButtonSubmit = ({ className, disabled, isQueueMode, ...props }: But
 
 	return <button
 		type='button'
-		className={`rounded-xl flex-shrink-0 flex-grow-0 flex items-center justify-center transition-all duration-200
-				${disabled ? 'bg-void-bg-3 cursor-not-allowed opacity-50 border border-void-border-2' :
-				isDark ?
-					'bg-void-accent/80 hover:bg-void-accent cursor-pointer shadow-sm' :
-					'bg-void-accent hover:bg-void-accent/90 cursor-pointer shadow-md'
+		className={`
+			rounded-xl flex-shrink-0 flex-grow-0 flex items-center justify-center
+			transition-all duration-200 ease-out
+			${disabled
+				? 'bg-void-depth-base cursor-not-allowed opacity-50 border border-void-border-2'
+				: 'void-btn-primary cursor-pointer'
 			}
-			`}
+			${className}
+		`}
 		style={{ width: DEFAULT_BUTTON_SIZE, height: DEFAULT_BUTTON_SIZE }}
 		disabled={disabled}
 		data-tooltip-id='void-tooltip'
 		data-tooltip-content={isQueueMode ? 'Queue message (will send after current operation)' : 'Send message'}
 		{...props}
 	>
-		<div className={`${disabled ? 'text-void-fg-4' : isDark ? 'text-white' : 'text-black'}`}>
+		<div className={`${disabled ? 'text-void-fg-4' : 'text-white'}`}>
 			<ArrowUp size={14} strokeWidth={3} />
 		</div>
 	</button>
@@ -891,8 +893,10 @@ export const ButtonSubmit = ({ className, disabled, isQueueMode, ...props }: But
 
 export const ButtonStop = ({ className, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => {
 	return <button
-		className={`rounded-xl flex-shrink-0 flex-grow-0 cursor-pointer flex items-center justify-center transition-all duration-200
-			bg-void-bg-2 hover:bg-void-bg-3 text-void-fg-1 shadow-sm border border-void-border-2
+		className={`
+			rounded-xl flex-shrink-0 flex-grow-0 cursor-pointer flex items-center justify-center
+			transition-all duration-200 ease-out
+			void-btn-secondary
 			${className}
 		`}
 		type='button'
@@ -1242,7 +1246,7 @@ export const SelectedFiles = (
 
 
 
-const UserMessageComponent = ({ chatMessage, messageIdx, isCheckpointGhost, currCheckpointIdx, _scrollToBottom }: { chatMessage: ChatMessage & { role: 'user' }, messageIdx: number, currCheckpointIdx: number | undefined, isCheckpointGhost: boolean, _scrollToBottom: (() => void) | null }) => {
+const UserMessageComponent = React.memo(({ chatMessage, messageIdx, isCheckpointGhost, currCheckpointIdx, _scrollToBottom }: { chatMessage: ChatMessage & { role: 'user' }, messageIdx: number, currCheckpointIdx: number | undefined, isCheckpointGhost: boolean, _scrollToBottom: (() => void) | null }) => {
 
 	const accessor = useAccessor()
 	const chatThreadsService = accessor.get('IChatThreadService')
@@ -1412,41 +1416,41 @@ const UserMessageComponent = ({ chatMessage, messageIdx, isCheckpointGhost, curr
 
 	const isMsgAfterCheckpoint = currCheckpointIdx !== undefined && currCheckpointIdx === messageIdx - 1
 
-	return <div className={`flex gap-3 mb-6 ${mode === 'edit' ? 'w-full' : 'self-end max-w-[85%]'} ${isCheckpointGhost && !isMsgAfterCheckpoint ? 'opacity-40 grayscale' : ''}`}
-		onMouseEnter={() => setIsHovered(true)}
-		onMouseLeave={() => setIsHovered(false)}
-	>
-		<div className="flex flex-col items-end gap-1.5 flex-1 min-w-0">
-			<div
-				// style chatbubble according to role
-				className={`
-				group relative
-				${mode === 'edit' ? 'w-full'
-						: mode === 'display' ? 'px-4 py-3 bg-void-bg-2 hover:bg-void-bg-3 border border-void-border-2/50 rounded-2xl rounded-tr-none text-void-fg-1 cursor-pointer transition-all duration-300 shadow-md hover:shadow-lg hover:-translate-y-0.5' : ''
-					}
-			`}
-				onClick={() => { if (mode === 'display') { onOpenEdit() } }}
-			>
-				{chatbubbleContents}
+	return (
+		<div className={`flex gap-3 mb-6 ${mode === 'edit' ? 'w-full' : 'self-end max-w-[85%]'} ${isCheckpointGhost && !isMsgAfterCheckpoint ? 'opacity-40 grayscale' : ''}`}
+			onMouseEnter={useCallback(() => setIsHovered(true), [])}
+			onMouseLeave={useCallback(() => setIsHovered(false), [])}
+		>
+			<div className="flex flex-col items-end gap-1.5 flex-1 min-w-0">
+				<div
+					// style chatbubble according to role
+					className={`
+					group relative
+					${mode === 'edit' ? 'w-full'
+							: mode === 'display' ? 'px-4 py-3 bg-void-bg-2 hover:bg-void-bg-3 border border-void-border-2/50 rounded-2xl rounded-tr-none text-void-fg-1 cursor-pointer transition-all duration-300 shadow-md hover:shadow-lg hover:-translate-y-0.5' : ''
+						}
+				`}
+					onClick={() => { if (mode === 'display') { onOpenEdit() } }}
+				>
+					{chatbubbleContents}
 
-				{mode === 'display' && (
-					<div className="absolute -left-10 top-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-						<button
-							onClick={(e) => { e.stopPropagation(); onOpenEdit(); }}
-							className="p-1.5 bg-void-bg-2 border border-void-border-2 rounded-lg hover:bg-void-bg-3 text-void-fg-4 hover:text-void-accent transition-all"
-						>
-							<Pencil size={14} />
-						</button>
-					</div>
-				)}
+					{mode === 'display' && (
+						<div className="absolute -left-10 top-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+							<button
+								onClick={(e) => { e.stopPropagation(); onOpenEdit(); }}
+								className="p-1.5 bg-void-bg-2 border border-void-border-2 rounded-lg hover:bg-void-bg-3 text-void-fg-4 hover:text-void-accent transition-all"
+							>
+								<Pencil size={14} />
+							</button>
+						</div>
+					)}
+				</div>
+				{mode === 'display' && <span className="text-[9px] font-black uppercase tracking-[0.15em] text-void-fg-4 opacity-40 px-1">You</span>}
 			</div>
-			{mode === 'display' && <span className="text-[9px] font-black uppercase tracking-[0.15em] text-void-fg-4 opacity-40 px-1">You</span>}
 		</div>
-	</div>
-}
-
-
-const AssistantMessageComponent = ({ chatMessage, isCheckpointGhost, isCommitted, messageIdx }: { chatMessage: ChatMessage & { role: 'assistant' }, isCheckpointGhost: boolean, messageIdx: number, isCommitted: boolean }) => {
+	)
+})
+const AssistantMessageComponent = React.memo(({ chatMessage, isCheckpointGhost, isCommitted, messageIdx }: { chatMessage: ChatMessage & { role: 'assistant' }, isCheckpointGhost: boolean, messageIdx: number, isCommitted: boolean }) => {
 
 	const accessor = useAccessor()
 	const chatThreadsService = accessor.get('IChatThreadService')
@@ -1465,44 +1469,45 @@ const AssistantMessageComponent = ({ chatMessage, isCheckpointGhost, isCommitted
 	const isEmpty = !chatMessage.displayContent && !chatMessage.reasoning
 	if (isEmpty) return null
 
-	return <div className={`flex gap-3 mb-8 ${isCheckpointGhost ? 'opacity-40 grayscale' : ''}`}>
-		<div className="flex flex-col gap-2 flex-1 min-w-0">
-			<div className="flex flex-col gap-3">
-				{/* reasoning token */}
-				{hasReasoning &&
-					<div className="w-full">
-						<ReasoningWrapper isDoneReasoning={isDoneReasoning} isStreaming={!isCommitted}>
-							<SmallProseWrapper>
+	return (
+		<div className={`flex gap-3 mb-8 ${isCheckpointGhost ? 'opacity-40 grayscale' : ''}`}>
+			<div className="flex flex-col gap-2 flex-1 min-w-0">
+				<div className="flex flex-col gap-3">
+					{/* reasoning token */}
+					{hasReasoning &&
+						<div className="w-full">
+							<ReasoningWrapper isDoneReasoning={isDoneReasoning} isStreaming={!isCommitted}>
+								<SmallProseWrapper>
+									<ChatMarkdownRender
+										string={reasoningStr}
+										chatMessageLocation={chatMessageLocation}
+										isApplyEnabled={false}
+										isLinkDetectionEnabled={true}
+									/>
+								</SmallProseWrapper>
+							</ReasoningWrapper>
+						</div>
+					}
+
+					{/* assistant message */}
+					{chatMessage.displayContent &&
+						<div className="w-full px-1">
+							<ProseWrapper>
 								<ChatMarkdownRender
-									string={reasoningStr}
+									string={chatMessage.displayContent || ''}
 									chatMessageLocation={chatMessageLocation}
-									isApplyEnabled={false}
+									isApplyEnabled={true}
 									isLinkDetectionEnabled={true}
 								/>
-							</SmallProseWrapper>
-						</ReasoningWrapper>
-					</div>
-				}
-
-				{/* assistant message */}
-				{chatMessage.displayContent &&
-					<div className="w-full px-1">
-						<ProseWrapper>
-							<ChatMarkdownRender
-								string={chatMessage.displayContent || ''}
-								chatMessageLocation={chatMessageLocation}
-								isApplyEnabled={true}
-								isLinkDetectionEnabled={true}
-							/>
-						</ProseWrapper>
-					</div>
-				}
+							</ProseWrapper>
+						</div>
+					}
+				</div>
+				<span className="text-[9px] font-black uppercase tracking-[0.15em] text-void-fg-4 opacity-40 px-1">A-Coder</span>
 			</div>
-			<span className="text-[9px] font-black uppercase tracking-[0.15em] text-void-fg-4 opacity-40 px-1">A-Coder</span>
 		</div>
-	</div>
-
-}
+	)
+})
 
 const ReasoningWrapper = ({ isDoneReasoning, isStreaming, children }: { isDoneReasoning: boolean, isStreaming: boolean, children: React.ReactNode }) => {
 	const isDone = isDoneReasoning || !isStreaming
@@ -1946,11 +1951,11 @@ type ChatBubbleProps = {
 	_scrollToBottom: (() => void) | null,
 }
 
-const ChatBubble = (props: ChatBubbleProps) => {
+const ChatBubble = React.memo((props: ChatBubbleProps) => {
 	return <ErrorBoundary>
 		<_ChatBubble {...props} />
 	</ErrorBoundary>
-}
+})
 
 const _ChatBubble = ({ threadId, chatMessage, currCheckpointIdx, isCommitted, messageIdx, chatIsRunning, _scrollToBottom }: ChatBubbleProps) => {
 	const role = chatMessage.role

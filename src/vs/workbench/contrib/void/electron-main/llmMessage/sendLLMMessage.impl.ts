@@ -28,53 +28,54 @@ const getGoogleApiKey = async () => {
 	return key
 }
 
-// A-Coder session token - obtained from OAuth authentication
-// The session token is used to authenticate with A-Coder's backend
-// which proxies requests to chutes.ai with the master API key (user never sees it)
-let _aCoderSessionToken: string | null = null
-
-/**
- * A-Coder backend URL - proxies requests to chutes.ai with the master API key
- * Can be overridden via environment variable for development
- */
-const ACODER_API_URL = process.env.ACODER_API_URL || 'https://api.a-coder.dev/v1'
-
-/**
- * Get the A-Coder session token.
- * The token is obtained via OAuth authentication and stored securely.
- * For development, it can be set via ACODER_SESSION_TOKEN environment variable.
- */
-export const getACoderSessionToken = (): string => {
-	// First check if we have a cached token
-	if (_aCoderSessionToken) {
-		return _aCoderSessionToken
-	}
-	// Fall back to environment variable for development
-	const envToken = process.env.ACODER_SESSION_TOKEN || ''
-	if (envToken) {
-		_aCoderSessionToken = envToken
-	}
-	return _aCoderSessionToken || ''
-}
-
-/**
- * Set the A-Coder session token (called by OAuth service after successful authentication)
- */
-export const setACoderSessionToken = (token: string) => {
-	_aCoderSessionToken = token
-}
-
-/**
- * Clear the A-Coder session token (called on sign out)
- */
-export const clearACoderSessionToken = () => {
-	_aCoderSessionToken = null
-}
-
-// Legacy exports for backwards compatibility
-export const getACoderApiKey = getACoderSessionToken
-export const setACoderApiKey = setACoderSessionToken
-export const clearACoderApiKey = clearACoderSessionToken
+// DISABLED: A-Coder OAuth provider - commented out to prevent memory leaks
+// // A-Coder session token - obtained from OAuth authentication
+// // The session token is used to authenticate with A-Coder's backend
+// // which proxies requests to chutes.ai with the master API key (user never sees it)
+// let _aCoderSessionToken: string | null = null
+//
+// /**
+//  * A-Coder backend URL - proxies requests to chutes.ai with the master API key
+//  * Can be overridden via environment variable for development
+//  */
+// const ACODER_API_URL = process.env.ACODER_API_URL || 'https://api.a-coder.dev/v1'
+//
+// /**
+//  * Get the A-Coder session token.
+//  * The token is obtained via OAuth authentication and stored securely.
+//  * For development, it can be set via ACODER_SESSION_TOKEN environment variable.
+//  */
+// export const getACoderSessionToken = (): string => {
+// 	// First check if we have a cached token
+// 	if (_aCoderSessionToken) {
+// 		return _aCoderSessionToken
+// 	}
+// 	// Fall back to environment variable for development
+// 	const envToken = process.env.ACODER_SESSION_TOKEN || ''
+// 	if (envToken) {
+// 		_aCoderSessionToken = envToken
+// 	}
+// 	return _aCoderSessionToken || ''
+// }
+//
+// /**
+//  * Set the A-Coder session token (called by OAuth service after successful authentication)
+//  */
+// export const setACoderSessionToken = (token: string) => {
+// 	_aCoderSessionToken = token
+// }
+//
+// /**
+//  * Clear the A-Coder session token (called on sign out)
+//  */
+// export const clearACoderSessionToken = () => {
+// 	_aCoderSessionToken = null
+// }
+//
+// // Legacy exports for backwards compatibility
+// export const getACoderApiKey = getACoderSessionToken
+// export const setACoderApiKey = setACoderSessionToken
+// export const clearACoderApiKey = clearACoderSessionToken
 
 
 type InternalCommonMessageParams = {
@@ -250,27 +251,28 @@ const newOpenAICompatibleSDK = async ({ settingsOfProvider, providerName, includ
 		const thisConfig = settingsOfProvider[providerName]
 		return new OpenAI({ baseURL: 'https://api.mistral.ai/v1', apiKey: thisConfig.apiKey, ...commonPayloadOpts })
 	}
-	else if (providerName === 'aCoder') {
-		// A-Coder uses OAuth authentication - requests go through A-Coder's backend
-		// which proxies to chutes.ai with the master API key (user never sees it)
-		const sessionToken = getACoderSessionToken()
-		if (!sessionToken) {
-			throw new Error('A-Coder requires authentication. Please sign in with Google or GitHub in Settings.')
-		}
-		// Use A-Coder's backend which proxies requests to chutes.ai
-		// The session token authenticates the user, backend adds the master API key
-		return new OpenAI({
-			baseURL: ACODER_API_URL, // A-Coder backend (proxies to chutes.ai)
-			apiKey: sessionToken, // Session token from OAuth
-			defaultHeaders: {
-				'HTTP-User-Agent': 'A-Coder/1.0.0',
-			},
-			timeout: 120000,
-			...commonPayloadOpts
-		})
-	}
+	// A-CODER OAUTH DISABLED - Commented out to prevent memory leaks
+	// else if (providerName === 'aCoder') {
+	// 	// A-Coder uses OAuth authentication - requests go through A-Coder's backend
+	// 	// which proxies to chutes.ai with the master API key (user never sees it)
+	// 	const sessionToken = getACoderSessionToken()
+	// 	if (!sessionToken) {
+	// 		throw new Error('A-Coder requires authentication. Please sign in with Google or GitHub in Settings.')
+	// 	}
+	// 	// Use A-Coder's backend which proxies requests to chutes.ai
+	// 	// The session token authenticates the user, backend adds the master API key
+	// 	return new OpenAI({
+	// 		baseURL: ACODER_API_URL, // A-Coder backend (proxies to chutes.ai)
+	// 		apiKey: sessionToken, // Session token from OAuth
+	// 		defaultHeaders: {
+	// 			'HTTP-User-Agent': 'A-Coder/1.0.0',
+	// 		},
+	// 		timeout: 120000,
+	// 		...commonPayloadOpts
+	// 	})
+	// }
 
-	else throw new Error(`A-Coder providerName was invalid: ${providerName}.`)
+	else throw new Error(`Provider "${providerName}" is not supported.`)
 }
 
 
@@ -682,6 +684,13 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 				onText({
 					fullText: displayText,
 					fullReasoning: fullReasoningSoFar,
+					textDelta: newText,
+					reasoningDelta: nameOfReasoningFieldInDelta ? (
+						(delta as any)?.[nameOfReasoningFieldInDelta] ||
+						(delta as any)?.reasoning ||
+						(delta as any)?.thinking ||
+						''
+					) + '' : undefined,
 					toolCalls: toolCalls.length === 0 ? undefined : mapToRawToolCalls(toolCalls),
 					// Pass raw text so chatThreadService can detect XML tool calls for repetition detection
 					_rawTextBeforeStripping: !specialToolFormat ? fullTextSoFar : undefined,
@@ -1044,11 +1053,37 @@ const sendAnthropicChat = async ({ messages, providerName, onText, onFinalMessag
 		else if (e.type === 'content_block_delta') {
 			if (e.delta.type === 'text_delta') {
 				fullText += e.delta.text
-				runOnText()
+				onText({
+					fullText,
+					fullReasoning,
+					textDelta: e.delta.text,
+					toolCalls: toolCallsAccumulator.length === 0 ? undefined : toolCallsAccumulator
+						.filter(tc => !!tc)
+						.map(tc => ({
+							name: tc.name as any,
+							rawParams: parsePartialJSON(tc.paramsStr),
+							isDone: false,
+							doneParams: [],
+							id: tc.id || generateUuid()
+						})),
+				})
 			}
 			else if (e.delta.type === 'thinking_delta') {
 				fullReasoning += e.delta.thinking
-				runOnText()
+				onText({
+					fullText,
+					fullReasoning,
+					reasoningDelta: e.delta.thinking,
+					toolCalls: toolCallsAccumulator.length === 0 ? undefined : toolCallsAccumulator
+						.filter(tc => !!tc)
+						.map(tc => ({
+							name: tc.name as any,
+							rawParams: parsePartialJSON(tc.paramsStr),
+							isDone: false,
+							doneParams: [],
+							id: tc.id || generateUuid()
+						})),
+				})
 			}
 			else if (e.delta.type === 'input_json_delta') { // tool use
 				const index = e.index
@@ -1537,16 +1572,7 @@ export const sendLLMMessageToProviderImplementation = {
 		sendFIM: null,
 		list: null,
 	},
-	aCoder: {
-		sendChat: (params) => _sendOpenAICompatibleChat(params),
-		sendFIM: null,
-		list: null,
-	},
-
 } satisfies CallFnOfProvider
-
-
-
 
 /*
 FIM info (this may be useful in the future with vLLM, but in most cases the only way to use FIM is if the provider explicitly supports it):
