@@ -2464,7 +2464,37 @@ export const SidebarChat = () => {
 	const currThreadStreamState = useChatThreadsStreamState(chatThreadsState.currentThreadId)
 	const isRunning = currThreadStreamState?.isRunning
 	const latestError = currThreadStreamState?.error
-	const { displayContentSoFar, toolCallsSoFar, reasoningSoFar, _rawTextBeforeStripping, reactPhase } = currThreadStreamState?.llmInfo ?? {}
+	const { displayContentSoFar, toolCallsSoFar, reasoningSoFar, _rawTextBeforeStripping, reactPhase, textDelta, reasoningDelta } = currThreadStreamState?.llmInfo ?? {}
+
+	// Local accumulation of streaming chunks for immediate rendering
+	const [localDisplayContent, setLocalDisplayContent] = useState('')
+	const [localReasoning, setLocalReasoning] = useState('')
+
+	// Accumulate chunks when they arrive
+	useEffect(() => {
+		if (textDelta) {
+			setLocalDisplayContent(prev => prev + textDelta)
+		}
+	}, [textDelta])
+
+	useEffect(() => {
+		if (reasoningDelta) {
+			setLocalReasoning(prev => prev + reasoningDelta)
+		}
+	}, [reasoningDelta])
+
+	// Reset local state when streaming starts/stops
+	useEffect(() => {
+		if (isRunning === 'LLM' && !displayContentSoFar) {
+			setLocalDisplayContent('')
+			setLocalReasoning('')
+		}
+	}, [isRunning, displayContentSoFar])
+
+	// Use local accumulated content for streaming, fallback to accumulated content
+	const streamingDisplayContent = isRunning === 'LLM' ? localDisplayContent : displayContentSoFar
+	const streamingReasoning = isRunning === 'LLM' ? localReasoning : reasoningSoFar
+
 		// this is just if it's currently being generated, NOT if it's currently running
 		const toolIsGenerating = !!(toolCallsSoFar && toolCallsSoFar.some(tc => !tc.isDone)) // show loading for slow tools (right now just edit)
 	
@@ -2812,14 +2842,14 @@ export const SidebarChat = () => {
 
 	// Use the actual message index for the streaming bubble so React doesn't remount when streaming ends
 	const streamingChatIdx = previousMessages.length
-	const currStreamingMessageHTML = reasoningSoFar || displayContentSoFar || isRunning ?
+	const currStreamingMessageHTML = streamingReasoning || streamingDisplayContent || isRunning ?
 		<ChatBubble
 			key={streamingChatIdx}
 			currCheckpointIdx={currCheckpointIdx}
 			chatMessage={{
 				role: 'assistant',
-				displayContent: displayContentSoFar ?? '',
-				reasoning: reasoningSoFar ?? '',
+				displayContent: streamingDisplayContent ?? '',
+				reasoning: streamingReasoning ?? '',
 				anthropicReasoning: null,
 			}}
 			messageIdx={streamingChatIdx}

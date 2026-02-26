@@ -358,6 +358,8 @@ export type ThreadStreamState = {
 			toolCallsSoFar: RawToolCallObj[] | null;
 			_rawTextBeforeStripping?: string; // For XML tool call detection in UI
 			reactPhase?: ReActPhase | null; // Current ReAct phase for UI
+			textDelta?: string; // Raw chunk for direct streaming
+			reasoningDelta?: string; // Raw reasoning chunk for direct streaming
 		};
 		toolInfo?: undefined;
 		interrupt: Promise<() => void>; // calling this should have no effect on state - would be too confusing. it just cancels the tool
@@ -1599,6 +1601,8 @@ class ChatThreadService extends Disposable implements IChatThreadService {
 								toolCallsSoFar: parsedToolCalls ?? null,
 								_rawTextBeforeStripping,
 								reactPhase: currentReActPhase,
+								textDelta,
+								reasoningDelta,
 							},
 							interrupt: Promise.resolve(() => { if (llmCancelToken) this._llmMessageService.abort(llmCancelToken) }),
 							tokenUsage,

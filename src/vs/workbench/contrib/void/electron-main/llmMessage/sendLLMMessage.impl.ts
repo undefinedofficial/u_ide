@@ -523,6 +523,7 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 	const { nameOfFieldInDelta: nameOfReasoningFieldInDelta } = providerReasoningIOSettings?.output ?? {}
 	let fullReasoningSoFar = ''
 	let fullTextSoFar = ''
+	let lastFullTextLength = 0
 
 	const toText = (content: unknown): string => {
 		if (!content) return ''
@@ -820,9 +821,21 @@ const _sendOpenAICompatibleChat = async ({ messages, onText, onFinalMessage, onE
 							}
 
 							const displayText = !specialToolFormat ? stripXMLBlocks(fullTextSoFar) : fullTextSoFar
+
+							// Calculate textDelta for this chunk
+							const newText = fullTextSoFar.slice(lastFullTextLength)
+							lastFullTextLength = fullTextSoFar.length
+
 							onText({
 								fullText: displayText,
 								fullReasoning: fullReasoningSoFar,
+								textDelta: newText,
+								reasoningDelta: nameOfReasoningFieldInDelta && (!reasoningInfo || reasoningInfo.isReasoningEnabled) ? (
+									(delta as any)?.[nameOfReasoningFieldInDelta] ||
+									(delta as any)?.reasoning ||
+									(delta as any)?.thinking ||
+									''
+								) : undefined,
 								toolCalls: toolCalls.length === 0 ? undefined : mapToRawToolCalls(toolCalls),
 								_rawTextBeforeStripping: !specialToolFormat ? fullTextSoFar : undefined,
 							})
